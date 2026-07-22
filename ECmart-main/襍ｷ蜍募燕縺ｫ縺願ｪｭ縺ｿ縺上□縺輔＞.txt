@@ -1,0 +1,18 @@
+【修正版の起動方法】
+
+1. このフォルダ直下に .env.local を置きます。
+   以前のプロジェクトで設定した .env.local をコピーしても構いません。
+
+2. node_modules が残っている場合は削除します。
+
+3. ターミナルで次を実行します。
+
+   npm install
+   npm run dev
+
+4. 表示された http://localhost:3000 をブラウザで開きます。
+
+【今回の修正】
+- package-lock.json と Supabase依存パッケージの不一致を修正
+- 別環境の node_modules を配布物から除外
+- Google Fontsの通信失敗でビルドが止まらないよう、OS内蔵フォントへ変更
