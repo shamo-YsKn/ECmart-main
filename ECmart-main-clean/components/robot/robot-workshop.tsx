@@ -326,7 +326,7 @@ export function RobotWorkshop() {
           <CardContent>
             <div className="rounded-2xl bg-[radial-gradient(circle_at_50%_35%,var(--color-secondary),var(--color-muted))] p-4">
               <div className="mx-auto flex aspect-square max-w-sm items-center justify-center">
-                <RobotCharacter config={config} className="h-full w-full transition-all" />
+                <RobotCharacter config={config} interactive className="h-full w-full transition-all" />
               </div>
               <div className="mx-auto -mt-2 w-fit rounded-full border bg-background/90 px-4 py-1 font-display text-sm font-bold shadow-sm">
                 {config.name || (config.base === "volta" ? "ボルタ" : "ナッティ")}
@@ -346,7 +346,7 @@ export function RobotWorkshop() {
               ))}
             </div>
             <p className="mt-3 text-center text-sm text-muted-foreground">
-              視点を切り替えると、くるっと向きが変わります
+              ボタンで視点を切り替えた後も、そのまま360度回せます
             </p>
           </CardContent>
         </Card>
