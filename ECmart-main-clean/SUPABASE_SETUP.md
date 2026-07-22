@@ -6,13 +6,27 @@
 - ログイン／ログアウト
 - 表示名と「ひとこと」のプロフィール保存
 - 商品のお気に入り保存
-- 同じアカウントでログインした別端末とのお気に入り共有
+- 自作したボルタ／ナッティの保存・再編集
+- 保存したロボットをアカウントアイコンに設定
+- 同じアカウントでログインした別端末とのデータ共有
 
-## 1. Supabaseプロジェクトを作成
+## すでに以前のSQLを実行済みの場合
+
+今回のロボット保存機能だけを追加する場合は、Supabase Dashboardの **SQL Editor** で次のファイルを実行してください。
+
+```text
+supabase/robot-storage-migration.sql
+```
+
+実行後、サイトを再読み込みします。既存のアカウント・プロフィール・お気に入りはそのまま残ります。
+
+## 新しくSupabaseを設定する場合
+
+### 1. Supabaseプロジェクトを作成
 
 Supabaseで新しいプロジェクトを作成します。試作段階はFreeプランで構いません。
 
-## 2. テーブルとアクセス制御を作成
+### 2. テーブルとアクセス制御を作成
 
 Supabase Dashboardの **SQL Editor** を開き、プロジェクト内の次のファイルを貼り付けて実行します。
 
@@ -24,15 +38,23 @@ supabase/setup.sql
 
 - `profiles` テーブル
 - `favorites` テーブル
-- Row Level Security（自分のデータだけ読み書き可能）
+- `saved_robots` テーブル
+- Row Level Security（本人のデータだけ保存・編集・削除可能）
 - 新規登録時のプロフィール自動作成トリガー
+- アカウントアイコンを1体だけ選択するための関数
 
-## 3. 環境変数を設定
+### 3. 環境変数を設定
 
 `.env.example` をコピーして `.env.local` を作成します。
 
 ```bash
 cp .env.example .env.local
+```
+
+Windows PowerShellでは次のコマンドでも作成できます。
+
+```powershell
+Copy-Item .env.example .env.local
 ```
 
 Supabase Dashboardの **Connect** 画面に表示されるProject URLとPublishable keyを設定します。
@@ -44,7 +66,7 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxxxx
 
 `service_role`／Secret keyはブラウザ側へ置かないでください。この実装では不要です。
 
-## 4. 認証設定
+### 4. 認証設定
 
 Supabase Dashboardの **Authentication > URL Configuration** で、開発時は以下をSite URLまたはRedirect URLに追加します。
 
@@ -54,9 +76,9 @@ http://localhost:3000
 
 Vercelへ公開したあとは、実際のVercel URLも追加してください。
 
-メール確認を有効にしている場合、新規登録後に確認メールが届きます。確認リンクを開いてからログインします。試作中だけ確認メールを省略したい場合は、Supabase DashboardのAuthentication設定でEmail confirmationを変更できます。
+メール確認を有効にしている場合、新規登録後に確認メールが届きます。確認リンクを開いてからログインします。
 
-## 5. パッケージのインストールと起動
+### 5. パッケージのインストールと起動
 
 ```bash
 npm install
@@ -88,4 +110,15 @@ pnpm dev
 | `product_id` | `lib/data.ts` 内の商品ID |
 | `created_at` | 登録日時 |
 
-商品本体は現時点では `lib/data.ts` の固定データです。そのため `product_id` は文字列として保存しています。将来、商品もSupabaseへ移す場合は外部キーへ変更できます。
+### saved_robots
+
+| 列 | 内容 |
+|---|---|
+| `id` | 保存ロボット固有のID |
+| `user_id` | 作成したユーザー |
+| `name` | ロボットの名前 |
+| `config` | 種類、色、ポーズ、持ち物、大きさなどの設定（JSON） |
+| `is_avatar` | アカウントアイコンとして選択中か |
+| `created_at` / `updated_at` | 作成・更新日時 |
+
+本人は自分の保存ロボットをすべて読み書きできます。アカウントアイコンに設定した1体の外観設定だけは、将来レビュー欄などで表示できるよう公開読み取りを許可しています。メールアドレスやパスワードはこのテーブルには保存されません。

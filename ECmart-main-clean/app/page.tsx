@@ -12,9 +12,9 @@ import { RankingView } from "@/components/views/ranking-view"
 import { CartView } from "@/components/views/cart-view"
 import { AccountView } from "@/components/views/account-view"
 import { RobotWorkshop } from "@/components/robot/robot-workshop"
+import { RobotAvatar } from "@/components/robot/robot-avatar"
 import {
   Hammer,
-  Heart,
   Home,
   ShoppingBag,
   Store,
@@ -113,8 +113,16 @@ function Site() {
               className="relative rounded-full"
               onClick={() => navigate("account")}
             >
-              <UserRound data-icon="inline-start" />
-              <span className="hidden lg:inline max-w-28 truncate">{accountLabel}</span>
+              {account.user ? (
+                <RobotAvatar
+                  config={account.avatarRobot?.config}
+                  className="-ml-1 mr-1 size-7 border-0"
+                  title="マイアカウント"
+                />
+              ) : (
+                <UserRound data-icon="inline-start" />
+              )}
+              <span className="hidden max-w-28 truncate lg:inline">{accountLabel}</span>
               {account.favoriteProductIds.size > 0 && (
                 <Badge className="absolute -right-2 -top-2 flex size-5 items-center justify-center rounded-full p-0 tabular-nums">
                   {account.favoriteProductIds.size}
@@ -184,7 +192,15 @@ function Site() {
                   active ? "text-primary" : "text-muted-foreground",
                 )}
               >
-                <item.icon className="size-5" />
+                {item.key === "account" && account.user ? (
+                  <RobotAvatar
+                    config={account.avatarRobot?.config}
+                    className="size-6 border-0"
+                    title="マイアカウント"
+                  />
+                ) : (
+                  <item.icon className="size-5" />
+                )}
                 {item.key === "cart" && cart.totalCount > 0 && (
                   <span className="absolute right-[calc(50%-1.35rem)] top-1.5 flex size-4 items-center justify-center rounded-full bg-primary text-[0.6rem] font-bold text-primary-foreground">
                     {cart.totalCount}

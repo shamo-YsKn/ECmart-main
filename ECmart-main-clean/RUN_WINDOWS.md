@@ -2,7 +2,7 @@
 
 ## 事前準備
 
-- Node.js 20.9以上をインストールしてください。
+- Node.js 22以上をインストールしてください。
 - PowerShellまたはWindows Terminalを使います。
 
 ## 1. ZIPを展開
@@ -53,7 +53,7 @@ http://localhost:3000
 
 1. `.env.example` をコピーして `.env.local` を作ります。
 2. SupabaseのURLとPublishable keyを記入します。
-3. Supabase SQL Editorで `supabase/setup.sql` を実行します。
+3. 新規設定なら `supabase/setup.sql`、以前の設定に機能追加する場合は `supabase/robot-storage-migration.sql` をSQL Editorで実行します。
 4. AuthenticationのURL設定に `http://localhost:3000` を追加します。
 
 Supabase未設定でも、サイト本体は起動します。アカウント・プロフィール・お気に入りだけ利用できません。

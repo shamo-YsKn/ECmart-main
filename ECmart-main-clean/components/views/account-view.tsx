@@ -2,22 +2,31 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react"
 import type { CartApi } from "@/lib/use-cart"
+import type { SavedRobot } from "@/lib/types"
 import { products } from "@/lib/data"
 import { useAccount } from "@/lib/account-context"
 import { ProductCard } from "@/components/product-card"
+import { RobotAvatar } from "@/components/robot/robot-avatar"
+import { RobotCharacter } from "@/components/robot/robot-character"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import {
+  Bot,
+  Check,
   CheckCircle2,
+  Database,
   Heart,
   LoaderCircle,
   LogIn,
   LogOut,
+  Pencil,
+  Plus,
   Save,
   Settings2,
+  Trash2,
   UserPlus,
   UserRound,
 } from "lucide-react"
@@ -29,6 +38,8 @@ type Notice = {
   type: "success" | "error"
   text: string
 } | null
+
+const ROBOT_DRAFT_KEY = "machinowa:robot-draft"
 
 function NoticeBox({ notice }: { notice: Notice }) {
   if (!notice) return null
@@ -48,6 +59,10 @@ function NoticeBox({ notice }: { notice: Notice }) {
   )
 }
 
+function navigateTo(tab: "robot" | "shops") {
+  window.dispatchEvent(new CustomEvent("machinowa:navigate", { detail: { tab } }))
+}
+
 export function AccountView({ cart }: { cart: CartApi }) {
   const account = useAccount()
   const [mode, setMode] = useState<AuthMode>("signIn")
@@ -57,6 +72,7 @@ export function AccountView({ cart }: { cart: CartApi }) {
   const [displayName, setDisplayName] = useState("")
   const [bio, setBio] = useState("")
   const [submitting, setSubmitting] = useState(false)
+  const [robotActionId, setRobotActionId] = useState<string | null>(null)
   const [notice, setNotice] = useState<Notice>(null)
 
   useEffect(() => {
@@ -112,7 +128,10 @@ export function AccountView({ cart }: { cart: CartApi }) {
       return
     }
 
-    setNotice({ type: "success", text: mode === "signUp" ? "アカウントを作成しました。" : "ログインしました。" })
+    setNotice({
+      type: "success",
+      text: mode === "signUp" ? "アカウントを作成しました。" : "ログインしました。",
+    })
     setPassword("")
     setPasswordConfirm("")
   }
@@ -139,6 +158,47 @@ export function AccountView({ cart }: { cart: CartApi }) {
       result.error
         ? { type: "error", text: result.error }
         : { type: "success", text: "ログアウトしました。" },
+    )
+  }
+
+  function openWorkshop(robot?: SavedRobot) {
+    if (robot) {
+      window.sessionStorage.setItem(
+        ROBOT_DRAFT_KEY,
+        JSON.stringify({ id: robot.id, config: robot.config }),
+      )
+    } else {
+      window.sessionStorage.removeItem(ROBOT_DRAFT_KEY)
+    }
+    navigateTo("robot")
+  }
+
+  async function setAvatar(robotId: string | null) {
+    setRobotActionId(robotId ?? "clear")
+    setNotice(null)
+    const result = await account.setAvatarRobot(robotId)
+    setRobotActionId(null)
+    setNotice(
+      result.error
+        ? { type: "error", text: result.error }
+        : {
+            type: "success",
+            text: robotId ? "アカウントアイコンを変更しました。" : "標準アイコンに戻しました。",
+          },
+    )
+  }
+
+  async function deleteRobot(robot: SavedRobot) {
+    if (!window.confirm(`${robot.name}を削除しますか？`)) return
+
+    setRobotActionId(robot.id)
+    setNotice(null)
+    const result = await account.deleteRobot(robot.id)
+    setRobotActionId(null)
+    setNotice(
+      result.error
+        ? { type: "error", text: result.error }
+        : { type: "success", text: `${robot.name}を削除しました。` },
     )
   }
 
@@ -196,7 +256,7 @@ export function AccountView({ cart }: { cart: CartApi }) {
           </div>
           <h1 className="font-display text-3xl font-black">マイアカウント</h1>
           <p className="mt-2 text-muted-foreground">
-            ログインすると、お気に入りを端末をまたいで保存できます。
+            ログインすると、お気に入りや自作ロボットを端末をまたいで保存できます。
           </p>
         </div>
 
@@ -307,15 +367,18 @@ export function AccountView({ cart }: { cart: CartApi }) {
 
   return (
     <div className="flex flex-col gap-10">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="font-display text-3xl font-black">マイページ</h1>
-            <Badge variant="secondary" className="rounded-full">ログイン中</Badge>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-4">
+          <RobotAvatar config={account.avatarRobot?.config} className="size-20 shadow-sm" />
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="font-display text-3xl font-black">マイページ</h1>
+              <Badge variant="secondary" className="rounded-full">ログイン中</Badge>
+            </div>
+            <p className="mt-1 text-muted-foreground">
+              {account.profile?.display_name || account.user.email || "マチノワ会員"}さん、こんにちは。
+            </p>
           </div>
-          <p className="mt-1 text-muted-foreground">
-            {account.profile?.display_name || account.user.email || "マチノワ会員"}さん、こんにちは。
-          </p>
         </div>
         <Button
           type="button"
@@ -331,7 +394,21 @@ export function AccountView({ cart }: { cart: CartApi }) {
 
       <NoticeBox notice={notice} />
 
-      <section className="grid gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+      {!account.robotStorageReady && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <div className="flex items-start gap-2">
+            <Database className="mt-0.5 size-4 shrink-0" />
+            <div>
+              <p className="font-bold">自作ロボット保存用の追加設定が必要です</p>
+              <p className="mt-1">
+                SupabaseのSQL Editorで <code>supabase/robot-storage-migration.sql</code> を実行してください。
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <section className="grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <Card className="border-2">
           <CardHeader>
             <CardTitle className="font-display flex items-center gap-2">
@@ -341,6 +418,31 @@ export function AccountView({ cart }: { cart: CartApi }) {
           </CardHeader>
           <CardContent>
             <form className="flex flex-col gap-5" onSubmit={handleSaveProfile}>
+              <div className="flex items-center gap-4 rounded-2xl border bg-muted/40 p-4">
+                <RobotAvatar config={account.avatarRobot?.config} className="size-24" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-display font-black">
+                    {account.avatarRobot?.name ?? "標準アイコン"}
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    自作したボルタ／ナッティを、レビューなどで使うアカウントアイコンにできます。
+                  </p>
+                  {account.avatarRobot && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="mt-3 rounded-full"
+                      onClick={() => void setAvatar(null)}
+                      disabled={robotActionId === "clear"}
+                    >
+                      {robotActionId === "clear" && <LoaderCircle className="animate-spin" />}
+                      標準アイコンに戻す
+                    </Button>
+                  )}
+                </div>
+              </div>
+
               <div className="flex flex-col gap-2">
                 <Label>登録メールアドレス</Label>
                 <div className="rounded-xl bg-muted px-3 py-2 text-sm text-muted-foreground">
@@ -383,25 +485,128 @@ export function AccountView({ cart }: { cart: CartApi }) {
         </Card>
 
         <Card className="border-2 bg-primary/5">
-          <CardContent className="flex h-full flex-col justify-center gap-4 p-6">
+          <CardContent className="flex h-full flex-col justify-center gap-5 p-6">
             <div className="flex size-12 items-center justify-center rounded-full bg-primary text-primary-foreground">
               <CheckCircle2 className="size-6" />
             </div>
             <div>
-              <h2 className="font-display text-xl font-black">保存機能が有効です</h2>
+              <h2 className="font-display text-xl font-black">アカウント保存が有効です</h2>
               <p className="mt-2 leading-relaxed text-muted-foreground">
-                お気に入りはSupabaseに保存されるため、同じアカウントでログインすれば、別のパソコンやスマートフォンからも確認できます。
+                お気に入りと自作ロボットはSupabaseに保存されるため、同じアカウントなら別の端末からも確認できます。
               </p>
             </div>
-            <div className="rounded-xl border bg-background/80 p-4 text-sm">
-              <div className="text-muted-foreground">お気に入り登録数</div>
-              <div className="font-display mt-1 text-3xl font-black text-primary">
-                {favoriteProducts.length}
-                <span className="ml-1 text-sm text-foreground">点</span>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-xl border bg-background/80 p-4 text-sm">
+                <div className="text-muted-foreground">お気に入り</div>
+                <div className="font-display mt-1 text-3xl font-black text-primary">
+                  {favoriteProducts.length}<span className="ml-1 text-sm text-foreground">点</span>
+                </div>
+              </div>
+              <div className="rounded-xl border bg-background/80 p-4 text-sm">
+                <div className="text-muted-foreground">保存ロボット</div>
+                <div className="font-display mt-1 text-3xl font-black text-primary">
+                  {account.savedRobots.length}<span className="ml-1 text-sm text-foreground">体</span>
+                </div>
               </div>
             </div>
           </CardContent>
         </Card>
+      </section>
+
+      <section className="flex flex-col gap-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="font-display flex items-center gap-2 text-2xl font-black">
+              <Bot className="size-6 text-primary" />
+              保存したボルタ・ナッティ
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              工房で作ったデザインを保存し、好きな1体をアカウントアイコンに設定できます。
+            </p>
+          </div>
+          <Button className="rounded-full" onClick={() => openWorkshop()}>
+            <Plus data-icon="inline-start" />
+            新しく作る
+          </Button>
+        </div>
+
+        {account.robotStorageReady && account.savedRobots.length > 0 ? (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {account.savedRobots.map((robot) => (
+              <Card
+                key={robot.id}
+                className={cn("overflow-hidden border-2", robot.is_avatar && "border-primary")}
+              >
+                <div className="relative aspect-[4/3] bg-[radial-gradient(circle_at_50%_35%,var(--color-secondary),var(--color-muted))] p-3">
+                  <RobotCharacter config={{ ...robot.config, view: "front" }} className="h-full w-full" />
+                  {robot.is_avatar && (
+                    <Badge className="absolute left-3 top-3 rounded-full">
+                      <Check className="size-3" />
+                      現在のアイコン
+                    </Badge>
+                  )}
+                </div>
+                <CardContent className="flex flex-col gap-4 p-4">
+                  <div>
+                    <h3 className="font-display text-lg font-black">{robot.name}</h3>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {robot.config.base === "volta" ? "ボルタ型" : "ナッティ型"}・{robot.config.size} cm
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {!robot.is_avatar && (
+                      <Button
+                        size="sm"
+                        className="rounded-full"
+                        onClick={() => void setAvatar(robot.id)}
+                        disabled={robotActionId === robot.id}
+                      >
+                        {robotActionId === robot.id ? (
+                          <LoaderCircle className="animate-spin" data-icon="inline-start" />
+                        ) : (
+                          <UserRound data-icon="inline-start" />
+                        )}
+                        アイコンにする
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-full"
+                      onClick={() => openWorkshop(robot)}
+                    >
+                      <Pencil data-icon="inline-start" />
+                      工房で編集
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="rounded-full text-destructive hover:text-destructive"
+                      onClick={() => void deleteRobot(robot)}
+                      disabled={robotActionId === robot.id}
+                    >
+                      <Trash2 data-icon="inline-start" />
+                      削除
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : account.robotStorageReady ? (
+          <Card className="border-2 border-dashed">
+            <CardContent className="flex flex-col items-center gap-3 py-12 text-center text-muted-foreground">
+              <Bot className="size-9" />
+              <div>
+                <p className="font-display font-bold text-foreground">まだ保存したロボットはいません</p>
+                <p className="mt-1 text-sm">ロボット工房で作って、アカウントへ保存してみてください。</p>
+              </div>
+              <Button className="mt-2 rounded-full" onClick={() => openWorkshop()}>
+                ロボット工房を開く
+              </Button>
+            </CardContent>
+          </Card>
+        ) : null}
       </section>
 
       <section className="flex flex-col gap-5">

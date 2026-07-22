@@ -59,3 +59,15 @@ export interface RobotConfig {
   view: RobotView
   name: string
 }
+
+/** Supabaseに保存されたロボット */
+export interface SavedRobot {
+  id: string
+  user_id: string
+  name: string
+  config: RobotConfig
+  is_avatar: boolean
+  created_at: string
+  updated_at: string
+}
+
