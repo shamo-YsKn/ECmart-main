@@ -4,10 +4,11 @@ import type { CartApi } from "@/lib/use-cart"
 import { products, shops, townEvents } from "@/lib/data"
 import { ProductCard } from "@/components/product-card"
 import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { RobotCharacter } from "@/components/robot/robot-character"
 import { ArrowRight, MapPin, Sparkles, Hammer } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 export function HomeView({
   cart,
@@ -38,19 +39,30 @@ export function HomeView({
               買い物のあとは、ロボット工房で自分だけの鉄の仲間づくりも楽しめます。
             </p>
             <div className="flex flex-wrap gap-3">
-              <Button size="lg" className="rounded-full" onClick={() => onNavigate("shops")}>
+              <a
+                href="?tab=shops"
+                className={cn(buttonVariants({ size: "lg" }), "rounded-full")}
+                onClick={(event) => {
+                  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+                  event.preventDefault()
+                  onNavigate("shops")
+                }}
+              >
                 お店をのぞく
                 <ArrowRight data-icon="inline-end" />
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="rounded-full"
-                onClick={() => onNavigate("robot")}
+              </a>
+              <a
+                href="?tab=robot"
+                className={cn(buttonVariants({ size: "lg", variant: "outline" }), "rounded-full")}
+                onClick={(event) => {
+                  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+                  event.preventDefault()
+                  onNavigate("robot")
+                }}
               >
                 <Hammer data-icon="inline-start" />
                 ロボット工房へ
-              </Button>
+              </a>
             </div>
           </div>
           <div className="relative">
@@ -166,10 +178,18 @@ export function HomeView({
             <h2 className="font-display text-2xl font-bold">いま人気の品</h2>
             <p className="mt-1 text-sm text-muted-foreground">町のみんなに選ばれています</p>
           </div>
-          <Button variant="ghost" className="rounded-full" onClick={() => onNavigate("ranking")}>
+          <a
+            href="?tab=ranking"
+            className={cn(buttonVariants({ variant: "ghost" }), "rounded-full")}
+            onClick={(event) => {
+              if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+              event.preventDefault()
+              onNavigate("ranking")
+            }}
+          >
             ランキングを見る
             <ArrowRight data-icon="inline-end" />
-          </Button>
+          </a>
         </div>
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {featured.map((p) => (

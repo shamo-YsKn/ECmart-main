@@ -4,11 +4,12 @@ import { useState } from "react"
 import type { CartApi } from "@/lib/use-cart"
 import { formatYen } from "@/lib/data"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { QuantityStepper } from "@/components/product-card"
 import { ShoppingBag, Trash2, X, PartyPopper } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 const SHIPPING_PER_SHOP = 350
 
@@ -32,9 +33,17 @@ export function CartView({
           町のお店から、心をこめてお届けします。
           発送のお知らせはメールでご案内します。
         </p>
-        <Button className="rounded-full" onClick={() => onNavigate("home")}>
+        <a
+          href="?tab=home"
+          className={cn(buttonVariants(), "rounded-full")}
+          onClick={(event) => {
+            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+            event.preventDefault()
+            onNavigate("home")
+          }}
+        >
           ホームへもどる
-        </Button>
+        </a>
       </div>
     )
   }
@@ -47,9 +56,17 @@ export function CartView({
         </div>
         <h1 className="font-display text-2xl font-black">カゴは空っぽです</h1>
         <p className="text-muted-foreground">気になる品をカゴに入れてみましょう。</p>
-        <Button className="rounded-full" onClick={() => onNavigate("shops")}>
+        <a
+          href="?tab=shops"
+          className={cn(buttonVariants(), "rounded-full")}
+          onClick={(event) => {
+            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+            event.preventDefault()
+            onNavigate("shops")
+          }}
+        >
           お店をのぞく
-        </Button>
+        </a>
       </div>
     )
   }

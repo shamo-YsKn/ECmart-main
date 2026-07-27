@@ -56,23 +56,41 @@
 
 :root {
   color-scheme: light;
+  --background: #f9f4ea;
   --background: oklch(0.968 0.014 84);
+  --foreground: #35251b;
   --foreground: oklch(0.28 0.03 55);
+  --card: #fffdf9;
   --card: oklch(0.995 0.006 84);
+  --card-foreground: #35251b;
   --card-foreground: oklch(0.28 0.03 55);
+  --popover: #fffdf9;
   --popover: oklch(0.995 0.006 84);
+  --popover-foreground: #35251b;
   --popover-foreground: oklch(0.28 0.03 55);
+  --primary: #d95f1e;
   --primary: oklch(0.63 0.17 44);
+  --primary-foreground: #fffbf4;
   --primary-foreground: oklch(0.99 0.01 84);
+  --secondary: #f1e0ca;
   --secondary: oklch(0.915 0.035 76);
+  --secondary-foreground: #493224;
   --secondary-foreground: oklch(0.34 0.04 52);
+  --muted: #f0e9dd;
   --muted: oklch(0.936 0.018 84);
+  --muted-foreground: #776558;
   --muted-foreground: oklch(0.52 0.03 58);
+  --accent: #f5c98e;
   --accent: oklch(0.86 0.09 74);
+  --accent-foreground: #3e281b;
   --accent-foreground: oklch(0.3 0.04 52);
+  --destructive: #e7000b;
   --destructive: oklch(0.577 0.245 27.325);
+  --border: #e0d6c8;
   --border: oklch(0.88 0.022 74);
+  --input: #e0d6c8;
   --input: oklch(0.88 0.022 74);
+  --ring: #d95f1e;
   --ring: oklch(0.63 0.17 44);
   --chart-1: oklch(0.63 0.17 44);
   --chart-2: oklch(0.72 0.12 68);
@@ -81,17 +99,28 @@
   --chart-5: oklch(0.45 0.05 50);
   --radius: 1rem;
 
+  --iron: #8c857f;
   --iron: oklch(0.62 0.012 60);
+  --iron-foreground: #f5f1ea;
   --iron-foreground: oklch(0.96 0.01 84);
+  --bolt: #aea298;
   --bolt: oklch(0.72 0.02 65);
 
+  --sidebar: #fffdf9;
   --sidebar: oklch(0.99 0.006 84);
+  --sidebar-foreground: #35251b;
   --sidebar-foreground: oklch(0.28 0.03 55);
+  --sidebar-primary: #d95f1e;
   --sidebar-primary: oklch(0.63 0.17 44);
+  --sidebar-primary-foreground: #fffbf4;
   --sidebar-primary-foreground: oklch(0.99 0.01 84);
+  --sidebar-accent: #f1e0ca;
   --sidebar-accent: oklch(0.915 0.035 76);
+  --sidebar-accent-foreground: #493224;
   --sidebar-accent-foreground: oklch(0.34 0.04 52);
+  --sidebar-border: #e0d6c8;
   --sidebar-border: oklch(0.88 0.022 74);
+  --sidebar-ring: #d95f1e;
   --sidebar-ring: oklch(0.63 0.17 44);
 }
 

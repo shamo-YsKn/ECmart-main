@@ -611,20 +611,22 @@ function InteractiveRig({
 function Scene({
   config,
   interactive,
+  lightweight,
 }: {
   config: RobotConfig
   interactive: boolean
+  lightweight: boolean
 }) {
   const sizeScale = 0.78 + ((clamp(config.size, 20, 90) - 20) / 70) * 0.4
 
   return (
     <>
-      {interactive && <SceneEnvironment />}
+      {interactive && !lightweight && <SceneEnvironment />}
       <ambientLight intensity={0.55} />
       <hemisphereLight color="#ffffff" groundColor="#78919a" intensity={1.15} />
-      <directionalLight position={[4, 6, 5]} intensity={2.2} castShadow={interactive} />
-      <pointLight position={[-4, 2, 4]} color="#ffd6a8" intensity={18} distance={12} />
-      <pointLight position={[4, 1, -3]} color="#8ed8ed" intensity={14} distance={12} />
+      <directionalLight position={[4, 6, 5]} intensity={2.2} castShadow={interactive && !lightweight} />
+      <pointLight position={[-4, 2, 4]} color="#ffd6a8" intensity={lightweight ? 8 : 18} distance={12} />
+      {!lightweight && <pointLight position={[4, 1, -3]} color="#8ed8ed" intensity={14} distance={12} />}
 
       {interactive ? (
         <InteractiveRig config={config} scale={sizeScale} />
@@ -647,26 +649,33 @@ export function RobotCanvas({
   config: RobotConfig
   interactive?: boolean
 }) {
+  const lightweight =
+    typeof window !== "undefined" &&
+    (window.matchMedia?.("(pointer: coarse)").matches || window.innerWidth < 768)
+
   return (
     <Canvas
       camera={{ position: [0, 0.42, 7.6], fov: 31, near: 0.1, far: 100 }}
-      dpr={[1, 1.5]}
-      performance={{ min: 0.55 }}
+      dpr={lightweight ? 1 : [1, 1.5]}
+      performance={{ min: lightweight ? 0.4 : 0.55 }}
       frameloop={interactive ? "always" : "demand"}
-      shadows={interactive}
+      shadows={interactive && !lightweight}
       gl={{
         alpha: true,
-        antialias: true,
-        powerPreference: "high-performance",
+        antialias: !lightweight,
+        powerPreference: lightweight ? "default" : "high-performance",
       }}
       onCreated={({ gl }: { gl: THREE.WebGLRenderer }) => {
         gl.outputColorSpace = THREE.SRGBColorSpace
         gl.toneMapping = THREE.ACESFilmicToneMapping
         gl.toneMappingExposure = 1.08
       }}
-      style={{ touchAction: "none" }}
+      style={{
+        touchAction: interactive ? "none" : "auto",
+        pointerEvents: interactive ? "auto" : "none",
+      }}
     >
-      <Scene config={config} interactive={interactive} />
+      <Scene config={config} interactive={interactive} lightweight={lightweight} />
     </Canvas>
   )
 }
