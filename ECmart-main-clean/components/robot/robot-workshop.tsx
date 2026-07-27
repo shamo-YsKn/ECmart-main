@@ -1,16 +1,9 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { RobotCharacter } from "./robot-character"
+import { RobotCharacter, type RobotRenderMode } from "./robot-character"
 import { RobotAvatar } from "./robot-avatar"
-import type {
-  RobotBase,
-  RobotConfig,
-  RobotItem,
-  RobotPose,
-  RobotView,
-  SavedRobot,
-} from "@/lib/types"
+import type { RobotBase, RobotConfig, SavedRobot } from "@/lib/types"
 import { useAccount } from "@/lib/account-context"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -19,6 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+import { ROBOT_BASE_OPTIONS, ROBOT_ITEM_OPTIONS, ROBOT_POSE_OPTIONS, ROBOT_VIEW_OPTIONS } from "@/lib/robot-parts"
 import {
   Check,
   Database,
@@ -57,31 +51,10 @@ const ACCENT_COLORS = [
   { label: "だいだい", value: "#f08a3c" },
 ]
 
-const BASES: { value: RobotBase; label: string; sub: string }[] = [
-  { value: "volta", label: "ボルタ", sub: "細いボルト脚のタイプ" },
-  { value: "natty", label: "ナッティ", sub: "大きなナット腰のタイプ" },
-]
-
-const POSES: { value: RobotPose; label: string }[] = [
-  { value: "stand", label: "きをつけ" },
-  { value: "wave", label: "おて振り" },
-  { value: "cheer", label: "ばんざい" },
-  { value: "point", label: "ゆびさし" },
-]
-
-const ITEMS: { value: RobotItem; label: string }[] = [
-  { value: "none", label: "なし" },
-  { value: "wrench", label: "スパナ" },
-  { value: "gear", label: "歯車" },
-  { value: "flower", label: "お花" },
-  { value: "heart", label: "ハート" },
-]
-
-const VIEWS: { value: RobotView; label: string }[] = [
-  { value: "front", label: "正面" },
-  { value: "side", label: "側面" },
-  { value: "back", label: "背面" },
-]
+const BASES = ROBOT_BASE_OPTIONS
+const POSES = ROBOT_POSE_OPTIONS
+const ITEMS = ROBOT_ITEM_OPTIONS
+const VIEWS = ROBOT_VIEW_OPTIONS
 
 const DEFAULT_CONFIG: RobotConfig = {
   base: "volta",
@@ -165,6 +138,19 @@ export function RobotWorkshop() {
   const [editingRobotId, setEditingRobotId] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [notice, setNotice] = useState<Notice>(null)
+  const [desktop3D, setDesktop3D] = useState(false)
+  const [previewMode, setPreviewMode] = useState<RobotRenderMode>("2d")
+
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 900px) and (hover: hover) and (pointer: fine)")
+    const sync = () => {
+      setDesktop3D(media.matches)
+      if (!media.matches) setPreviewMode("2d")
+    }
+    sync()
+    media.addEventListener?.("change", sync)
+    return () => media.removeEventListener?.("change", sync)
+  }, [])
 
   useEffect(() => {
     const rawDraft = window.sessionStorage.getItem(ROBOT_DRAFT_KEY)
@@ -326,13 +312,31 @@ export function RobotWorkshop() {
           <CardContent>
             <div className="rounded-2xl bg-[radial-gradient(circle_at_50%_35%,var(--color-secondary),var(--color-muted))] p-4">
               <div className="mx-auto flex aspect-square max-w-sm items-center justify-center">
-                <RobotCharacter config={config} interactive className="h-full w-full transition-all" />
+                <RobotCharacter
+                  config={config}
+                  interactive={previewMode === "3d"}
+                  mode={previewMode}
+                  on3DUnavailable={() => {
+                    setPreviewMode("2d")
+                    setNotice({ type: "error", text: "このPCでは3D表示を開始できなかったため、2D表示に戻しました。" })
+                  }}
+                  className="h-full w-full transition-all"
+                />
               </div>
               <div className="mx-auto -mt-2 w-fit rounded-full border bg-background/90 px-4 py-1 font-display text-sm font-bold shadow-sm">
                 {config.name || (config.base === "volta" ? "ボルタ" : "ナッティ")}
               </div>
             </div>
-            <div className="mt-4 flex items-center justify-center gap-2">
+            <div className="mt-4 flex flex-col items-center gap-3">
+              {desktop3D ? (
+                <div className="flex items-center gap-2 rounded-full border bg-muted/40 p-1">
+                  <Button size="sm" variant={previewMode === "2d" ? "default" : "ghost"} className="rounded-full" onClick={() => setPreviewMode("2d")}>2D</Button>
+                  <Button size="sm" variant={previewMode === "3d" ? "default" : "ghost"} className="rounded-full" onClick={() => setPreviewMode("3d")}>3D</Button>
+                </div>
+              ) : (
+                <Badge variant="secondary" className="rounded-full">スマホ・タブレットは2D表示</Badge>
+              )}
+              <div className="flex items-center justify-center gap-2">
               {VIEWS.map((v) => (
                 <Button
                   key={v.value}
@@ -344,9 +348,10 @@ export function RobotWorkshop() {
                   {v.label}
                 </Button>
               ))}
+              </div>
             </div>
             <p className="mt-3 text-center text-sm text-muted-foreground">
-              ボタンで視点を切り替えた後も、そのまま360度回せます
+              {previewMode === "3d" ? "PC限定3D：ドラッグで回転、ホイールで拡大縮小できます" : "2Dはアイコンと同じ正式表示。正面・側面・背面を切り替えられます"}
             </p>
           </CardContent>
         </Card>

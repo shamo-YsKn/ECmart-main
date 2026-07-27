@@ -40,6 +40,7 @@ type RobotAccountResult = AccountResult & {
 interface AccountContextValue {
   configured: boolean
   loading: boolean
+  accountLoadError: string | null
   user: User | null
   profile: Profile | null
   favoriteProductIds: Set<string>
@@ -195,10 +196,28 @@ function robotStorageMessage(error?: { message?: string } | null) {
   return `ロボット保存用のSupabase設定を確認してください：${error.message}`
 }
 
+
+function withTimeout<T>(promiseLike: PromiseLike<T>, timeoutMs: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error(`${label} timeout`)), timeoutMs)
+    Promise.resolve(promiseLike).then(
+      (value) => {
+        window.clearTimeout(timer)
+        resolve(value)
+      },
+      (error) => {
+        window.clearTimeout(timer)
+        reject(error)
+      },
+    )
+  })
+}
+
 export function AccountProvider({ children }: { children: ReactNode }) {
   const supabase = useMemo(() => createClient(), [])
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<User | null>(null)
+  const [accountLoadError, setAccountLoadError] = useState<string | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [favoriteProductIds, setFavoriteProductIds] = useState<Set<string>>(
     () => new Set(),
@@ -220,21 +239,29 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      const [profileResponse, favoritesResponse, robotsResponse] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("user_id, display_name, bio, created_at, updated_at")
-          .eq("user_id", nextUser.id)
-          .maybeSingle(),
-        supabase.from("favorites").select("product_id").eq("user_id", nextUser.id),
-        supabase
-          .from("saved_robots")
-          .select("id, user_id, name, config, is_avatar, created_at, updated_at")
-          .eq("user_id", nextUser.id)
-          .order("updated_at", { ascending: false }),
+      const [profileResult, favoritesResult, robotsResult] = await Promise.allSettled([
+        withTimeout(
+          supabase.from("profiles").select("user_id, display_name, bio, created_at, updated_at").eq("user_id", nextUser.id).maybeSingle(),
+          7000,
+          "profile",
+        ),
+        withTimeout(
+          supabase.from("favorites").select("product_id").eq("user_id", nextUser.id),
+          7000,
+          "favorites",
+        ),
+        withTimeout(
+          supabase.from("saved_robots").select("id, user_id, name, config, is_avatar, created_at, updated_at").eq("user_id", nextUser.id).order("updated_at", { ascending: false }),
+          7000,
+          "robots",
+        ),
       ])
 
-      if (!profileResponse.error) {
+      const profileResponse = profileResult.status === "fulfilled" ? profileResult.value : null
+      const favoritesResponse = favoritesResult.status === "fulfilled" ? favoritesResult.value : null
+      const robotsResponse = robotsResult.status === "fulfilled" ? robotsResult.value : null
+
+      if (profileResponse && !profileResponse.error) {
         setProfile(
           profileResponse.data ?? {
             user_id: nextUser.id,
@@ -245,13 +272,17 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         )
       }
 
-      if (!favoritesResponse.error) {
+      if (favoritesResponse && !favoritesResponse.error) {
         setFavoriteProductIds(
           new Set((favoritesResponse.data ?? []).map((row: { product_id: string }) => row.product_id)),
         )
       }
 
-      if (robotsResponse.error) {
+      if (!robotsResponse) {
+        setSavedRobots([])
+        setRobotStorageReady(true)
+        setRobotStorageError("ロボット情報の取得がタイムアウトしました。通信状態を確認して再読み込みしてください。")
+      } else if (robotsResponse.error) {
         setSavedRobots([])
         setRobotStorageReady(!isMissingRobotStorage(robotsResponse.error))
         setRobotStorageError(robotStorageMessage(robotsResponse.error))
@@ -268,23 +299,29 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   )
 
   const refreshAccount = useCallback(async () => {
+    setLoading(true)
+    setAccountLoadError(null)
     if (!supabase) {
       setLoading(false)
       return
     }
 
-    const { data, error } = await supabase.auth.getUser()
-    if (error) {
+    try {
+      // Initial UI only needs the locally stored session. Database RLS still protects
+      // every account table operation. A timeout prevents mobile browsers from
+      // spinning forever when storage/auth locks or the network stalls.
+      const { data, error } = await withTimeout(supabase.auth.getSession(), 5000, "auth session")
+      if (error) throw error
+      await loadUserData(data.session?.user ?? null)
+    } catch {
       setUser(null)
       setProfile(null)
       setFavoriteProductIds(new Set())
       setSavedRobots([])
+      setAccountLoadError("アカウント情報を取得できませんでした。通信状態を確認して、もう一度読み込んでください。")
+    } finally {
       setLoading(false)
-      return
     }
-
-    await loadUserData(data.user)
-    setLoading(false)
   }, [loadUserData, supabase])
 
   useEffect(() => {
@@ -534,6 +571,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     () => ({
       configured: isSupabaseConfigured,
       loading,
+      accountLoadError,
       user,
       profile,
       favoriteProductIds,
@@ -552,6 +590,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       refreshAccount,
     }),
     [
+      accountLoadError,
       avatarRobot,
       deleteRobot,
       favoriteProductIds,

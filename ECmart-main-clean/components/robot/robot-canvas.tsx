@@ -3,31 +3,10 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber"
 import { useEffect, useMemo, useRef } from "react"
 import * as THREE from "three"
-import type { RobotConfig, RobotItem, RobotPose, RobotView } from "@/lib/types"
+import type { RobotConfig, RobotItem } from "@/lib/types"
+import { ROBOT_BASE_PARTS, ROBOT_POSE_PARTS, ROBOT_VIEW_PARTS } from "@/lib/robot-parts"
 
 type Vec3 = [number, number, number]
-type ArmAngles = { left: [number, number]; right: [number, number] }
-
-const ARM_ANGLES: Record<RobotConfig["base"], Record<RobotPose, ArmAngles>> = {
-  volta: {
-    stand: { left: [-132, -112], right: [-48, -68] },
-    wave: { left: [-132, -112], right: [56, 102] },
-    cheer: { left: [126, 101], right: [54, 79] },
-    point: { left: [-132, -112], right: [8, -2] },
-  },
-  natty: {
-    stand: { left: [-126, -106], right: [-54, -74] },
-    wave: { left: [-126, -106], right: [62, 108] },
-    cheer: { left: [120, 96], right: [60, 84] },
-    point: { left: [-126, -106], right: [12, 2] },
-  },
-}
-
-const VIEW_YAW: Record<RobotView, number> = {
-  front: 0,
-  side: -Math.PI / 2,
-  back: Math.PI,
-}
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
@@ -225,9 +204,10 @@ function RobotLeg({
   base: RobotConfig["base"]
   bodyColor: string
 }) {
-  const hip: Vec3 = [side * (base === "natty" ? 0.34 : 0.25), 0.02, 0]
-  const knee: Vec3 = [side * (base === "natty" ? 0.48 : 0.43), -0.67, 0]
-  const ankle: Vec3 = [side * (base === "natty" ? 0.62 : 0.58), -1.33, 0]
+  const leg = ROBOT_BASE_PARTS[base].threeD
+  const hip: Vec3 = [side * leg.hipX, 0.02, 0]
+  const knee: Vec3 = [side * leg.kneeX, -0.67, 0]
+  const ankle: Vec3 = [side * leg.ankleX, -1.33, 0]
 
   return (
     <group>
@@ -398,7 +378,7 @@ function RobotArm({
 }
 
 function RobotModel({ config }: { config: RobotConfig }) {
-  const angles = ARM_ANGLES[config.base][config.pose]
+  const angles = ROBOT_POSE_PARTS[config.pose].threeD[config.base]
 
   return (
     <group position={[0, -0.42, 0]}>
@@ -478,7 +458,7 @@ function StaticRig({
   scale: number
 }) {
   return (
-    <group rotation={[0, VIEW_YAW[config.view], 0]} scale={scale}>
+    <group rotation={[0, ROBOT_VIEW_PARTS[config.view].yaw, 0]} scale={scale}>
       <RobotModel config={config} />
     </group>
   )
@@ -493,13 +473,13 @@ function InteractiveRig({
 }) {
   const groupRef = useRef<THREE.Group>(null)
   const { gl } = useThree()
-  const target = useRef({ yaw: VIEW_YAW[config.view], pitch: 0, zoom: 1 })
-  const current = useRef({ yaw: VIEW_YAW[config.view], pitch: 0, zoom: 1 })
+  const target = useRef({ yaw: ROBOT_VIEW_PARTS[config.view].yaw, pitch: 0, zoom: 1 })
+  const current = useRef({ yaw: ROBOT_VIEW_PARTS[config.view].yaw, pitch: 0, zoom: 1 })
   const pointers = useRef(new Map<number, { x: number; y: number }>())
   const pinch = useRef<{ distance: number; zoom: number } | null>(null)
 
   useEffect(() => {
-    target.current.yaw = VIEW_YAW[config.view]
+    target.current.yaw = ROBOT_VIEW_PARTS[config.view].yaw
     target.current.pitch = 0
   }, [config.view])
 

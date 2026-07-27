@@ -1,26 +1,8 @@
 "use client"
 
 import { useId } from "react"
-import type { RobotConfig, RobotItem, RobotPose } from "@/lib/types"
-
-const ARM_POSE: Record<RobotPose, { left: string; right: string }> = {
-  stand: {
-    left: "M96 112 L75 148 L65 184",
-    right: "M204 112 L225 148 L235 184",
-  },
-  wave: {
-    left: "M96 112 L75 148 L65 184",
-    right: "M204 112 L226 82 L218 48",
-  },
-  cheer: {
-    left: "M96 112 L73 80 L83 48",
-    right: "M204 112 L227 80 L217 48",
-  },
-  point: {
-    left: "M96 112 L75 148 L65 184",
-    right: "M204 112 L238 112 L270 108",
-  },
-}
+import type { RobotConfig, RobotItem } from "@/lib/types"
+import { ROBOT_BASE_PARTS, ROBOT_POSE_PARTS } from "@/lib/robot-parts"
 
 function ItemShape({ item, accentColor }: { item: RobotItem; accentColor: string }) {
   if (item === "none") return null
@@ -89,11 +71,12 @@ export function RobotFallback({ config }: { config: RobotConfig }) {
   const id = useId().replace(/:/g, "")
   const metalId = `fallback-metal-${id}`
   const shadowId = `fallback-shadow-${id}`
-  const pose = ARM_POSE[config.pose]
+  const pose = ROBOT_POSE_PARTS[config.pose].twoD
   const isSide = config.view === "side"
   const isBack = config.view === "back"
   const scale = 0.8 + ((Math.min(90, Math.max(20, config.size)) - 20) / 70) * 0.2
-  const bodyWidth = isSide ? 56 : config.base === "natty" ? 116 : 92
+  const basePart = ROBOT_BASE_PARTS[config.base]
+  const bodyWidth = isSide ? 56 : basePart.twoD.bodyWidth
   const bodyX = 150 - bodyWidth / 2
 
   return (
@@ -154,7 +137,7 @@ export function RobotFallback({ config }: { config: RobotConfig }) {
           />
         ))}
 
-        {config.base === "natty" ? (
+        {basePart.twoD.waist === "nut" ? (
           <polygon points="113,187 187,187 199,207 101,207" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
         ) : (
           <polygon points="125,187 175,187 184,202 116,202" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />

@@ -260,6 +260,15 @@ export function AccountView({ cart }: { cart: CartApi }) {
           </p>
         </div>
 
+        {account.accountLoadError && (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+            <p>{account.accountLoadError}</p>
+            <Button className="mt-3 rounded-full" variant="outline" onClick={() => void account.refreshAccount()}>
+              もう一度取得
+            </Button>
+          </div>
+        )}
+
         <Card className="border-2">
           <CardHeader>
             <div className="grid grid-cols-2 rounded-full bg-muted p-1">
