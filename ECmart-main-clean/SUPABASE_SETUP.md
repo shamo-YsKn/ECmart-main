@@ -71,9 +71,12 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxxxx
 Supabase Dashboardの **Authentication > URL Configuration** で、開発時は以下をSite URLまたはRedirect URLに追加します。
 
 ```text
-http://localhost:3000
+http://localhost:3000/**
+http://157.19.67.219:3000/**
 ```
 
+この実装では確認メールの戻り先に、登録操作を行ったブラウザの `window.location.origin` を使います。
+そのため、利用するlocalhost・ネットワークURL・本番URLをRedirect URLsへ登録してください。
 Vercelへ公開したあとは、実際のVercel URLも追加してください。
 
 メール確認を有効にしている場合、新規登録後に確認メールが届きます。確認リンクを開いてからログインします。

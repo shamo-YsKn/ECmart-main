@@ -312,6 +312,10 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         password,
         options: {
           data: { display_name: displayName.trim() },
+          // Return to the origin that actually opened the app.
+          // This keeps both localhost and network URLs working.
+          emailRedirectTo:
+            typeof window !== "undefined" ? `${window.location.origin}/` : undefined,
         },
       })
 
