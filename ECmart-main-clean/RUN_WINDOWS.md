@@ -109,3 +109,46 @@ http://157.19.67.219:3000/**
 
 > 注意: `http://<IPアドレス>` はブラウザ上ではSecure Contextではありません。
 > Webカメラ・位置情報などHTTPS必須の機能を今後追加する場合は、HTTPS化または正式なホスト名での公開を推奨します。
+
+---
+
+## スマホ・LAN確認は production 起動を推奨
+
+Next.js 16 の `next dev` では、開発ランタイムの状態によってサーバーHTMLは表示されるのに
+React の hydration が起動せず、`onClick` などのボタンだけ反応しないことがあります。
+LAN 上のスマホで動作確認するときは、開発サーバーではなく production ビルドを使ってください。
+
+```powershell
+npm install
+npm run build
+npm run start:network
+```
+
+表示されたPCのIPv4アドレスを使って、スマホから次の形式で開きます。
+
+```text
+http://<PCのIPv4アドレス>:3000
+```
+
+例:
+
+```text
+http://157.19.67.219:3000
+```
+
+### 開発中の使い分け
+
+- PCでコードを編集しながら確認: `npm run dev`
+- スマホ/LANでボタン操作まで確認: `npm run build` → `npm run start:network`
+- development の比較確認: `npm run dev:network`
+- Turbopackを避けた比較確認: `npm run dev:network:webpack`
+
+`next start` は先に `npm run build` が必要です。
+
+### ログイン状態について
+
+新しいタブを開いたときはログイン画面から始まります。
+一度そのタブで明示的にログインした後は、同じタブ内の再読み込みや通常リンク遷移では
+`sessionStorage` を使ってセッションだけ自動復元します。
+ブラウザを閉じた後まで常時ログインを保持する設計ではありません。
+

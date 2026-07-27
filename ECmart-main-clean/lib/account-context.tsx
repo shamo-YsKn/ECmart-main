@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -65,6 +66,26 @@ const ROBOT_BASES = new Set<RobotBase>(["volta", "natty"])
 const ROBOT_VIEWS = new Set<RobotView>(["front", "side", "back"])
 const ROBOT_POSES = new Set<RobotPose>(["wave", "stand", "cheer", "point"])
 const ROBOT_ITEMS = new Set<RobotItem>(["none", "wrench", "flower", "gear", "heart"])
+
+
+const ACTIVE_LOGIN_KEY = "machinowa:active-login"
+
+function setActiveLoginMarker(active: boolean) {
+  try {
+    if (active) window.sessionStorage.setItem(ACTIVE_LOGIN_KEY, "1")
+    else window.sessionStorage.removeItem(ACTIVE_LOGIN_KEY)
+  } catch {
+    // sessionStorage can be unavailable in restricted browser modes.
+  }
+}
+
+function hasActiveLoginMarker() {
+  try {
+    return window.sessionStorage.getItem(ACTIVE_LOGIN_KEY) === "1"
+  } catch {
+    return false
+  }
+}
 
 function readableAuthError(error: { code?: string; message: string }) {
   switch (error.code) {
@@ -213,6 +234,31 @@ function withTimeout<T>(promiseLike: PromiseLike<T>, timeoutMs: number, label: s
   })
 }
 
+
+async function retryRequest<T>(
+  request: () => PromiseLike<T>,
+  label: string,
+  attempts = 3,
+  timeoutMs = 9000,
+): Promise<T> {
+  let lastError: unknown = null
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await withTimeout(request(), timeoutMs, `${label} ${attempt + 1}`)
+    } catch (error) {
+      lastError = error
+      if (attempt + 1 < attempts) {
+        await new Promise<void>((resolve) =>
+          window.setTimeout(resolve, 350 * (attempt + 1)),
+        )
+      }
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(`${label} failed`)
+}
+
 export function AccountProvider({ children }: { children: ReactNode }) {
   // Do not create Supabase while the application is hydrating. On mobile LAN
   // access (plain http://IP:port), authentication/storage capabilities differ
@@ -269,27 +315,30 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       }
 
       const [profileResult, favoritesResult, robotsResult] = await Promise.allSettled([
-        withTimeout(
-          supabase
-            .from("profiles")
-            .select("user_id, display_name, bio, created_at, updated_at")
-            .eq("user_id", nextUser.id)
-            .maybeSingle(),
-          7000,
+        retryRequest(
+          () =>
+            supabase
+              .from("profiles")
+              .select("user_id, display_name, bio, created_at, updated_at")
+              .eq("user_id", nextUser.id)
+              .maybeSingle(),
           "profile",
         ),
-        withTimeout(
-          supabase.from("favorites").select("product_id").eq("user_id", nextUser.id),
-          7000,
+        retryRequest(
+          () =>
+            supabase
+              .from("favorites")
+              .select("product_id")
+              .eq("user_id", nextUser.id),
           "favorites",
         ),
-        withTimeout(
-          supabase
-            .from("saved_robots")
-            .select("id, user_id, name, config, is_avatar, created_at, updated_at")
-            .eq("user_id", nextUser.id)
-            .order("updated_at", { ascending: false }),
-          7000,
+        retryRequest(
+          () =>
+            supabase
+              .from("saved_robots")
+              .select("id, user_id, name, config, is_avatar, created_at, updated_at")
+              .eq("user_id", nextUser.id)
+              .order("updated_at", { ascending: false }),
           "robots",
         ),
       ])
@@ -321,17 +370,20 @@ export function AccountProvider({ children }: { children: ReactNode }) {
           new Set((favoritesResponse.data ?? []).map((row: { product_id: string }) => row.product_id)),
         )
       } else {
-        setFavoriteProductIds(new Set())
+        // Keep the last known favorite state when a temporary request fails.
+        // Clearing it here made favorites appear to randomly disappear on mobile.
+        setAccountLoadError((current) =>
+          current ?? "お気に入りの同期に時間がかかっています。画面を開き直すと再取得します。",
+        )
       }
 
       if (!robotsResponse) {
-        setSavedRobots([])
+        // Keep last known robots instead of flashing an empty list on a timeout.
         setRobotStorageReady(true)
         setRobotStorageError(
-          "ロボット情報の取得がタイムアウトしました。通信状態を確認してください。",
+          "ロボット情報の取得に時間がかかっています。再度アカウント画面を開くと再取得します。",
         )
       } else if (robotsResponse.error) {
-        setSavedRobots([])
         setRobotStorageReady(!isMissingRobotStorage(robotsResponse.error))
         setRobotStorageError(robotStorageMessage(robotsResponse.error))
       } else {
@@ -365,12 +417,15 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       )
       if (error) throw error
       if (!data.session?.user) {
+        setActiveLoginMarker(false)
         clearLocalAccount()
         setAccountLoadError("このタブにはログイン情報がありません。ログインしてください。")
         return
       }
+      setActiveLoginMarker(true)
       await loadUserData(data.session.user)
     } catch {
+      setActiveLoginMarker(false)
       clearLocalAccount()
       setAccountLoadError(
         "ログイン情報を取得できませんでした。必要な場合はもう一度ログインしてください。",
@@ -379,6 +434,14 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       setLoading(false)
     }
   }, [clearLocalAccount, getSupabase, loadUserData])
+
+  // A brand-new tab starts signed out. Once the user explicitly logs in,
+  // reloads and normal <a> navigation in that same tab restore the session.
+  // This keeps mobile hard-navigation usable without creating a permanent login.
+  useEffect(() => {
+    if (!hasActiveLoginMarker()) return
+    void refreshAccount()
+  }, [refreshAccount])
 
   const signUp = useCallback(
     async (email: string, password: string, displayName: string): Promise<AccountResult> => {
@@ -404,7 +467,10 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         )
 
         if (error) return { error: readableAuthError(error) }
-        if (data.session) await loadUserData(data.user)
+        if (data.session) {
+          setActiveLoginMarker(true)
+          await loadUserData(data.user)
+        }
 
         return {
           error: null,
@@ -431,6 +497,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         )
         if (error) return { error: readableAuthError(error) }
 
+        setActiveLoginMarker(true)
         await loadUserData(data.user)
         return { error: null }
       } catch {
@@ -452,6 +519,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    setActiveLoginMarker(false)
     clearLocalAccount()
     setAccountLoadError(null)
     return { error: null }
