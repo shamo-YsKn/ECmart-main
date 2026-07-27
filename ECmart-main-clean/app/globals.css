@@ -132,3 +132,17 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Mobile progressive enhancement: the server-rendered UI remains usable if
+   JavaScript is unavailable, while this gives Ajax navigation subtle feedback. */
+.mobile-ajax-ready [data-mobile-shell] {
+  transition: opacity 120ms ease;
+}
+.mobile-ajax-ready [data-mobile-shell].mobile-ajax-busy {
+  opacity: 0.82;
+  cursor: progress;
+}
+.mobile-ajax-ready [data-mobile-shell].mobile-ajax-busy button,
+.mobile-ajax-ready [data-mobile-shell].mobile-ajax-busy a {
+  pointer-events: none;
+}

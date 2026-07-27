@@ -4,5 +4,8 @@ import { sanitizeReturnTo, setMobileAccessToken } from "@/lib/mobile-server"
 export async function POST(request: Request) {
   const form = await request.formData()
   await setMobileAccessToken(null)
-  return NextResponse.redirect(new URL(sanitizeReturnTo(form.get("returnTo")), request.url), 303)
+  const returnTo = sanitizeReturnTo(form.get("returnTo"))
+  return request.headers.get("x-machinowa-mobile-ajax") === "1"
+    ? NextResponse.json({ ok: true, redirect: returnTo })
+    : NextResponse.redirect(new URL(returnTo, request.url), 303)
 }

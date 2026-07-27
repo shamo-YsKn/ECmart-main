@@ -25,5 +25,7 @@ export async function POST(request: Request) {
   }
 
   await writeMobileCart(items)
-  return NextResponse.redirect(new URL(returnTo, request.url), 303)
+  return request.headers.get("x-machinowa-mobile-ajax") === "1"
+    ? NextResponse.json({ ok: true, redirect: returnTo })
+    : NextResponse.redirect(new URL(returnTo, request.url), 303)
 }

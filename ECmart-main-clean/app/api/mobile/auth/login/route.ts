@@ -7,11 +7,16 @@ export async function POST(request: Request) {
   const password = String(form.get("password") ?? "")
   const returnTo = sanitizeReturnTo(form.get("returnTo"))
   const result = await mobileSignIn(email, password)
+  const isAjax = request.headers.get("x-machinowa-mobile-ajax") === "1"
   if (result.error || !result.token) {
     const url = new URL(returnTo, request.url)
     url.searchParams.set("loginError", result.error || "ログインできませんでした。")
-    return NextResponse.redirect(url, 303)
+    return isAjax
+      ? NextResponse.json({ ok: false, redirect: url.pathname + url.search })
+      : NextResponse.redirect(url, 303)
   }
   await setMobileAccessToken(result.token)
-  return NextResponse.redirect(new URL(returnTo, request.url), 303)
+  return isAjax
+    ? NextResponse.json({ ok: true, redirect: returnTo })
+    : NextResponse.redirect(new URL(returnTo, request.url), 303)
 }

@@ -23,5 +23,7 @@ export async function POST(request: Request) {
   const ok = await saveMobileRobot(config)
   const url = new URL(returnTo, request.url)
   url.searchParams.set(ok ? "robotSaved" : "robotError", ok ? "1" : "ログイン後に保存してください。")
-  return NextResponse.redirect(url, 303)
+  return request.headers.get("x-machinowa-mobile-ajax") === "1"
+    ? NextResponse.json({ ok, redirect: url.pathname + url.search })
+    : NextResponse.redirect(url, 303)
 }
