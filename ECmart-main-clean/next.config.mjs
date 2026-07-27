@@ -10,7 +10,6 @@ const nextConfig = {
   transpilePackages: [
     "@react-three/fiber",
     "three",
-    "@supabase/ssr",
     "@supabase/supabase-js",
     "lucide-react",
   ],

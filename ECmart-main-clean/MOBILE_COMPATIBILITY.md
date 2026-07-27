@@ -19,3 +19,17 @@ This project keeps Next.js 16 / React 19 while degrading safely on older or weak
 Next.js 16 officially supports Chrome 111+, Edge 111+, Firefox 111+, and Safari 16.4+. The wider targets above are best-effort rather than an upstream support guarantee.
 
 Three.js WebGLRenderer requires WebGL2. Devices without WebGL2 automatically keep the SVG robot instead of attempting the 3D renderer.
+
+## 2026-07 mobile interaction hardening
+
+The application no longer creates or restores a Supabase auth client during initial hydration.
+Account auth is initialized only after an explicit account action. This prevents auth/storage
+initialization on plain HTTP LAN origins from blocking React event attachment for the rest of
+the application.
+
+Authentication uses `@supabase/supabase-js` directly with `sessionStorage` and the client-side
+implicit flow. The UI intentionally starts signed out after a fresh page/application entry;
+there is no automatic account fetch spinner at startup. A manually requested session recovery
+is still available for the current browser tab.
+
+For deployment beyond LAN testing, HTTPS remains recommended.

@@ -4,12 +4,12 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react"
-import type { Session, User } from "@supabase/supabase-js"
+import type { SupabaseClient, User } from "@supabase/supabase-js"
 import type {
   RobotBase,
   RobotConfig,
@@ -214,8 +214,11 @@ function withTimeout<T>(promiseLike: PromiseLike<T>, timeoutMs: number, label: s
 }
 
 export function AccountProvider({ children }: { children: ReactNode }) {
-  const supabase = useMemo(() => createClient(), [])
-  const [loading, setLoading] = useState(true)
+  // Do not create Supabase while the application is hydrating. On mobile LAN
+  // access (plain http://IP:port), authentication/storage capabilities differ
+  // from localhost and can fail before React has attached any click handlers.
+  const supabaseRef = useRef<SupabaseClient | null>(null)
+  const [loading, setLoading] = useState(false)
   const [user, setUser] = useState<User | null>(null)
   const [accountLoadError, setAccountLoadError] = useState<string | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -226,22 +229,52 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const [robotStorageReady, setRobotStorageReady] = useState(true)
   const [robotStorageError, setRobotStorageError] = useState<string | null>(null)
 
+  const getSupabase = useCallback(async () => {
+    if (supabaseRef.current) return supabaseRef.current
+    try {
+      const client = await createClient()
+      supabaseRef.current = client
+      return client
+    } catch (error) {
+      console.error("Supabase client initialization failed", error)
+      setAccountLoadError(
+        "このブラウザではアカウント機能を初期化できませんでした。HTTPS環境または別のブラウザでお試しください。",
+      )
+      return null
+    }
+  }, [])
+
+  const clearLocalAccount = useCallback(() => {
+    setUser(null)
+    setProfile(null)
+    setFavoriteProductIds(new Set())
+    setSavedRobots([])
+    setRobotStorageReady(true)
+    setRobotStorageError(null)
+  }, [])
+
   const loadUserData = useCallback(
     async (nextUser: User | null) => {
       setUser(nextUser)
 
-      if (!supabase || !nextUser) {
-        setProfile(null)
-        setFavoriteProductIds(new Set())
-        setSavedRobots([])
-        setRobotStorageReady(true)
-        setRobotStorageError(null)
+      if (!nextUser) {
+        clearLocalAccount()
+        return
+      }
+
+      const supabase = await getSupabase()
+      if (!supabase) {
+        clearLocalAccount()
         return
       }
 
       const [profileResult, favoritesResult, robotsResult] = await Promise.allSettled([
         withTimeout(
-          supabase.from("profiles").select("user_id, display_name, bio, created_at, updated_at").eq("user_id", nextUser.id).maybeSingle(),
+          supabase
+            .from("profiles")
+            .select("user_id, display_name, bio, created_at, updated_at")
+            .eq("user_id", nextUser.id)
+            .maybeSingle(),
           7000,
           "profile",
         ),
@@ -251,7 +284,11 @@ export function AccountProvider({ children }: { children: ReactNode }) {
           "favorites",
         ),
         withTimeout(
-          supabase.from("saved_robots").select("id, user_id, name, config, is_avatar, created_at, updated_at").eq("user_id", nextUser.id).order("updated_at", { ascending: false }),
+          supabase
+            .from("saved_robots")
+            .select("id, user_id, name, config, is_avatar, created_at, updated_at")
+            .eq("user_id", nextUser.id)
+            .order("updated_at", { ascending: false }),
           7000,
           "robots",
         ),
@@ -270,18 +307,29 @@ export function AccountProvider({ children }: { children: ReactNode }) {
             bio: null,
           },
         )
+      } else {
+        setProfile({
+          user_id: nextUser.id,
+          display_name:
+            (nextUser.user_metadata?.display_name as string | undefined) ?? null,
+          bio: null,
+        })
       }
 
       if (favoritesResponse && !favoritesResponse.error) {
         setFavoriteProductIds(
           new Set((favoritesResponse.data ?? []).map((row: { product_id: string }) => row.product_id)),
         )
+      } else {
+        setFavoriteProductIds(new Set())
       }
 
       if (!robotsResponse) {
         setSavedRobots([])
         setRobotStorageReady(true)
-        setRobotStorageError("ロボット情報の取得がタイムアウトしました。通信状態を確認して再読み込みしてください。")
+        setRobotStorageError(
+          "ロボット情報の取得がタイムアウトしました。通信状態を確認してください。",
+        )
       } else if (robotsResponse.error) {
         setSavedRobots([])
         setRobotStorageReady(!isMissingRobotStorage(robotsResponse.error))
@@ -295,109 +343,123 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         setRobotStorageError(null)
       }
     },
-    [supabase],
+    [clearLocalAccount, getSupabase],
   )
 
+  // Session recovery is deliberately manual. Opening/reloading the site starts
+  // from the login screen instead of querying account data automatically.
   const refreshAccount = useCallback(async () => {
     setLoading(true)
     setAccountLoadError(null)
+    const supabase = await getSupabase()
     if (!supabase) {
       setLoading(false)
       return
     }
 
     try {
-      // Initial UI only needs the locally stored session. Database RLS still protects
-      // every account table operation. A timeout prevents mobile browsers from
-      // spinning forever when storage/auth locks or the network stalls.
-      const { data, error } = await withTimeout(supabase.auth.getSession(), 5000, "auth session")
+      const { data, error } = await withTimeout(
+        supabase.auth.getSession(),
+        5000,
+        "auth session",
+      )
       if (error) throw error
-      await loadUserData(data.session?.user ?? null)
+      if (!data.session?.user) {
+        clearLocalAccount()
+        setAccountLoadError("このタブにはログイン情報がありません。ログインしてください。")
+        return
+      }
+      await loadUserData(data.session.user)
     } catch {
-      setUser(null)
-      setProfile(null)
-      setFavoriteProductIds(new Set())
-      setSavedRobots([])
-      setAccountLoadError("アカウント情報を取得できませんでした。通信状態を確認して、もう一度読み込んでください。")
+      clearLocalAccount()
+      setAccountLoadError(
+        "ログイン情報を取得できませんでした。必要な場合はもう一度ログインしてください。",
+      )
     } finally {
       setLoading(false)
     }
-  }, [loadUserData, supabase])
-
-  useEffect(() => {
-    void refreshAccount()
-
-    if (!supabase) return
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event: string, session: Session | null) => {
-      window.setTimeout(() => {
-        void loadUserData(session?.user ?? null).finally(() => setLoading(false))
-      }, 0)
-    })
-
-    return () => subscription.unsubscribe()
-  }, [loadUserData, refreshAccount, supabase])
+  }, [clearLocalAccount, getSupabase, loadUserData])
 
   const signUp = useCallback(
     async (email: string, password: string, displayName: string): Promise<AccountResult> => {
-      if (!supabase) return { error: "Supabaseの接続設定がまだ完了していません。" }
+      setAccountLoadError(null)
+      const supabase = await getSupabase()
+      if (!supabase) return { error: "Supabaseの接続設定またはブラウザ環境を確認してください。" }
 
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { display_name: displayName.trim() },
-          // Return to the origin that actually opened the app.
-          // This keeps both localhost and network URLs working.
-          emailRedirectTo:
-            typeof window !== "undefined" ? `${window.location.origin}/` : undefined,
-        },
-      })
+      try {
+        const { data, error } = await withTimeout(
+          supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              data: { display_name: displayName.trim() },
+              emailRedirectTo:
+                typeof window !== "undefined"
+                  ? `${window.location.origin}/?tab=account`
+                  : undefined,
+            },
+          }),
+          10000,
+          "sign up",
+        )
 
-      if (error) return { error: readableAuthError(error) }
+        if (error) return { error: readableAuthError(error) }
+        if (data.session) await loadUserData(data.user)
 
-      if (data.session) {
-        await loadUserData(data.user)
-      }
-
-      return {
-        error: null,
-        needsEmailConfirmation: Boolean(data.user && !data.session),
+        return {
+          error: null,
+          needsEmailConfirmation: Boolean(data.user && !data.session),
+        }
+      } catch {
+        return { error: "アカウント作成がタイムアウトしました。通信状態を確認してください。" }
       }
     },
-    [loadUserData, supabase],
+    [getSupabase, loadUserData],
   )
 
   const signIn = useCallback(
     async (email: string, password: string): Promise<AccountResult> => {
-      if (!supabase) return { error: "Supabaseの接続設定がまだ完了していません。" }
+      setAccountLoadError(null)
+      const supabase = await getSupabase()
+      if (!supabase) return { error: "Supabaseの接続設定またはブラウザ環境を確認してください。" }
 
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) return { error: readableAuthError(error) }
+      try {
+        const { data, error } = await withTimeout(
+          supabase.auth.signInWithPassword({ email, password }),
+          10000,
+          "sign in",
+        )
+        if (error) return { error: readableAuthError(error) }
 
-      await loadUserData(data.user)
-      return { error: null }
+        await loadUserData(data.user)
+        return { error: null }
+      } catch {
+        return { error: "ログインがタイムアウトしました。通信状態を確認してください。" }
+      }
     },
-    [loadUserData, supabase],
+    [getSupabase, loadUserData],
   )
 
   const signOut = useCallback(async (): Promise<AccountResult> => {
-    if (!supabase) return { error: "Supabaseの接続設定がまだ完了していません。" }
+    const supabase = await getSupabase()
+    if (supabase) {
+      try {
+        const { error } = await withTimeout(supabase.auth.signOut(), 7000, "sign out")
+        if (error) return { error: readableAuthError(error) }
+      } catch {
+        // Local state still gets cleared. This intentionally makes logout safe
+        // even if the mobile network is unavailable at that moment.
+      }
+    }
 
-    const { error } = await supabase.auth.signOut()
-    if (error) return { error: readableAuthError(error) }
-
-    setUser(null)
-    setProfile(null)
-    setFavoriteProductIds(new Set())
-    setSavedRobots([])
+    clearLocalAccount()
+    setAccountLoadError(null)
     return { error: null }
-  }, [supabase])
+  }, [clearLocalAccount, getSupabase])
 
   const saveProfile = useCallback(
     async (displayName: string, bio: string): Promise<AccountResult> => {
+      const supabase = await getSupabase()
       if (!supabase || !user) return { error: "ログインが必要です。" }
 
       const nextProfile = {
@@ -418,11 +480,12 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       setProfile(data as Profile)
       return { error: null }
     },
-    [supabase, user],
+    [getSupabase, user],
   )
 
   const toggleFavorite = useCallback(
     async (productId: string): Promise<AccountResult> => {
+      const supabase = await getSupabase()
       if (!supabase || !user) return { error: "お気に入りの保存にはログインが必要です。" }
 
       const wasFavorite = favoriteProductIds.has(productId)
@@ -449,11 +512,12 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
       return { error: null }
     },
-    [favoriteProductIds, supabase, user],
+    [favoriteProductIds, getSupabase, user],
   )
 
   const saveRobot = useCallback(
     async (config: RobotConfig, robotId?: string): Promise<RobotAccountResult> => {
+      const supabase = await getSupabase()
       if (!supabase || !user) {
         return { error: "ロボットの保存にはログインが必要です。" }
       }
@@ -461,7 +525,9 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         return { error: robotStorageError ?? robotStorageMessage() }
       }
 
-      const cleanName = config.name.trim().slice(0, 40) || (config.base === "volta" ? "ボルタ" : "ナッティ")
+      const cleanName =
+        config.name.trim().slice(0, 40) ||
+        (config.base === "volta" ? "ボルタ" : "ナッティ")
       const cleanConfig: RobotConfig = {
         ...config,
         name: cleanName,
@@ -503,11 +569,12 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       })
       return { error: null, robot }
     },
-    [robotStorageError, robotStorageReady, supabase, user],
+    [getSupabase, robotStorageError, robotStorageReady, user],
   )
 
   const deleteRobot = useCallback(
     async (robotId: string): Promise<AccountResult> => {
+      const supabase = await getSupabase()
       if (!supabase || !user) return { error: "ログインが必要です。" }
       if (!robotStorageReady) return { error: robotStorageError ?? robotStorageMessage() }
 
@@ -522,11 +589,12 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       setSavedRobots((current) => current.filter((robot) => robot.id !== robotId))
       return { error: null }
     },
-    [robotStorageError, robotStorageReady, supabase, user],
+    [getSupabase, robotStorageError, robotStorageReady, user],
   )
 
   const setAvatarRobot = useCallback(
     async (robotId: string | null): Promise<AccountResult> => {
+      const supabase = await getSupabase()
       if (!supabase || !user) return { error: "ログインが必要です。" }
       if (!robotStorageReady) return { error: robotStorageError ?? robotStorageMessage() }
 
@@ -538,7 +606,9 @@ export function AccountProvider({ children }: { children: ReactNode }) {
           .eq("is_avatar", true)
 
         if (error) return { error: robotStorageMessage(error) }
-        setSavedRobots((current) => current.map((robot) => ({ ...robot, is_avatar: false })))
+        setSavedRobots((current) =>
+          current.map((robot) => ({ ...robot, is_avatar: false })),
+        )
         return { error: null }
       }
 
@@ -559,7 +629,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       )
       return { error: null }
     },
-    [robotStorageError, robotStorageReady, supabase, user],
+    [getSupabase, robotStorageError, robotStorageReady, user],
   )
 
   const avatarRobot = useMemo(

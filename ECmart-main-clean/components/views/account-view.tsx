@@ -63,9 +63,9 @@ function navigateTo(tab: "robot" | "shops") {
   window.dispatchEvent(new CustomEvent("machinowa:navigate", { detail: { tab } }))
 }
 
-export function AccountView({ cart }: { cart: CartApi }) {
+export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; initialMode?: AuthMode }) {
   const account = useAccount()
-  const [mode, setMode] = useState<AuthMode>("signIn")
+  const [mode, setMode] = useState<AuthMode>(initialMode)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [passwordConfirm, setPasswordConfirm] = useState("")
@@ -256,7 +256,7 @@ export function AccountView({ cart }: { cart: CartApi }) {
           </div>
           <h1 className="font-display text-3xl font-black">マイアカウント</h1>
           <p className="mt-2 text-muted-foreground">
-            ログインすると、お気に入りや自作ロボットを端末をまたいで保存できます。
+            ログインすると、お気に入りや自作ロボットを端末をまたいで保存できます。ログイン状態は常時保持せず、この閲覧中を基本に扱います。
           </p>
         </div>
 
@@ -264,7 +264,7 @@ export function AccountView({ cart }: { cart: CartApi }) {
           <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
             <p>{account.accountLoadError}</p>
             <Button className="mt-3 rounded-full" variant="outline" onClick={() => void account.refreshAccount()}>
-              もう一度取得
+                このタブのログイン情報を再確認
             </Button>
           </div>
         )}
@@ -272,32 +272,36 @@ export function AccountView({ cart }: { cart: CartApi }) {
         <Card className="border-2">
           <CardHeader>
             <div className="grid grid-cols-2 rounded-full bg-muted p-1">
-              <button
-                type="button"
+              <a
+                href="?tab=account&auth=signin"
                 className={cn(
-                  "rounded-full px-4 py-2 text-sm font-bold transition-colors",
+                  "rounded-full px-4 py-2 text-center text-sm font-bold transition-colors",
                   mode === "signIn" && "bg-background shadow-sm",
                 )}
-                onClick={() => {
+                onClick={(event) => {
+                  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+                  event.preventDefault()
                   setMode("signIn")
                   setNotice(null)
                 }}
               >
                 ログイン
-              </button>
-              <button
-                type="button"
+              </a>
+              <a
+                href="?tab=account&auth=signup"
                 className={cn(
-                  "rounded-full px-4 py-2 text-sm font-bold transition-colors",
+                  "rounded-full px-4 py-2 text-center text-sm font-bold transition-colors",
                   mode === "signUp" && "bg-background shadow-sm",
                 )}
-                onClick={() => {
+                onClick={(event) => {
+                  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+                  event.preventDefault()
                   setMode("signUp")
                   setNotice(null)
                 }}
               >
                 新規登録
-              </button>
+              </a>
             </div>
           </CardHeader>
           <CardContent>

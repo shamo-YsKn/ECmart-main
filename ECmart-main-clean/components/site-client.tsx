@@ -50,7 +50,7 @@ function BoltMark() {
   )
 }
 
-function Site({ initialTab }: { initialTab: TabKey }) {
+function Site({ initialTab, initialAuthMode }: { initialTab: TabKey; initialAuthMode: "signIn" | "signUp" }) {
   const cart = useCart()
   const account = useAccount()
   const [tab, setTab] = useState<TabKey>(initialTab)
@@ -208,7 +208,7 @@ function Site({ initialTab }: { initialTab: TabKey }) {
             <RobotWorkshop />
           </div>
         )}
-        {tab === "account" && <AccountView cart={cart} />}
+        {tab === "account" && <AccountView cart={cart} initialMode={initialAuthMode} />}
         {tab === "cart" && <CartView cart={cart} onNavigate={navigate} />}
       </main>
 
@@ -265,10 +265,16 @@ function Site({ initialTab }: { initialTab: TabKey }) {
   )
 }
 
-export function SiteClient({ initialTab }: { initialTab: TabKey }) {
+export function SiteClient({
+  initialTab,
+  initialAuthMode,
+}: {
+  initialTab: TabKey
+  initialAuthMode: "signIn" | "signUp"
+}) {
   return (
     <AccountProvider>
-      <Site initialTab={initialTab} />
+      <Site initialTab={initialTab} initialAuthMode={initialAuthMode} />
     </AccountProvider>
   )
 }
