@@ -76,7 +76,7 @@ function LimbSegment({ start, end, radius, color }: { start: Vec3; end: Vec3; ra
 function useHexHeadGeometry() {
   const geometry = useMemo(() => {
     // Top view should be a regular hexagon.
-    const result = new THREE.CylinderGeometry(0.74, 0.74, 0.72, 6, 1, false)
+    const result = new THREE.CylinderGeometry(0.74, 0.74, 0.36, 6, 1, false)
     result.rotateY(Math.PI / 6)
     result.computeVertexNormals()
     return result
@@ -88,7 +88,7 @@ function useHexHeadGeometry() {
 
 function ScrewEye({ x, bodyColor, accentColor }: { x: number; bodyColor: string; accentColor: string }) {
   return (
-    <group position={[x, 2.46, 0.34]}>
+    <group position={[x, 2.28, 0.34]}>
       <mesh castShadow rotation={[Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[0.265, 0.265, 0.145, 36]} />
         <MetalMaterial color={bodyColor} />

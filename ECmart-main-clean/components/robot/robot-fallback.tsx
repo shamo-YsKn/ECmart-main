@@ -109,9 +109,9 @@ export function RobotFallback({ config }: { config: RobotConfig }) {
   const isNatty = basePart.twoD.waist === "nut"
   const bodyBottomY = isNatty ? 182 : 188
   const bodyHeight = bodyBottomY - 84
-  const legStartY = isNatty ? 210 : 183
-  const legEndY = isNatty ? 224 : 212
-  const footY = isNatty ? 232 : 220
+  const legStartY = isNatty ? 182 : 183
+  const legEndY = isNatty ? 196 : 212
+  const footY = isNatty ? 204 : 220
   const leftLegPath = `M138 ${legStartY} L111 ${legEndY}`
   const rightLegPath = `M162 ${legStartY} L189 ${legEndY}`
 
@@ -165,7 +165,7 @@ export function RobotFallback({ config }: { config: RobotConfig }) {
         ))}
 
         {isNatty && (
-          <path d="M129 181 H171 L197 210 H103 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" strokeLinejoin="round" />
+          <path d="M129 153 H171 L197 182 H103 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" strokeLinejoin="round" />
         )}
 
         {/* Lowered head so the eyes overlap the rounded top of the screw-body. */}
