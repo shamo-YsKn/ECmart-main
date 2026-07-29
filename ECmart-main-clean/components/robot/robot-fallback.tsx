@@ -83,15 +83,15 @@ function CounterSunkHand({ spec, fill }: { spec: HandSpec; fill: string }) {
 
 function CounterSunkFoot({ x, flip, fill }: { x: number; flip: number; fill: string }) {
   return (
-    <g transform={`translate(${x} 0) rotate(${flip * 2} ${x} 224)`}>
+    <g transform={`translate(${x} 220) rotate(${flip * 2})`}>
       <path
-        d={`M${x - 8} 210 Q${x - 14} 211 ${x - 17} 218 L${x - 27} 231 H${x + 27} L${x + 17} 218 Q${x + 14} 211 ${x + 8} 210 Z`}
+        d="M-8 -10 Q-14 -9 -17 -2 L-27 11 H27 L17 -2 Q14 -9 8 -10 Z"
         fill={fill}
         stroke="#263943"
         strokeWidth="4"
         strokeLinejoin="round"
       />
-      <path d={`M${x - 18} 225 H${x + 18}`} stroke="#fff" strokeOpacity=".3" strokeWidth="3" strokeLinecap="round" />
+      <path d="M-18 5 H18" stroke="#fff" strokeOpacity=".3" strokeWidth="3" strokeLinecap="round" />
     </g>
   )
 }

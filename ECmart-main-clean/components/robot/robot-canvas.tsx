@@ -350,7 +350,7 @@ function RobotArm({
       </mesh>
       <LimbSegment start={elbow} end={hand} radius={0.07} color={bodyColor} />
       <mesh castShadow position={hand} rotation={[0, 0, forearmAngle - Math.PI / 2]}>
-        <cylinderGeometry args={[0.11, 0.28, 0.17, 32]} />
+        <cylinderGeometry args={[0.28, 0.11, 0.17, 32]} />
         <MetalMaterial color={bodyColor} />
       </mesh>
       {side === "right" && item !== "none" && (
