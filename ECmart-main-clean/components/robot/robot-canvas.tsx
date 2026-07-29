@@ -75,27 +75,9 @@ function LimbSegment({ start, end, radius, color }: { start: Vec3; end: Vec3; ra
 
 function useHexHeadGeometry() {
   const geometry = useMemo(() => {
-    const shape = new THREE.Shape()
-    // Side view of a hex-bolt head: narrower than a plain rectangle,
-    // with clearer chamfered corners so it reads as a 6-sided profile.
-    shape.moveTo(-0.41, -0.22)
-    shape.lineTo(-0.27, -0.36)
-    shape.lineTo(0.27, -0.36)
-    shape.lineTo(0.41, -0.22)
-    shape.lineTo(0.41, 0.22)
-    shape.lineTo(0.27, 0.36)
-    shape.lineTo(-0.27, 0.36)
-    shape.lineTo(-0.41, 0.22)
-    shape.closePath()
-    const result = new THREE.ExtrudeGeometry(shape, {
-      depth: 0.56,
-      bevelEnabled: true,
-      bevelSegments: 3,
-      bevelSize: 0.04,
-      bevelThickness: 0.045,
-      curveSegments: 4,
-    })
-    result.translate(0, 0, -0.28)
+    // Top view should be a regular hexagon.
+    const result = new THREE.CylinderGeometry(0.42, 0.42, 0.44, 6, 1, false)
+    result.rotateY(Math.PI / 6)
     result.computeVertexNormals()
     return result
   }, [])
