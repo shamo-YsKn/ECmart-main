@@ -107,7 +107,7 @@ export function RobotFallback({ config }: { config: RobotConfig }) {
   const scale = 0.8 + ((Math.min(90, Math.max(20, config.size)) - 20) / 70) * 0.2
   const basePart = ROBOT_BASE_PARTS[config.base]
   const isNatty = basePart.twoD.waist === "nut"
-  const bodyBottomY = isNatty ? 210 : 188
+  const bodyBottomY = isNatty ? 182 : 188
   const bodyHeight = bodyBottomY - 84
   const legStartY = isNatty ? 210 : 183
   const legEndY = isNatty ? 224 : 212
@@ -160,7 +160,7 @@ export function RobotFallback({ config }: { config: RobotConfig }) {
 
         {/* Long threaded screw shaft. */}
         <rect x="128" y="84" width="44" height={bodyHeight} rx="20" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
-        {Array.from({ length: isNatty ? 15 : 12 }, (_, index) => (
+        {Array.from({ length: isNatty ? 10 : 12 }, (_, index) => (
           <line key={index} x1="125" x2="175" y1={94 + index * 8} y2={94 + index * 8} stroke="#263943" strokeOpacity=".72" strokeWidth="4" strokeLinecap="round" />
         ))}
 
