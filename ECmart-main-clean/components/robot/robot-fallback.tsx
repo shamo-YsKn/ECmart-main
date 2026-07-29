@@ -168,21 +168,21 @@ export function RobotFallback({ config }: { config: RobotConfig }) {
           <path d="M129 181 H171 L197 210 H103 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" strokeLinejoin="round" />
         )}
 
-        {/* Side view of a compact hex-bolt head. */}
-        <path d="M112 57 L121 49 H179 L188 57 V79 L179 87 H121 L112 79 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" strokeLinejoin="round" />
-        <path d="M121 53 H179" stroke="#fff" strokeOpacity=".34" strokeWidth="3" strokeLinecap="round" />
+        {/* Lowered head so the eyes overlap the rounded top of the screw-body. */}
+        <path d="M112 74 L121 66 H179 L188 74 V96 L179 104 H121 L112 96 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" strokeLinejoin="round" />
+        <path d="M121 70 H179" stroke="#fff" strokeOpacity=".34" strokeWidth="3" strokeLinecap="round" />
 
         {!isBack && (
           <>
             <g opacity={isSide ? 0 : 1}>
-              <circle cx="132" cy="43" r="19" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
-              <circle cx="168" cy="43" r="19" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
-              <path d="M122 43 H142 M132 33 V53 M158 43 H178 M168 33 V53" stroke={config.accentColor} strokeWidth="5" strokeLinecap="round" />
+              <circle cx="132" cy="67" r="19" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
+              <circle cx="168" cy="67" r="19" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
+              <path d="M122 67 H142 M132 57 V77 M158 67 H178 M168 57 V77" stroke={config.accentColor} strokeWidth="5" strokeLinecap="round" />
             </g>
             {isSide && (
               <>
-                <circle cx="153" cy="43" r="18" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
-                <path d="M144 43 H162 M153 34 V52" stroke={config.accentColor} strokeWidth="5" strokeLinecap="round" />
+                <circle cx="153" cy="67" r="18" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
+                <path d="M144 67 H162 M153 58 V76" stroke={config.accentColor} strokeWidth="5" strokeLinecap="round" />
               </>
             )}
           </>
