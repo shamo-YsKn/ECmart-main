@@ -14,22 +14,18 @@ function clamp(value: number, min: number, max: number) {
 
 function pointFromAngle(origin: Vec3, angleDegrees: number, length: number): Vec3 {
   const angle = THREE.MathUtils.degToRad(angleDegrees)
-  return [
-    origin[0] + Math.cos(angle) * length,
-    origin[1] + Math.sin(angle) * length,
-    origin[2],
-  ]
+  return [origin[0] + Math.cos(angle) * length, origin[1] + Math.sin(angle) * length, origin[2]]
 }
 
 function MetalMaterial({ color }: { color: string }) {
   return (
     <meshPhysicalMaterial
       color={color}
-      metalness={0.64}
-      roughness={0.2}
-      clearcoat={0.72}
-      clearcoatRoughness={0.16}
-      envMapIntensity={1.2}
+      metalness={0.72}
+      roughness={0.22}
+      clearcoat={0.66}
+      clearcoatRoughness={0.17}
+      envMapIntensity={1.18}
     />
   )
 }
@@ -38,9 +34,9 @@ function AccentMaterial({ color }: { color: string }) {
   return (
     <meshPhysicalMaterial
       color={color}
-      metalness={0.38}
+      metalness={0.44}
       roughness={0.24}
-      clearcoat={0.55}
+      clearcoat={0.5}
       clearcoatRoughness={0.2}
     />
   )
@@ -50,17 +46,7 @@ function DarkMaterial() {
   return <meshStandardMaterial color="#173744" metalness={0.5} roughness={0.32} />
 }
 
-function LimbSegment({
-  start,
-  end,
-  radius,
-  color,
-}: {
-  start: Vec3
-  end: Vec3
-  radius: number
-  color: string
-}) {
+function LimbSegment({ start, end, radius, color }: { start: Vec3; end: Vec3; radius: number; color: string }) {
   const transform = useMemo(() => {
     const startVector = new THREE.Vector3(...start)
     const endVector = new THREE.Vector3(...end)
@@ -70,57 +56,65 @@ function LimbSegment({
       new THREE.Vector3(0, 1, 0),
       direction.clone().normalize(),
     )
-
-    return {
-      length: direction.length(),
-      midpoint,
-      quaternion,
-    }
+    return { length: direction.length(), midpoint, quaternion }
   }, [end, start])
 
   return (
     <group>
-      <mesh
-        castShadow
-        position={transform.midpoint}
-        quaternion={transform.quaternion}
-      >
-        <cylinderGeometry args={[radius * 1.2, radius * 1.2, transform.length, 12]} />
+      <mesh castShadow position={transform.midpoint} quaternion={transform.quaternion}>
+        <cylinderGeometry args={[radius * 1.2, radius * 1.2, transform.length, 14]} />
         <DarkMaterial />
       </mesh>
-      <mesh
-        castShadow
-        position={transform.midpoint}
-        quaternion={transform.quaternion}
-      >
-        <cylinderGeometry args={[radius, radius, transform.length * 1.012, 16]} />
+      <mesh castShadow position={transform.midpoint} quaternion={transform.quaternion}>
+        <cylinderGeometry args={[radius, radius, transform.length * 1.012, 18]} />
         <MetalMaterial color={color} />
       </mesh>
     </group>
   )
 }
 
-function ScrewHead({
-  x,
-  bodyColor,
-  accentColor,
-}: {
-  x: number
-  bodyColor: string
-  accentColor: string
-}) {
+function useHexHeadGeometry() {
+  const geometry = useMemo(() => {
+    const shape = new THREE.Shape()
+    shape.moveTo(-0.48, -0.2)
+    shape.lineTo(-0.37, -0.31)
+    shape.lineTo(0.37, -0.31)
+    shape.lineTo(0.48, -0.2)
+    shape.lineTo(0.48, 0.2)
+    shape.lineTo(0.37, 0.31)
+    shape.lineTo(-0.37, 0.31)
+    shape.lineTo(-0.48, 0.2)
+    shape.closePath()
+    const result = new THREE.ExtrudeGeometry(shape, {
+      depth: 0.58,
+      bevelEnabled: true,
+      bevelSegments: 2,
+      bevelSize: 0.035,
+      bevelThickness: 0.035,
+      curveSegments: 3,
+    })
+    result.translate(0, 0, -0.29)
+    result.computeVertexNormals()
+    return result
+  }, [])
+
+  useEffect(() => () => geometry.dispose(), [geometry])
+  return geometry
+}
+
+function ScrewEye({ x, bodyColor, accentColor }: { x: number; bodyColor: string; accentColor: string }) {
   return (
-    <group position={[x, 2.27, 0.41]}>
+    <group position={[x, 2.36, 0.34]}>
       <mesh castShadow rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.235, 0.235, 0.16, 32]} />
+        <cylinderGeometry args={[0.265, 0.265, 0.145, 36]} />
         <MetalMaterial color={bodyColor} />
       </mesh>
-      <mesh position={[0, 0, 0.092]} castShadow>
-        <boxGeometry args={[0.28, 0.055, 0.035]} />
+      <mesh position={[0, 0, 0.082]} castShadow>
+        <boxGeometry args={[0.31, 0.06, 0.038]} />
         <AccentMaterial color={accentColor} />
       </mesh>
-      <mesh position={[0, 0, 0.094]} castShadow>
-        <boxGeometry args={[0.055, 0.28, 0.035]} />
+      <mesh position={[0, 0, 0.084]} castShadow>
+        <boxGeometry args={[0.06, 0.31, 0.038]} />
         <AccentMaterial color={accentColor} />
       </mesh>
     </group>
@@ -128,18 +122,16 @@ function ScrewHead({
 }
 
 function RobotHead({ bodyColor, accentColor }: Pick<RobotConfig, "bodyColor" | "accentColor">) {
+  const geometry = useHexHeadGeometry()
   return (
     <group>
-      {[-0.31, 0.31].map((x) => (
-        <mesh key={x} castShadow position={[x, 1.93, 0]}>
-          <boxGeometry args={[0.61, 0.58, 0.7]} />
-          <MetalMaterial color={bodyColor} />
-        </mesh>
-      ))}
-      <ScrewHead x={-0.31} bodyColor={bodyColor} accentColor={accentColor} />
-      <ScrewHead x={0.31} bodyColor={bodyColor} accentColor={accentColor} />
-      <mesh position={[0, 1.9, -0.37]} castShadow>
-        <boxGeometry args={[0.42, 0.13, 0.055]} />
+      <mesh geometry={geometry} position={[0, 1.98, 0]} castShadow receiveShadow>
+        <MetalMaterial color={bodyColor} />
+      </mesh>
+      <ScrewEye x={-0.29} bodyColor={bodyColor} accentColor={accentColor} />
+      <ScrewEye x={0.29} bodyColor={bodyColor} accentColor={accentColor} />
+      <mesh position={[0, 1.98, -0.325]} castShadow>
+        <boxGeometry args={[0.38, 0.11, 0.045]} />
         <DarkMaterial />
       </mesh>
     </group>
@@ -149,23 +141,19 @@ function RobotHead({ bodyColor, accentColor }: Pick<RobotConfig, "bodyColor" | "
 function ThreadedBody({ bodyColor }: Pick<RobotConfig, "bodyColor">) {
   return (
     <group>
-      <mesh castShadow position={[0, 0.92, 0]}>
-        <boxGeometry args={[0.86, 1.28, 0.68]} />
+      <mesh castShadow position={[0, 0.95, 0]}>
+        <cylinderGeometry args={[0.31, 0.31, 1.45, 28]} />
         <MetalMaterial color={bodyColor} />
       </mesh>
-      {Array.from({ length: 11 }, (_, index) => (
-        <mesh
-          key={index}
-          castShadow
-          position={[0, 0.36 + index * 0.112, 0]}
-        >
-          <boxGeometry args={[0.95, 0.055, 0.755]} />
-          <meshStandardMaterial color={bodyColor} metalness={0.8} roughness={0.28} />
+      {Array.from({ length: 14 }, (_, index) => (
+        <mesh key={index} castShadow position={[0, 0.29 + index * 0.103, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[0.34, 0.045, 10, 36]} />
+          <meshStandardMaterial color={bodyColor} metalness={0.82} roughness={0.28} />
         </mesh>
       ))}
-      <mesh position={[-0.34, 0.93, 0.36]}>
-        <boxGeometry args={[0.065, 1.13, 0.025]} />
-        <meshBasicMaterial color="#ffffff" transparent opacity={0.26} />
+      <mesh position={[-0.17, 0.96, 0.295]}>
+        <boxGeometry args={[0.035, 1.25, 0.018]} />
+        <meshBasicMaterial color="#ffffff" transparent opacity={0.22} />
       </mesh>
     </group>
   )
@@ -174,49 +162,46 @@ function ThreadedBody({ bodyColor }: Pick<RobotConfig, "bodyColor">) {
 function Waist({ base, bodyColor }: Pick<RobotConfig, "base" | "bodyColor">) {
   if (base === "natty") {
     return (
-      <group position={[0, 0.14, 0]}>
+      <group position={[0, 0.12, 0]}>
         <mesh castShadow>
-          <cylinderGeometry args={[0.72, 0.72, 0.34, 6]} />
+          <cylinderGeometry args={[0.34, 0.84, 0.42, 36]} />
           <MetalMaterial color={bodyColor} />
         </mesh>
-        <mesh position={[0, 0.18, 0]}>
-          <cylinderGeometry args={[0.23, 0.23, 0.025, 24]} />
+        <mesh position={[0, 0.225, 0]}>
+          <cylinderGeometry args={[0.27, 0.27, 0.026, 28]} />
           <DarkMaterial />
         </mesh>
       </group>
     )
   }
+  return null
+}
 
+function CounterSunkFoot({ position, bodyColor, rotationZ }: { position: Vec3; bodyColor: string; rotationZ: number }) {
   return (
-    <mesh castShadow position={[0, 0.16, 0]}>
-      <cylinderGeometry args={[0.42, 0.52, 0.28, 6]} />
+    <mesh castShadow position={position} rotation={[0, 0, rotationZ]}>
+      <cylinderGeometry args={[0.13, 0.34, 0.2, 36]} />
       <MetalMaterial color={bodyColor} />
     </mesh>
   )
 }
 
-function RobotLeg({
-  side,
-  base,
-  bodyColor,
-}: {
-  side: -1 | 1
-  base: RobotConfig["base"]
-  bodyColor: string
-}) {
+function RobotLeg({ side, base, bodyColor }: { side: -1 | 1; base: RobotConfig["base"]; bodyColor: string }) {
   const leg = ROBOT_BASE_PARTS[base].threeD
-  const hip: Vec3 = [side * leg.hipX, 0.02, 0]
-  const knee: Vec3 = [side * leg.kneeX, -0.67, 0]
-  const ankle: Vec3 = [side * leg.ankleX, -1.33, 0]
+  const hipY = base === "natty" ? -0.1 : 0.2
+  const hip: Vec3 = [side * leg.hipX, hipY, 0]
+  const knee: Vec3 = [side * leg.kneeX, -0.68, 0]
+  const ankle: Vec3 = [side * leg.ankleX, -1.32, 0]
 
   return (
     <group>
-      <LimbSegment start={hip} end={knee} radius={0.075} color={bodyColor} />
-      <LimbSegment start={knee} end={ankle} radius={0.07} color={bodyColor} />
-      <mesh castShadow position={[ankle[0] + side * 0.055, ankle[1] - 0.08, 0.08]} rotation={[0, 0, side * -0.08]}>
-        <boxGeometry args={[0.34, 0.16, 0.5]} />
-        <MetalMaterial color={bodyColor} />
-      </mesh>
+      <LimbSegment start={hip} end={knee} radius={0.072} color={bodyColor} />
+      <LimbSegment start={knee} end={ankle} radius={0.068} color={bodyColor} />
+      <CounterSunkFoot
+        position={[ankle[0] + side * 0.035, ankle[1] - 0.12, 0.04]}
+        rotationZ={side * -0.035}
+        bodyColor={bodyColor}
+      />
     </group>
   )
 }
@@ -347,7 +332,7 @@ function RobotArm({
   item: RobotItem
 }) {
   const sign = side === "left" ? -1 : 1
-  const shoulder: Vec3 = [sign * 0.58, 1.53, 0]
+  const shoulder: Vec3 = [sign * 0.46, 1.69, 0]
   const elbow = pointFromAngle(shoulder, angles[0], 0.73)
   const hand = pointFromAngle(elbow, angles[1], 0.67)
   const forearmAngle = THREE.MathUtils.degToRad(angles[1])
@@ -355,7 +340,7 @@ function RobotArm({
   return (
     <group>
       <mesh castShadow position={shoulder}>
-        <sphereGeometry args={[0.15, 20, 14]} />
+        <sphereGeometry args={[0.13, 22, 16]} />
         <MetalMaterial color={bodyColor} />
       </mesh>
       <LimbSegment start={shoulder} end={elbow} radius={0.075} color={bodyColor} />
@@ -365,7 +350,7 @@ function RobotArm({
       </mesh>
       <LimbSegment start={elbow} end={hand} radius={0.07} color={bodyColor} />
       <mesh castShadow position={hand} rotation={[0, 0, forearmAngle - Math.PI / 2]}>
-        <coneGeometry args={[0.17, 0.3, 4]} />
+        <cylinderGeometry args={[0.11, 0.28, 0.17, 32]} />
         <MetalMaterial color={bodyColor} />
       </mesh>
       {side === "right" && item !== "none" && (

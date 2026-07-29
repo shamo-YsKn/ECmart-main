@@ -30,7 +30,7 @@ import {
 const ROBOT_DRAFT_KEY = "machinowa:robot-draft"
 
 const BODY_COLORS = [
-  { label: "アルミ", value: "#d1d1d1" },
+  { label: "アルミ", value: "#c9a24b" },
   { label: "しろがね", value: "#eceeef" },
   { label: "くろがね", value: "#8d9194" },
   { label: "レンガ", value: "#e8842f" },
@@ -59,7 +59,7 @@ const VIEWS = ROBOT_VIEW_OPTIONS
 const DEFAULT_CONFIG: RobotConfig = {
   base: "volta",
   size: 55,
-  bodyColor: "#d1d1d1",
+  bodyColor: "#c9a24b",
   accentColor: "#111111",
   pose: "cheer",
   item: "none",

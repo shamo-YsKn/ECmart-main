@@ -14,7 +14,7 @@ const TABS = [
 ] as const
 
 const BODY_COLORS = [
-  ["アルミ", "#d1d1d1"], ["しろがね", "#eceeef"], ["くろがね", "#8d9194"],
+  ["アルミ", "#c9a24b"], ["しろがね", "#eceeef"], ["くろがね", "#8d9194"],
   ["レンガ", "#e8842f"], ["しんちゅう", "#c9a24b"], ["あおがね", "#5b8c9c"],
   ["もえぎ", "#7ba05b"], ["うすべに", "#d98aa0"], ["はがね", "#8a8f96"],
 ] as const
@@ -86,7 +86,7 @@ function parseRobot(params: Params): RobotConfig {
     pose,
     item,
     size,
-    bodyColor: one(params.bodyColor) || "#d1d1d1",
+    bodyColor: one(params.bodyColor) || "#c9a24b",
     accentColor: one(params.accentColor) || "#111111",
     name: (one(params.name) || (base === "volta" ? "ボルタ" : "ナッティ")).slice(0, 40),
   }

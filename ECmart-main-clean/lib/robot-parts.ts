@@ -26,7 +26,7 @@ export const ROBOT_BASE_PARTS: Record<
     label: "ボルタ",
     sub: "細いボルト脚のタイプ",
     defaultName: "ボルタ",
-    twoD: { bodyWidth: 92, headWidth: 116, waist: "bolt" },
+    twoD: { bodyWidth: 44, headWidth: 90, waist: "bolt" },
     threeD: { hipX: 0.25, kneeX: 0.43, ankleX: 0.58, waist: "bolt" },
   },
   natty: {
@@ -34,7 +34,7 @@ export const ROBOT_BASE_PARTS: Record<
     label: "ナッティ",
     sub: "大きなナット腰のタイプ",
     defaultName: "ナッティ",
-    twoD: { bodyWidth: 116, headWidth: 116, waist: "nut" },
+    twoD: { bodyWidth: 44, headWidth: 90, waist: "nut" },
     threeD: { hipX: 0.34, kneeX: 0.48, ankleX: 0.62, waist: "nut" },
   },
 }
@@ -52,8 +52,8 @@ export const ROBOT_POSE_PARTS: Record<
     id: "pose-stand",
     label: "きをつけ",
     twoD: {
-      left: "M96 112 L75 148 L65 184",
-      right: "M204 112 L225 148 L235 184",
+      left: "M116 104 L92 139 L79 177",
+      right: "M184 104 L208 139 L221 177",
     },
     threeD: {
       volta: { left: [-132, -112], right: [-48, -68] },
@@ -64,8 +64,8 @@ export const ROBOT_POSE_PARTS: Record<
     id: "pose-wave",
     label: "おて振り",
     twoD: {
-      left: "M96 112 L75 148 L65 184",
-      right: "M204 112 L226 82 L218 48",
+      left: "M116 104 L92 139 L79 177",
+      right: "M184 104 L213 82 L222 48",
     },
     threeD: {
       volta: { left: [-132, -112], right: [56, 102] },
@@ -76,8 +76,8 @@ export const ROBOT_POSE_PARTS: Record<
     id: "pose-cheer",
     label: "ばんざい",
     twoD: {
-      left: "M96 112 L73 80 L83 48",
-      right: "M204 112 L227 80 L217 48",
+      left: "M116 104 L87 82 L78 48",
+      right: "M184 104 L213 82 L222 48",
     },
     threeD: {
       volta: { left: [126, 101], right: [54, 79] },
@@ -88,8 +88,8 @@ export const ROBOT_POSE_PARTS: Record<
     id: "pose-point",
     label: "ゆびさし",
     twoD: {
-      left: "M96 112 L75 148 L65 184",
-      right: "M204 112 L238 112 L270 108",
+      left: "M116 104 L92 139 L79 177",
+      right: "M184 104 L224 104 L267 100",
     },
     threeD: {
       volta: { left: [-132, -112], right: [8, -2] },

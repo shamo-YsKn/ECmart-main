@@ -71,7 +71,7 @@ export function HomeView({
                 config={{
                   base: "volta",
                   size: 70,
-                  bodyColor: "#d1d1d1",
+                  bodyColor: "#c9a24b",
                   accentColor: "#111111",
                   pose: "cheer",
                   item: "none",
