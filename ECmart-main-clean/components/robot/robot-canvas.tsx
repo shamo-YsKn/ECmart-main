@@ -88,7 +88,7 @@ function useHexHeadGeometry() {
 
 function ScrewEye({ x, bodyColor, accentColor }: { x: number; bodyColor: string; accentColor: string }) {
   return (
-    <group position={[x, 2.28, 0.34]}>
+    <group position={[x, 2.155, 0.34]}>
       <mesh castShadow rotation={[Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[0.265, 0.265, 0.145, 36]} />
         <MetalMaterial color={bodyColor} />
@@ -109,12 +109,12 @@ function RobotHead({ bodyColor, accentColor }: Pick<RobotConfig, "bodyColor" | "
   const geometry = useHexHeadGeometry()
   return (
     <group>
-      <mesh geometry={geometry} position={[0, 1.98, 0]} castShadow receiveShadow>
+      <mesh geometry={geometry} position={[0, 1.855, 0]} castShadow receiveShadow>
         <MetalMaterial color={bodyColor} />
       </mesh>
       <ScrewEye x={-0.38} bodyColor={bodyColor} accentColor={accentColor} />
       <ScrewEye x={0.38} bodyColor={bodyColor} accentColor={accentColor} />
-      <mesh position={[0, 1.98, -0.325]} castShadow>
+      <mesh position={[0, 1.855, -0.325]} castShadow>
         <boxGeometry args={[0.58, 0.14, 0.05]} />
         <DarkMaterial />
       </mesh>
