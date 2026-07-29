@@ -81,9 +81,9 @@ function CounterSunkHand({ spec, fill }: { spec: HandSpec; fill: string }) {
   )
 }
 
-function CounterSunkFoot({ x, flip, fill }: { x: number; flip: number; fill: string }) {
+function CounterSunkFoot({ x, y, flip, fill }: { x: number; y: number; flip: number; fill: string }) {
   return (
-    <g transform={`translate(${x} 220) rotate(${flip * 2})`}>
+    <g transform={`translate(${x} ${y}) rotate(${flip * 2})`}>
       <path
         d="M-8 -10 Q-14 -9 -17 -2 L-27 11 H27 L17 -2 Q14 -9 8 -10 Z"
         fill={fill}
@@ -106,6 +106,14 @@ export function RobotFallback({ config }: { config: RobotConfig }) {
   const isBack = config.view === "back"
   const scale = 0.8 + ((Math.min(90, Math.max(20, config.size)) - 20) / 70) * 0.2
   const basePart = ROBOT_BASE_PARTS[config.base]
+  const isNatty = basePart.twoD.waist === "nut"
+  const bodyBottomY = isNatty ? 210 : 188
+  const bodyHeight = bodyBottomY - 84
+  const legStartY = isNatty ? 210 : 183
+  const legEndY = isNatty ? 224 : 212
+  const footY = isNatty ? 232 : 220
+  const leftLegPath = `M138 ${legStartY} L111 ${legEndY}`
+  const rightLegPath = `M162 ${legStartY} L189 ${legEndY}`
 
   return (
     <svg viewBox="0 0 300 260" className="h-full w-full" aria-hidden="true" focusable="false" preserveAspectRatio="xMidYMid meet">
@@ -139,24 +147,24 @@ export function RobotFallback({ config }: { config: RobotConfig }) {
         {!isSide && <circle cx="116" cy="104" r="10" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />}
         <circle cx="184" cy="104" r="10" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
 
-        <path d="M138 183 L111 212" fill="none" stroke="#263943" strokeWidth="13" strokeLinecap="round" />
-        <path d="M138 183 L111 212" fill="none" stroke={config.bodyColor} strokeWidth="8" strokeLinecap="round" />
+        <path d={leftLegPath} fill="none" stroke="#263943" strokeWidth="13" strokeLinecap="round" />
+        <path d={leftLegPath} fill="none" stroke={config.bodyColor} strokeWidth="8" strokeLinecap="round" />
         {!isSide && (
           <>
-            <path d="M162 183 L189 212" fill="none" stroke="#263943" strokeWidth="13" strokeLinecap="round" />
-            <path d="M162 183 L189 212" fill="none" stroke={config.bodyColor} strokeWidth="8" strokeLinecap="round" />
+            <path d={rightLegPath} fill="none" stroke="#263943" strokeWidth="13" strokeLinecap="round" />
+            <path d={rightLegPath} fill="none" stroke={config.bodyColor} strokeWidth="8" strokeLinecap="round" />
           </>
         )}
-        <CounterSunkFoot x={111} flip={-1} fill={`url(#${metalId})`} />
-        {!isSide && <CounterSunkFoot x={189} flip={1} fill={`url(#${metalId})`} />}
+        <CounterSunkFoot x={111} y={footY} flip={-1} fill={`url(#${metalId})`} />
+        {!isSide && <CounterSunkFoot x={189} y={footY} flip={1} fill={`url(#${metalId})`} />}
 
         {/* Long threaded screw shaft. */}
-        <rect x="128" y="84" width="44" height="104" rx="20" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
-        {Array.from({ length: 12 }, (_, index) => (
+        <rect x="128" y="84" width="44" height={bodyHeight} rx="20" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
+        {Array.from({ length: isNatty ? 15 : 12 }, (_, index) => (
           <line key={index} x1="125" x2="175" y1={94 + index * 8} y2={94 + index * 8} stroke="#263943" strokeOpacity=".72" strokeWidth="4" strokeLinecap="round" />
         ))}
 
-        {basePart.twoD.waist === "nut" && (
+        {isNatty && (
           <path d="M129 181 H171 L197 210 H103 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" strokeLinejoin="round" />
         )}
 
