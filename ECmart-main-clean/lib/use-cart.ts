@@ -48,6 +48,10 @@ export function useCart() {
     )
   }, [])
 
+  const clearCart = useCallback(() => {
+    setItems([])
+  }, [])
+
   const totalCount = useMemo(
     () => items.reduce((sum, i) => sum + i.quantity, 0),
     [items],
@@ -103,6 +107,7 @@ export function useCart() {
     setQuantity,
     removeItem,
     clearShop,
+    clearCart,
     quantityOf,
   }
 }

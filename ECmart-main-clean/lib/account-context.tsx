@@ -12,6 +12,8 @@ import {
 } from "react"
 import type { SupabaseClient, User } from "@supabase/supabase-js"
 import type {
+  CartItem,
+  PurchaseResult,
   RobotBase,
   RobotConfig,
   RobotItem,
@@ -25,6 +27,7 @@ export interface Profile {
   user_id: string
   display_name: string | null
   bio: string | null
+  points: number
   created_at?: string
   updated_at?: string
 }
@@ -36,6 +39,10 @@ type AccountResult = {
 
 type RobotAccountResult = AccountResult & {
   robot?: SavedRobot
+}
+
+type PurchaseAccountResult = AccountResult & {
+  purchase?: PurchaseResult
 }
 
 interface AccountContextValue {
@@ -57,6 +64,7 @@ interface AccountContextValue {
   saveRobot: (config: RobotConfig, robotId?: string) => Promise<RobotAccountResult>
   deleteRobot: (robotId: string) => Promise<AccountResult>
   setAvatarRobot: (robotId: string | null) => Promise<AccountResult>
+  purchaseCart: (items: CartItem[], idempotencyKey: string) => Promise<PurchaseAccountResult>
   refreshAccount: () => Promise<void>
 }
 
@@ -319,7 +327,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
           () =>
             supabase
               .from("profiles")
-              .select("user_id, display_name, bio, created_at, updated_at")
+              .select("user_id, display_name, bio, points, created_at, updated_at")
               .eq("user_id", nextUser.id)
               .maybeSingle(),
           "profile",
@@ -354,6 +362,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
             display_name:
               (nextUser.user_metadata?.display_name as string | undefined) ?? null,
             bio: null,
+            points: 0,
           },
         )
       } else {
@@ -362,6 +371,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
           display_name:
             (nextUser.user_metadata?.display_name as string | undefined) ?? null,
           bio: null,
+          points: 0,
         })
       }
 
@@ -540,7 +550,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       const { data, error } = await supabase
         .from("profiles")
         .upsert(nextProfile, { onConflict: "user_id" })
-        .select("user_id, display_name, bio, created_at, updated_at")
+        .select("user_id, display_name, bio, points, created_at, updated_at")
         .single()
 
       if (error) return { error: error.message }
@@ -700,6 +710,76 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     [getSupabase, robotStorageError, robotStorageReady, user],
   )
 
+  const purchaseCart = useCallback(
+    async (items: CartItem[], idempotencyKey: string): Promise<PurchaseAccountResult> => {
+      const supabase = await getSupabase()
+      if (!supabase || !user) {
+        return { error: "購入するにはログインが必要です。" }
+      }
+      if (items.length === 0) {
+        return { error: "カートに商品がありません。" }
+      }
+
+      try {
+        const { data, error } = await withTimeout(
+          supabase.auth.getSession(),
+          5000,
+          "purchase session",
+        )
+        if (error || !data.session?.access_token) {
+          return { error: "ログイン情報を確認できませんでした。もう一度ログインしてください。" }
+        }
+
+        const response = await withTimeout(
+          fetch("/api/purchase", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+              Authorization: `Bearer ${data.session.access_token}`,
+            },
+            body: JSON.stringify({ items, idempotencyKey }),
+          }),
+          15000,
+          "purchase",
+        )
+        const payload = (await response.json().catch(() => null)) as
+          | ({ ok?: boolean; error?: string } & Partial<PurchaseResult>)
+          | null
+
+        if (!response.ok || !payload?.ok || !payload.orderId) {
+          return { error: payload?.error || "購入処理を完了できませんでした。" }
+        }
+
+        const purchase: PurchaseResult = {
+          orderId: payload.orderId,
+          productTotal: Number(payload.productTotal) || 0,
+          shippingTotal: Number(payload.shippingTotal) || 0,
+          totalAmount: Number(payload.totalAmount) || 0,
+          pointsAwarded: Number(payload.pointsAwarded) || 0,
+          pointsBalance: Number(payload.pointsBalance) || 0,
+          createdAt: typeof payload.createdAt === "string" ? payload.createdAt : undefined,
+        }
+
+        setProfile((current) => ({
+          user_id: user.id,
+          display_name:
+            current?.display_name ??
+            ((user.user_metadata?.display_name as string | undefined) ?? null),
+          bio: current?.bio ?? null,
+          points: purchase.pointsBalance,
+          created_at: current?.created_at,
+          updated_at: new Date().toISOString(),
+        }))
+
+        return { error: null, purchase }
+      } catch {
+        return { error: "購入処理がタイムアウトしました。通信状態を確認してください。" }
+      }
+    },
+    [getSupabase, user],
+  )
+
   const avatarRobot = useMemo(
     () => savedRobots.find((robot) => robot.is_avatar) ?? null,
     [savedRobots],
@@ -725,6 +805,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       saveRobot,
       deleteRobot,
       setAvatarRobot,
+      purchaseCart,
       refreshAccount,
     }),
     [
@@ -734,6 +815,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       favoriteProductIds,
       loading,
       profile,
+      purchaseCart,
       refreshAccount,
       robotStorageError,
       robotStorageReady,

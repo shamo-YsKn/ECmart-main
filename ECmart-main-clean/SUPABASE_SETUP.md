@@ -9,16 +9,24 @@
 - 自作したボルタ／ナッティの保存・再編集
 - 保存したロボットをアカウントアイコンに設定
 - 同じアカウントでログインした別端末とのデータ共有
+- 購入履歴の保存
+- 購入100円ごとに200ptのサイト内ポイント付与
 
 ## すでに以前のSQLを実行済みの場合
 
-今回のロボット保存機能だけを追加する場合は、Supabase Dashboardの **SQL Editor** で次のファイルを実行してください。
+ロボット保存機能が未設定の場合は、Supabase Dashboardの **SQL Editor** で次を実行します。
 
 ```text
 supabase/robot-storage-migration.sql
 ```
 
-実行後、サイトを再読み込みします。既存のアカウント・プロフィール・お気に入りはそのまま残ります。
+購入・ポイント機能を追加するには、続けて次を実行します。
+
+```text
+supabase/purchase-points-migration.sql
+```
+
+既存のアカウント・プロフィール・お気に入り・保存ロボットはそのまま残ります。
 
 ## 新しくSupabaseを設定する場合
 
@@ -42,6 +50,8 @@ supabase/setup.sql
 - Row Level Security（本人のデータだけ保存・編集・削除可能）
 - 新規登録時のプロフィール自動作成トリガー
 - アカウントアイコンを1体だけ選択するための関数
+- `orders` / `order_items` / `point_transactions` テーブル
+- 注文保存とポイント付与を同時に行う購入関数
 
 ### 3. 環境変数を設定
 
@@ -62,9 +72,10 @@ Supabase Dashboardの **Connect** 画面に表示されるProject URLとPublisha
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxxxx
+SUPABASE_SERVICE_ROLE_KEY=sb_secret_xxxxx
 ```
 
-`service_role`／Secret keyはブラウザ側へ置かないでください。この実装では不要です。
+`SUPABASE_SERVICE_ROLE_KEY` は購入金額をサーバー側で検証し、安全にポイントを付与するために使用します。`NEXT_PUBLIC_` は絶対に付けず、Gitへコミットしたりブラウザ側のコードへ書いたりしないでください。
 
 ### 4. 認証設定
 
@@ -104,6 +115,7 @@ pnpm dev
 | `user_id` | Supabase AuthのユーザーID |
 | `display_name` | サイト上の表示名 |
 | `bio` | ひとことプロフィール |
+| `points` | サイト内の保有ポイント |
 
 ### favorites
 
@@ -125,3 +137,20 @@ pnpm dev
 | `created_at` / `updated_at` | 作成・更新日時 |
 
 本人は自分の保存ロボットをすべて読み書きできます。アカウントアイコンに設定した1体の外観設定だけは、将来レビュー欄などで表示できるよう公開読み取りを許可しています。メールアドレスやパスワードはこのテーブルには保存されません。
+
+
+### orders / order_items
+
+購入完了時の注文金額と商品明細を保存します。同じ注文IDを再送しても、ポイントが二重に付与されない構成です。
+
+### point_transactions
+
+購入によるポイント付与履歴を保存します。現在の残高は `profiles.points` で確認できます。
+
+## ポイント計算
+
+```text
+獲得ポイント = floor(支払合計 ÷ 100) × 200
+```
+
+商品合計と送料を含む支払合計を基準に計算します。この購入画面はデモ用の注文確定機能で、クレジットカードなどの実決済サービスはまだ接続していません。

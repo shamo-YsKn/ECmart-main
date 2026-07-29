@@ -71,3 +71,21 @@ export interface SavedRobot {
   updated_at: string
 }
 
+
+
+/** サイト内購入の結果 */
+export interface PurchaseResult {
+  orderId: string
+  productTotal: number
+  shippingTotal: number
+  totalAmount: number
+  pointsAwarded: number
+  pointsBalance: number
+  createdAt?: string
+}
+
+/** アカウントに保存された購入履歴 */
+export interface PurchaseOrder extends PurchaseResult {
+  userId: string
+  status: "completed"
+}

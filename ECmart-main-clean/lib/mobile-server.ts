@@ -1,7 +1,7 @@
 import "server-only"
 
 import { cookies } from "next/headers"
-import type { CartItem, RobotConfig, SavedRobot } from "@/lib/types"
+import type { CartItem, PurchaseOrder, RobotConfig, SavedRobot } from "@/lib/types"
 
 const ACCESS_COOKIE = "machinowa_mobile_access"
 const CART_COOKIE = "machinowa_mobile_cart"
@@ -57,7 +57,7 @@ export async function setMobileAccessToken(token: string | null) {
 }
 
 export type MobileUser = { id: string; email?: string | null }
-export type MobileProfile = { user_id: string; display_name: string | null; bio: string | null }
+export type MobileProfile = { user_id: string; display_name: string | null; bio: string | null; points: number }
 
 export async function getMobileUser(): Promise<MobileUser | null> {
   const token = await getMobileAccessToken()
@@ -97,7 +97,7 @@ export async function getMobileAccountData() {
   }
 
   const [profiles, favorites, robots] = await Promise.all([
-    restGet<MobileProfile[]>(`profiles?select=user_id,display_name,bio&user_id=eq.${encodeURIComponent(user.id)}&limit=1`, token),
+    restGet<MobileProfile[]>(`profiles?select=user_id,display_name,bio,points&user_id=eq.${encodeURIComponent(user.id)}&limit=1`, token),
     restGet<Array<{ product_id: string }>>(`favorites?select=product_id&user_id=eq.${encodeURIComponent(user.id)}`, token),
     restGet<SavedRobot[]>(`saved_robots?select=id,user_id,name,config,is_avatar,created_at,updated_at&user_id=eq.${encodeURIComponent(user.id)}&order=updated_at.desc`, token),
   ])
@@ -206,4 +206,39 @@ export async function writeMobileCart(items: CartItem[]) {
     secure: false,
     path: "/",
   })
+}
+
+
+export async function getMobileOrder(orderId: string): Promise<PurchaseOrder | null> {
+  const token = await getMobileAccessToken()
+  const user = await getMobileUser()
+  if (!token || !user || !orderId) return null
+
+  const rows = await restGet<Array<{
+    id: string
+    user_id: string
+    status: "completed"
+    product_total: number
+    shipping_total: number
+    total_amount: number
+    points_awarded: number
+    created_at: string
+  }>>(
+    `orders?select=id,user_id,status,product_total,shipping_total,total_amount,points_awarded,created_at&id=eq.${encodeURIComponent(orderId)}&user_id=eq.${encodeURIComponent(user.id)}&limit=1`,
+    token,
+  )
+  const row = rows?.[0]
+  if (!row) return null
+
+  return {
+    orderId: row.id,
+    userId: row.user_id,
+    status: row.status,
+    productTotal: row.product_total,
+    shippingTotal: row.shipping_total,
+    totalAmount: row.total_amount,
+    pointsAwarded: row.points_awarded,
+    pointsBalance: 0,
+    createdAt: row.created_at,
+  }
 }

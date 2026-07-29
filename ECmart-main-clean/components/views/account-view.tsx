@@ -17,6 +17,7 @@ import {
   Bot,
   Check,
   CheckCircle2,
+  Coins,
   Database,
   Heart,
   LoaderCircle,
@@ -508,7 +509,15 @@ export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; i
                 お気に入りと自作ロボットはSupabaseに保存されるため、同じアカウントなら別の端末からも確認できます。
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-xl border bg-background/80 p-4 text-sm">
+                <div className="text-muted-foreground">保有ポイント</div>
+                <div className="font-display mt-1 flex items-center gap-2 text-3xl font-black text-primary">
+                  <Coins className="size-6" />
+                  {(account.profile?.points ?? 0).toLocaleString()}<span className="text-sm text-foreground">pt</span>
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">購入100円ごとに200pt</p>
+              </div>
               <div className="rounded-xl border bg-background/80 p-4 text-sm">
                 <div className="text-muted-foreground">お気に入り</div>
                 <div className="font-display mt-1 text-3xl font-black text-primary">
