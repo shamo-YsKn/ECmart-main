@@ -89,3 +89,36 @@ export interface PurchaseOrder extends PurchaseResult {
   userId: string
   status: "completed"
 }
+
+
+/** ガチャ景品 */
+export type GachaRewardCategory = "body_color" | "accent_color" | "item"
+export type GachaRarity = "normal" | "rare" | "special"
+
+export interface GachaReward {
+  id: string
+  category: GachaRewardCategory
+  label: string
+  value: string
+  rarity: GachaRarity
+  weight: number
+}
+
+export interface GachaInventoryItem {
+  rewardId: string
+  quantity: number
+  firstAcquiredAt?: string
+  lastAcquiredAt?: string
+}
+
+export interface GachaSpinResult {
+  rollId: string
+  rewardId: string
+  category: GachaRewardCategory
+  label: string
+  value: string
+  rarity: GachaRarity
+  quantity: number
+  pointsBalance: number
+  duplicate: boolean
+}

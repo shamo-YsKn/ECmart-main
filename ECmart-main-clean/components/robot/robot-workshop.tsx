@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { RobotCharacter, type RobotRenderMode } from "./robot-character"
 import { RobotAvatar } from "./robot-avatar"
-import type { RobotBase, RobotConfig, SavedRobot } from "@/lib/types"
+import type { RobotBase, RobotConfig, RobotItem, SavedRobot } from "@/lib/types"
 import { useAccount } from "@/lib/account-context"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { ROBOT_BASE_OPTIONS, ROBOT_ITEM_OPTIONS, ROBOT_POSE_OPTIONS, ROBOT_VIEW_OPTIONS } from "@/lib/robot-parts"
+import { GACHA_COST, inventoryRewardIds } from "@/lib/gacha"
 import {
   Check,
   Database,
@@ -23,6 +24,8 @@ import {
   Save,
   Shuffle,
   Sparkles,
+  Gift,
+  Coins,
   Trash2,
   UserRound,
 } from "lucide-react"
@@ -30,26 +33,34 @@ import {
 const ROBOT_DRAFT_KEY = "machinowa:robot-draft"
 
 const BODY_COLORS = [
-  { label: "アルミ", value: "#c9a24b" },
-  { label: "しろがね", value: "#eceeef" },
-  { label: "くろがね", value: "#8d9194" },
-  { label: "レンガ", value: "#e8842f" },
-  { label: "しんちゅう", value: "#c9a24b" },
-  { label: "あおがね", value: "#5b8c9c" },
-  { label: "もえぎ", value: "#7ba05b" },
-  { label: "うすべに", value: "#d98aa0" },
-  { label: "はがね", value: "#8a8f96" },
+  { label: "しんちゅう", value: "#c9a24b", rewardId: null },
+  { label: "しろがね", value: "#eceeef", rewardId: "body-silver" },
+  { label: "くろがね", value: "#8d9194", rewardId: "body-dark-steel" },
+  { label: "はがね", value: "#8a8f96", rewardId: "body-hagane" },
+  { label: "レンガ", value: "#e8842f", rewardId: "body-brick" },
+  { label: "あおがね", value: "#5b8c9c", rewardId: "body-blue" },
+  { label: "もえぎ", value: "#7ba05b", rewardId: "body-green" },
+  { label: "うすべに", value: "#d98aa0", rewardId: "body-pink" },
 ]
 
 const ACCENT_COLORS = [
-  { label: "黒", value: "#111111" },
-  { label: "濃いグレー", value: "#777777" },
-  { label: "さくら", value: "#e86a8f" },
-  { label: "たまご", value: "#ffcf4d" },
-  { label: "みずいろ", value: "#5fb6d1" },
-  { label: "わかば", value: "#6fbf73" },
-  { label: "だいだい", value: "#f08a3c" },
+  { label: "黒", value: "#111111", rewardId: null },
+  { label: "濃いグレー", value: "#777777", rewardId: "eye-gray" },
+  { label: "たまご", value: "#ffcf4d", rewardId: "eye-yellow" },
+  { label: "みずいろ", value: "#5fb6d1", rewardId: "eye-blue" },
+  { label: "わかば", value: "#6fbf73", rewardId: "eye-green" },
+  { label: "さくら", value: "#e86a8f", rewardId: "eye-pink" },
+  { label: "だいだい", value: "#f08a3c", rewardId: "eye-orange" },
 ]
+
+const ITEM_REWARD_IDS: Record<RobotItem, string | null> = {
+  none: null,
+  wrench: "item-wrench",
+  gear: "item-gear",
+  flower: "item-flower",
+  heart: "item-heart",
+}
+
 
 const BASES = ROBOT_BASE_OPTIONS
 const POSES = ROBOT_POSE_OPTIONS
@@ -128,7 +139,7 @@ function Swatches({
   )
 }
 
-function dispatchNavigate(tab: "account" | "robot") {
+function dispatchNavigate(tab: "account" | "robot" | "gacha") {
   window.dispatchEvent(new CustomEvent("machinowa:navigate", { detail: { tab } }))
 }
 
@@ -140,6 +151,29 @@ export function RobotWorkshop() {
   const [notice, setNotice] = useState<Notice>(null)
   const [desktop3D, setDesktop3D] = useState(false)
   const [previewMode, setPreviewMode] = useState<RobotRenderMode>("2d")
+  const unlockedRewardIds = useMemo(
+    () => inventoryRewardIds(account.gachaInventory),
+    [account.gachaInventory],
+  )
+  const availableBodyColors = useMemo(
+    () => BODY_COLORS.filter((color) =>
+      !color.rewardId || unlockedRewardIds.has(color.rewardId) || color.value === config.bodyColor,
+    ),
+    [config.bodyColor, unlockedRewardIds],
+  )
+  const availableAccentColors = useMemo(
+    () => ACCENT_COLORS.filter((color) =>
+      !color.rewardId || unlockedRewardIds.has(color.rewardId) || color.value === config.accentColor,
+    ),
+    [config.accentColor, unlockedRewardIds],
+  )
+  const availableItems = useMemo(
+    () => ITEMS.filter((item) => {
+      const rewardId = ITEM_REWARD_IDS[item.value]
+      return !rewardId || unlockedRewardIds.has(rewardId) || item.value === config.item
+    }),
+    [config.item, unlockedRewardIds],
+  )
 
   useEffect(() => {
     const media = window.matchMedia("(min-width: 900px) and (hover: hover) and (pointer: fine)")
@@ -189,10 +223,10 @@ export function RobotWorkshop() {
     setConfig((current) => ({
       ...current,
       base: pick(BASES).value,
-      bodyColor: pick(BODY_COLORS).value,
-      accentColor: pick(ACCENT_COLORS).value,
+      bodyColor: pick(availableBodyColors).value,
+      accentColor: pick(availableAccentColors).value,
       pose: pick(POSES).value,
-      item: pick(ITEMS).value,
+      item: pick(availableItems).value,
       size: 35 + Math.floor(Math.random() * 55),
     }))
     setEditingRobotId(null)
@@ -419,15 +453,15 @@ export function RobotWorkshop() {
               <div className="flex flex-col gap-3">
                 <Label>ボディの色</Label>
                 <Swatches
-                  colors={BODY_COLORS}
+                  colors={availableBodyColors}
                   value={config.bodyColor}
                   onChange={(value) => update("bodyColor", value)}
                 />
               </div>
               <div className="flex flex-col gap-3">
-                <Label>アクセントの色</Label>
+                <Label>目の色</Label>
                 <Swatches
-                  colors={ACCENT_COLORS}
+                  colors={availableAccentColors}
                   value={config.accentColor}
                   onChange={(value) => update("accentColor", value)}
                 />
@@ -446,8 +480,36 @@ export function RobotWorkshop() {
               </div>
               <div className="flex flex-col gap-3">
                 <Label>持たせるモノ</Label>
-                <OptionPicker options={ITEMS} value={config.item} onChange={(value) => update("item", value)} />
+                <OptionPicker options={availableItems} value={config.item} onChange={(value) => update("item", value)} />
               </div>
+            </CardContent>
+          </Card>
+
+          <Card className="overflow-hidden border-2 border-amber-300 bg-amber-50/70">
+            <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-amber-400 text-amber-950">
+                  <Gift className="size-6" />
+                </div>
+                <div>
+                  <h3 className="font-display font-black">カラー・アイテムガチャ</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    1回{GACHA_COST}pt。獲得したボディ色・目の色・持ちものが工房に追加されます。
+                  </p>
+                  <div className="mt-2 flex items-center gap-1 text-sm font-bold text-amber-900">
+                    <Coins className="size-4" />
+                    保有 {(account.profile?.points ?? 0).toLocaleString()} pt
+                  </div>
+                </div>
+              </div>
+              <Button
+                type="button"
+                className="shrink-0 rounded-full"
+                onClick={() => account.user ? dispatchNavigate("gacha") : dispatchNavigate("account")}
+              >
+                <Sparkles data-icon="inline-start" />
+                {account.user ? "ガチャへ" : "ログインしてガチャ"}
+              </Button>
             </CardContent>
           </Card>
 

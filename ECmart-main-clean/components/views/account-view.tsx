@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react"
 import type { CartApi } from "@/lib/use-cart"
 import type { SavedRobot } from "@/lib/types"
+import { GACHA_CATEGORY_LABELS, GACHA_RARITY_LABELS, getGachaReward, rewardPreview } from "@/lib/gacha"
 import { products } from "@/lib/data"
 import { useAccount } from "@/lib/account-context"
 import { ProductCard } from "@/components/product-card"
@@ -20,6 +21,7 @@ import {
   Coins,
   Database,
   Heart,
+  Gift,
   LoaderCircle,
   LogIn,
   LogOut,
@@ -60,7 +62,7 @@ function NoticeBox({ notice }: { notice: Notice }) {
   )
 }
 
-function navigateTo(tab: "robot" | "shops") {
+function navigateTo(tab: "robot" | "shops" | "gacha") {
   window.dispatchEvent(new CustomEvent("machinowa:navigate", { detail: { tab } }))
 }
 
@@ -84,6 +86,16 @@ export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; i
   const favoriteProducts = useMemo(
     () => products.filter((product) => account.favoriteProductIds.has(product.id)),
     [account.favoriteProductIds],
+  )
+
+  const gachaItems = useMemo(
+    () => account.gachaInventory
+      .map((entry) => {
+        const reward = getGachaReward(entry.rewardId)
+        return reward ? { entry, reward } : null
+      })
+      .filter((item): item is NonNullable<typeof item> => Boolean(item)),
+    [account.gachaInventory],
   )
 
   async function handleAuth(event: FormEvent<HTMLFormElement>) {
@@ -509,14 +521,14 @@ export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; i
                 お気に入りと自作ロボットはSupabaseに保存されるため、同じアカウントなら別の端末からも確認できます。
               </p>
             </div>
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-xl border bg-background/80 p-4 text-sm">
                 <div className="text-muted-foreground">保有ポイント</div>
                 <div className="font-display mt-1 flex items-center gap-2 text-3xl font-black text-primary">
                   <Coins className="size-6" />
                   {(account.profile?.points ?? 0).toLocaleString()}<span className="text-sm text-foreground">pt</span>
                 </div>
-                <p className="mt-2 text-xs text-muted-foreground">購入100円ごとに200pt</p>
+                <p className="mt-2 text-xs text-muted-foreground">購入100円ごとに200pt・ガチャ1回100pt</p>
               </div>
               <div className="rounded-xl border bg-background/80 p-4 text-sm">
                 <div className="text-muted-foreground">お気に入り</div>
@@ -530,9 +542,74 @@ export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; i
                   {account.savedRobots.length}<span className="ml-1 text-sm text-foreground">体</span>
                 </div>
               </div>
+              <div className="rounded-xl border bg-background/80 p-4 text-sm">
+                <div className="text-muted-foreground">ガチャ景品</div>
+                <div className="font-display mt-1 text-3xl font-black text-primary">
+                  {gachaItems.length}<span className="ml-1 text-sm text-foreground">種類</span>
+                </div>
+                <button type="button" className="mt-2 text-xs font-bold text-primary underline-offset-4 hover:underline" onClick={() => navigateTo("gacha")}>ガチャを回す</button>
+              </div>
             </div>
           </CardContent>
         </Card>
+      </section>
+
+      <section className="flex flex-col gap-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="font-display flex items-center gap-2 text-2xl font-black">
+              <Gift className="size-6 text-primary" />
+              ガチャで獲得したもの
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              獲得したカラーと持ちものは、ロボット工房の選択肢に追加されます。
+            </p>
+          </div>
+          <Button className="rounded-full" onClick={() => navigateTo("gacha")}>
+            <Gift data-icon="inline-start" />
+            ガチャへ
+          </Button>
+        </div>
+
+        {gachaItems.length > 0 ? (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {gachaItems.map(({ entry, reward }) => {
+              const preview = rewardPreview(reward)
+              return (
+                <Card key={reward.id} className="border-2">
+                  <CardContent className="flex items-center gap-4 p-4">
+                    <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl border bg-muted">
+                      {preview.kind === "color" ? (
+                        <span className="size-10 rounded-full border-2 border-white shadow ring-1 ring-foreground/15" style={{ backgroundColor: preview.color }} />
+                      ) : (
+                        <span className="text-4xl">{preview.icon}</span>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap gap-1">
+                        <Badge variant="secondary" className="rounded-full">{GACHA_CATEGORY_LABELS[reward.category]}</Badge>
+                        <Badge className="rounded-full">{GACHA_RARITY_LABELS[reward.rarity]}</Badge>
+                      </div>
+                      <h3 className="font-display mt-2 truncate font-black">{reward.label}</h3>
+                      <p className="text-sm text-muted-foreground">所持数：{entry.quantity}個</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        ) : (
+          <Card className="border-2 border-dashed">
+            <CardContent className="flex flex-col items-center gap-3 py-10 text-center text-muted-foreground">
+              <Gift className="size-9" />
+              <div>
+                <p className="font-display font-bold text-foreground">まだガチャ景品はありません</p>
+                <p className="mt-1 text-sm">ポイントを使って、最初のカラーや持ちものを獲得してみましょう。</p>
+              </div>
+              <Button className="rounded-full" onClick={() => navigateTo("gacha")}>ガチャを回す</Button>
+            </CardContent>
+          </Card>
+        )}
       </section>
 
       <section className="flex flex-col gap-5">

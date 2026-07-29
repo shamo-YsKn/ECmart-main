@@ -5,6 +5,7 @@ import type { RobotBase, RobotConfig, RobotItem, RobotPose, RobotView, ShopCateg
 import { ROBOT_BASE_OPTIONS, ROBOT_ITEM_OPTIONS, ROBOT_POSE_OPTIONS, ROBOT_VIEW_OPTIONS } from "@/lib/robot-parts"
 import { RobotFallback } from "@/components/robot/robot-fallback"
 import { calculateCartTotals } from "@/lib/purchase"
+import { GACHA_CATEGORY_LABELS, GACHA_COST, GACHA_RARITY_LABELS, getGachaReward, rewardPreview } from "@/lib/gacha"
 
 const TABS = [
   ["home", "ホーム"],
@@ -16,14 +17,26 @@ const TABS = [
 ] as const
 
 const BODY_COLORS = [
-  ["アルミ", "#c9a24b"], ["しろがね", "#eceeef"], ["くろがね", "#8d9194"],
-  ["レンガ", "#e8842f"], ["しんちゅう", "#c9a24b"], ["あおがね", "#5b8c9c"],
+  ["しんちゅう", "#c9a24b"], ["しろがね", "#eceeef"], ["くろがね", "#8d9194"],
+  ["レンガ", "#e8842f"], ["あおがね", "#5b8c9c"],
   ["もえぎ", "#7ba05b"], ["うすべに", "#d98aa0"], ["はがね", "#8a8f96"],
 ] as const
 const ACCENT_COLORS = [
   ["黒", "#111111"], ["濃いグレー", "#777777"], ["さくら", "#e86a8f"],
   ["たまご", "#ffcf4d"], ["みずいろ", "#5fb6d1"], ["わかば", "#6fbf73"], ["だいだい", "#f08a3c"],
 ] as const
+const BODY_REWARD_IDS: Record<string, string | null> = {
+  "#c9a24b": null, "#eceeef": "body-silver", "#8d9194": "body-dark-steel",
+  "#e8842f": "body-brick", "#5b8c9c": "body-blue", "#7ba05b": "body-green",
+  "#d98aa0": "body-pink", "#8a8f96": "body-hagane",
+}
+const ACCENT_REWARD_IDS: Record<string, string | null> = {
+  "#111111": null, "#777777": "eye-gray", "#e86a8f": "eye-pink",
+  "#ffcf4d": "eye-yellow", "#5fb6d1": "eye-blue", "#6fbf73": "eye-green", "#f08a3c": "eye-orange",
+}
+const ITEM_REWARD_IDS: Record<RobotItem, string | null> = {
+  none: null, wrench: "item-wrench", gear: "item-gear", flower: "item-flower", heart: "item-heart",
+}
 const CATEGORIES: Array<ShopCategory | "すべて"> = ["すべて", "食品", "工芸", "花・緑", "喫茶", "雑貨"]
 
 type Params = Record<string, string | string[] | undefined>
@@ -98,8 +111,10 @@ function robotHref(config: RobotConfig, change: Partial<RobotConfig>) {
   return q({ tab: "robot", base: next.base, view: next.view, pose: next.pose, item: next.item, size: next.size, bodyColor: next.bodyColor, accentColor: next.accentColor, name: next.name })
 }
 
+type MobilePageTab = typeof TABS[number][0] | "gacha"
+
 export async function MobileSite({ params }: { params: Params }) {
-  const tab = (one(params.tab) || "home") as typeof TABS[number][0]
+  const tab = (one(params.tab) || "home") as MobilePageTab
   const account = await getMobileAccountData()
   const cartItems = await readMobileCart()
   const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0)
@@ -131,6 +146,19 @@ export async function MobileSite({ params }: { params: Params }) {
     content = <div className="flex flex-col gap-5"><h1 className="font-display text-3xl font-black">ランキング</h1><div className="flex gap-2"><a className={pill(kind === "monthly")} href={q({tab:"ranking",rank:"monthly"})}>月間</a><a className={pill(kind === "all")} href={q({tab:"ranking",rank:"all"})}>累計</a></div>{ranked.slice(0,10).map((p,i)=><div key={p.id} className="flex gap-3"><div className="flex size-10 items-center justify-center rounded-full bg-primary text-white font-black">{i+1}</div><div className="flex-1"><ProductRow productId={p.id} favorites={account.favorites} loggedIn={!!account.user} returnTo={returnTo} quantity={quantityOf(p.id)} /></div></div>)}</div>
   } else if (tab === "robot") {
     const config = parseRobot(params)
+    const unlockedRewardIds = new Set(account.gachaInventory.map((entry) => entry.rewardId))
+    const availableBodyColors = BODY_COLORS.filter(([, color]) => {
+      const rewardId = BODY_REWARD_IDS[color]
+      return !rewardId || unlockedRewardIds.has(rewardId) || config.bodyColor === color
+    })
+    const availableAccentColors = ACCENT_COLORS.filter(([, color]) => {
+      const rewardId = ACCENT_REWARD_IDS[color]
+      return !rewardId || unlockedRewardIds.has(rewardId) || config.accentColor === color
+    })
+    const availableItems = ROBOT_ITEM_OPTIONS.filter((option) => {
+      const rewardId = ITEM_REWARD_IDS[option.value]
+      return !rewardId || unlockedRewardIds.has(rewardId) || config.item === option.value
+    })
     content = <div className="flex flex-col gap-5"><div><h1 className="font-display text-3xl font-black">ロボット工房</h1><p className="text-muted-foreground">スマホ版は2D表示。通常は画面遷移なしで反映し、通信非対応時だけ通常遷移へ切り替わります。</p></div>
       {one(params.robotSaved) && <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">ロボットを保存しました。</div>}
       {one(params.robotError) && <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800">{one(params.robotError)}</div>}
@@ -138,15 +166,34 @@ export async function MobileSite({ params }: { params: Params }) {
       <Card><h2 className="font-display font-bold">タイプ</h2><div className="mt-3 grid grid-cols-2 gap-2">{ROBOT_BASE_OPTIONS.map(o=><a key={o.value} className={pill(config.base===o.value)} href={robotHref(config,{base:o.value,name:config.name==="ボルタ"||config.name==="ナッティ"?(o.value==="volta"?"ボルタ":"ナッティ"):config.name})}>{o.label}</a>)}</div></Card>
       <Card><h2 className="font-display font-bold">向き</h2><div className="mt-3 flex flex-wrap gap-2">{ROBOT_VIEW_OPTIONS.map(o=><a key={o.value} className={pill(config.view===o.value)} href={robotHref(config,{view:o.value})}>{o.label}</a>)}</div></Card>
       <Card><h2 className="font-display font-bold">ポーズ</h2><div className="mt-3 flex flex-wrap gap-2">{ROBOT_POSE_OPTIONS.map(o=><a key={o.value} className={pill(config.pose===o.value)} href={robotHref(config,{pose:o.value})}>{o.label}</a>)}</div></Card>
-      <Card><h2 className="font-display font-bold">持ち物</h2><div className="mt-3 flex flex-wrap gap-2">{ROBOT_ITEM_OPTIONS.map(o=><a key={o.value} className={pill(config.item===o.value)} href={robotHref(config,{item:o.value})}>{o.label}</a>)}</div></Card>
-      <Card><h2 className="font-display font-bold">ボディ色</h2><div className="mt-3 flex flex-wrap gap-3">{BODY_COLORS.map(([label,color])=><a key={color} title={label} aria-label={label} href={robotHref(config,{bodyColor:color})} className={`size-10 rounded-full border-4 ${config.bodyColor===color?"border-primary":"border-white"}`} style={{backgroundColor:color}} />)}</div><h2 className="mt-5 font-display font-bold">アクセント色</h2><div className="mt-3 flex flex-wrap gap-3">{ACCENT_COLORS.map(([label,color])=><a key={color} title={label} aria-label={label} href={robotHref(config,{accentColor:color})} className={`size-10 rounded-full border-4 ${config.accentColor===color?"border-primary":"border-white"}`} style={{backgroundColor:color}} />)}</div></Card>
+      <Card><h2 className="font-display font-bold">持ち物</h2><div className="mt-3 flex flex-wrap gap-2">{availableItems.map(o=><a key={o.value} className={pill(config.item===o.value)} href={robotHref(config,{item:o.value})}>{o.label}</a>)}</div></Card>
+      <Card><h2 className="font-display font-bold">ボディ色</h2><div className="mt-3 flex flex-wrap gap-3">{availableBodyColors.map(([label,color])=><a key={color} title={label} aria-label={label} href={robotHref(config,{bodyColor:color})} className={`size-10 rounded-full border-4 ${config.bodyColor===color?"border-primary":"border-white"}`} style={{backgroundColor:color}} />)}</div><h2 className="mt-5 font-display font-bold">目の色</h2><div className="mt-3 flex flex-wrap gap-3">{availableAccentColors.map(([label,color])=><a key={color} title={label} aria-label={label} href={robotHref(config,{accentColor:color})} className={`size-10 rounded-full border-4 ${config.accentColor===color?"border-primary":"border-white"}`} style={{backgroundColor:color}} />)}</div></Card>
+      <Card className="border-amber-300 bg-amber-50"><h2 className="font-display font-black">🎁 カラー・アイテムガチャ</h2><p className="mt-1 text-sm text-muted-foreground">1回{GACHA_COST}pt。獲得した色と持ちものが工房に追加されます。</p><div className="mt-2 font-bold text-amber-900">保有 {(account.profile?.points ?? 0).toLocaleString()} pt</div><a className={`${pill(true)} mt-4 w-full`} href={account.user?"/?tab=gacha":"/?tab=account"}>{account.user?"ガチャへ":"ログインしてガチャ"}</a></Card>
       <Card><form method="get" action="/"><input type="hidden" name="tab" value="robot" />{Object.entries(config).filter(([k])=>k!=="name"&&k!=="size").map(([k,v])=><input key={k} type="hidden" name={k} value={String(v)} />)}<label className="font-display font-bold" htmlFor="mobile-robot-name">名前</label><input id="mobile-robot-name" name="name" defaultValue={config.name} maxLength={40} className="mt-2 h-11 w-full rounded-xl border px-3" /><label className="mt-4 block font-display font-bold" htmlFor="mobile-robot-size">大きさ: {config.size}cm</label><input id="mobile-robot-size" type="range" name="size" min="20" max="90" defaultValue={config.size} className="mt-2 w-full" /><button className={`${pill()} mt-4 w-full`} type="submit">名前・大きさを反映</button></form></Card>
       {account.user ? <form action="/api/mobile/robot" method="post"><input type="hidden" name="returnTo" value={returnTo} />{Object.entries(config).map(([k,v])=><input key={k} type="hidden" name={k} value={String(v)} />)}<button type="submit" className={`${pill(true)} w-full`}>このロボットを保存</button></form> : <a className={`${pill()} w-full`} href="/?tab=account">保存するにはログイン</a>}
     </div>
+  } else if (tab === "gacha") {
+    const stage = one(params.stage) || "intro"
+    const gachaError = one(params.gachaError)
+    const reward = getGachaReward(one(params.reward) || "")
+    const pointsBalance = Math.max(0, Number(one(params.balance)) || (account.profile?.points ?? 0))
+    const duplicate = one(params.duplicate) === "1"
+    const quantity = Math.max(1, Number(one(params.quantity)) || 1)
+
+    if (!account.user) {
+      content = <div className="flex flex-col gap-5 text-center"><h1 className="font-display text-3xl font-black">ボルタ・ナッティ ガチャ</h1><Card><div className="text-6xl">🔒</div><h2 className="mt-3 font-display text-xl font-black">ログインが必要です</h2><p className="mt-2 text-sm text-muted-foreground">ポイントと獲得物はアカウントに保存されます。</p><a className={`${pill(true)} mt-4 w-full`} href="/?tab=account">ログインする</a></Card><a className={pill()} href="/?tab=robot">工房へ戻る</a></div>
+    } else if (stage === "ready") {
+      content = <div className="flex flex-col gap-5 text-center"><h1 className="font-display text-3xl font-black">箱を開けよう！</h1><div className="font-bold text-primary">保有 {(account.profile?.points ?? 0).toLocaleString()} pt</div>{gachaError&&<div className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800">{gachaError}</div>}<Card className="py-10"><form action="/api/gacha" method="post"><input type="hidden" name="rollId" value={one(params.rollId) || randomUUID()}/><button type="submit" className="mx-auto flex size-48 animate-pulse flex-col items-center justify-center rounded-[2rem] border-4 border-primary bg-background text-primary shadow-xl"><span className="text-8xl">🎁</span><span className="mt-2 font-black">タップして開ける</span></button></form><p className="mt-5 text-sm text-muted-foreground">タップすると{GACHA_COST}ptを消費して抽選します。</p></Card><a className={pill()} href="/?tab=gacha">戻る</a></div>
+    } else if (stage === "result" && reward) {
+      const preview = rewardPreview(reward)
+      content = <div className="flex flex-col gap-5 text-center"><div className="text-6xl">✨</div><div><div className="font-bold text-primary">{GACHA_RARITY_LABELS[reward.rarity]}</div><h1 className="font-display text-3xl font-black">{duplicate?"また会えた！":"新しい景品を獲得！"}</h1></div><Card className="flex flex-col items-center gap-4 py-8"><div className="flex size-40 items-center justify-center rounded-[2rem] border bg-muted">{preview.kind==="color"?<span className="size-24 rounded-full border-4 border-white shadow" style={{backgroundColor:preview.color}}/>:<span className="text-7xl">{preview.icon}</span>}</div><div><div className="text-sm text-muted-foreground">{GACHA_CATEGORY_LABELS[reward.category]}</div><div className="font-display text-2xl font-black">{reward.label}</div><div className="mt-1 text-sm text-muted-foreground">所持数：{quantity}個{duplicate?"（重複）":""}</div></div><div className="rounded-xl bg-primary/10 px-5 py-3 font-bold text-primary">残り {pointsBalance.toLocaleString()} pt</div></Card><div className="grid grid-cols-2 gap-2"><a className={pill()} href="/?tab=gacha">もう一度</a><a className={pill(true)} href="/?tab=robot">工房で使う</a></div></div>
+    } else {
+      content = <div className="flex flex-col gap-5 text-center"><div><h1 className="font-display text-3xl font-black">ボルタ・ナッティ ガチャ</h1><p className="mt-2 text-muted-foreground">ボディカラー、目の色、持ちものを獲得できます。</p></div><div className="font-display text-xl font-black text-primary">保有 {(account.profile?.points ?? 0).toLocaleString()} pt</div>{gachaError&&<div className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800">{gachaError}</div>}<Card className="py-10"><div className="text-8xl">🎁</div><h2 className="mt-4 font-display text-2xl font-black">1回 {GACHA_COST}pt</h2><p className="mt-2 text-sm text-muted-foreground">重複した景品は所持数として加算されます。</p><a className={`${pill(true)} mt-5 w-full`} href={q({tab:"gacha",stage:"ready",rollId:randomUUID()})}>1回まわす</a></Card><a className={pill()} href="/?tab=robot">工房へ戻る</a></div>
+    }
   } else if (tab === "account") {
     const loginError = one(params.loginError)
     if (!account.user) content = <div className="mx-auto flex max-w-lg flex-col gap-5"><h1 className="font-display text-3xl font-black">アカウント</h1><p className="text-muted-foreground">スマホ版は軽量Ajaxでログインします。Reactが使えない場合も通常フォームへ自動フォールバックします。</p>{loginError&&<div className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800">{loginError}</div>}<Card><form method="post" action="/api/mobile/auth/login" className="flex flex-col gap-4"><input type="hidden" name="returnTo" value="/?tab=account"/><label>メールアドレス<input required type="email" name="email" autoComplete="email" className="mt-1 h-11 w-full rounded-xl border px-3"/></label><label>パスワード<input required minLength={6} type="password" name="password" autoComplete="current-password" className="mt-1 h-11 w-full rounded-xl border px-3"/></label><button className={pill(true)} type="submit">ログイン</button></form></Card></div>
-    else content = <div className="flex flex-col gap-5"><div><h1 className="font-display text-3xl font-black">マイページ</h1><p className="text-muted-foreground">{account.profile?.display_name || account.user.email || "マチノワ会員"}さん</p></div><form action="/api/mobile/auth/logout" method="post"><input type="hidden" name="returnTo" value="/?tab=account"/><button className={pill()} type="submit">ログアウト</button></form><Card className="bg-primary/5"><div className="text-sm text-muted-foreground">保有ポイント</div><div className="mt-1 font-display text-3xl font-black text-primary">{(account.profile?.points ?? 0).toLocaleString()} pt</div><p className="mt-2 text-xs text-muted-foreground">購入100円ごとに200pt付与されます。</p></Card><Card><h2 className="font-display font-bold">お気に入り</h2><p className="mt-1 text-sm text-muted-foreground">{account.favorites.size}件</p><div className="mt-3 flex flex-col gap-2">{[...account.favorites].map(id=>{const p=getProduct(id);return p?<div key={id}>{p.emoji} {p.name}</div>:null})}</div></Card><Card><h2 className="font-display font-bold">保存したロボット</h2><p className="mt-1 text-sm text-muted-foreground">{account.robots.length}体</p><div className="mt-3 flex flex-col gap-3">{account.robots.map(r=><div key={r.id} className="rounded-xl bg-muted p-3"><div className="font-bold">{r.name}</div><div className="text-xs text-muted-foreground">{r.config.base==="volta"?"ボルタ":"ナッティ"}・{r.config.pose}</div></div>)}</div></Card></div>
+    else content = <div className="flex flex-col gap-5"><div><h1 className="font-display text-3xl font-black">マイページ</h1><p className="text-muted-foreground">{account.profile?.display_name || account.user.email || "マチノワ会員"}さん</p></div><form action="/api/mobile/auth/logout" method="post"><input type="hidden" name="returnTo" value="/?tab=account"/><button className={pill()} type="submit">ログアウト</button></form><Card className="bg-primary/5"><div className="text-sm text-muted-foreground">保有ポイント</div><div className="mt-1 font-display text-3xl font-black text-primary">{(account.profile?.points ?? 0).toLocaleString()} pt</div><p className="mt-2 text-xs text-muted-foreground">購入100円ごとに200pt・ガチャ1回100pt付与されます。</p></Card><Card><h2 className="font-display font-bold">お気に入り</h2><p className="mt-1 text-sm text-muted-foreground">{account.favorites.size}件</p><div className="mt-3 flex flex-col gap-2">{[...account.favorites].map(id=>{const p=getProduct(id);return p?<div key={id}>{p.emoji} {p.name}</div>:null})}</div></Card><Card><div className="flex items-center justify-between gap-2"><h2 className="font-display font-bold">ガチャで獲得したもの</h2><a className={pill()} href="/?tab=gacha">ガチャへ</a></div><p className="mt-1 text-sm text-muted-foreground">{account.gachaInventory.length}種類</p><div className="mt-3 grid grid-cols-2 gap-2">{account.gachaInventory.map(entry=>{const reward=getGachaReward(entry.rewardId);if(!reward)return null;const preview=rewardPreview(reward);return <div key={entry.rewardId} className="rounded-xl bg-muted p-3"><div className="flex items-center gap-2">{preview.kind==="color"?<span className="size-8 rounded-full border-2 border-white shadow" style={{backgroundColor:preview.color}}/>:<span className="text-2xl">{preview.icon}</span>}<div className="min-w-0"><div className="truncate text-sm font-bold">{reward.label}</div><div className="text-xs text-muted-foreground">×{entry.quantity}</div></div></div></div>})}</div></Card><Card><h2 className="font-display font-bold">保存したロボット</h2><p className="mt-1 text-sm text-muted-foreground">{account.robots.length}体</p><div className="mt-3 flex flex-col gap-3">{account.robots.map(r=><div key={r.id} className="rounded-xl bg-muted p-3"><div className="font-bold">{r.name}</div><div className="text-xs text-muted-foreground">{r.config.base==="volta"?"ボルタ":"ナッティ"}・{r.config.pose}</div></div>)}</div></Card></div>
   } else if (tab === "cart") {
     const purchaseState = one(params.purchase)
     const purchaseError = one(params.purchaseError)

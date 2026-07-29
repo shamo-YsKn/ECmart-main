@@ -13,6 +13,8 @@ import {
 import type { SupabaseClient, User } from "@supabase/supabase-js"
 import type {
   CartItem,
+  GachaInventoryItem,
+  GachaSpinResult,
   PurchaseResult,
   RobotBase,
   RobotConfig,
@@ -22,6 +24,7 @@ import type {
   SavedRobot,
 } from "@/lib/types"
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client"
+import { getGachaReward } from "@/lib/gacha"
 
 export interface Profile {
   user_id: string
@@ -45,6 +48,10 @@ type PurchaseAccountResult = AccountResult & {
   purchase?: PurchaseResult
 }
 
+type GachaAccountResult = AccountResult & {
+  spin?: GachaSpinResult
+}
+
 interface AccountContextValue {
   configured: boolean
   loading: boolean
@@ -54,6 +61,7 @@ interface AccountContextValue {
   favoriteProductIds: Set<string>
   savedRobots: SavedRobot[]
   avatarRobot: SavedRobot | null
+  gachaInventory: GachaInventoryItem[]
   robotStorageReady: boolean
   robotStorageError: string | null
   signUp: (email: string, password: string, displayName: string) => Promise<AccountResult>
@@ -65,6 +73,7 @@ interface AccountContextValue {
   deleteRobot: (robotId: string) => Promise<AccountResult>
   setAvatarRobot: (robotId: string | null) => Promise<AccountResult>
   purchaseCart: (items: CartItem[], idempotencyKey: string) => Promise<PurchaseAccountResult>
+  spinGacha: (rollId: string) => Promise<GachaAccountResult>
   refreshAccount: () => Promise<void>
 }
 
@@ -280,6 +289,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     () => new Set(),
   )
   const [savedRobots, setSavedRobots] = useState<SavedRobot[]>([])
+  const [gachaInventory, setGachaInventory] = useState<GachaInventoryItem[]>([])
   const [robotStorageReady, setRobotStorageReady] = useState(true)
   const [robotStorageError, setRobotStorageError] = useState<string | null>(null)
 
@@ -303,6 +313,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     setProfile(null)
     setFavoriteProductIds(new Set())
     setSavedRobots([])
+    setGachaInventory([])
     setRobotStorageReady(true)
     setRobotStorageError(null)
   }, [])
@@ -322,7 +333,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      const [profileResult, favoritesResult, robotsResult] = await Promise.allSettled([
+      const [profileResult, favoritesResult, robotsResult, inventoryResult] = await Promise.allSettled([
         retryRequest(
           () =>
             supabase
@@ -349,11 +360,21 @@ export function AccountProvider({ children }: { children: ReactNode }) {
               .order("updated_at", { ascending: false }),
           "robots",
         ),
+        retryRequest(
+          () =>
+            supabase
+              .from("user_gacha_inventory")
+              .select("reward_id, quantity, first_acquired_at, last_acquired_at")
+              .eq("user_id", nextUser.id)
+              .order("last_acquired_at", { ascending: false }),
+          "gacha inventory",
+        ),
       ])
 
       const profileResponse = profileResult.status === "fulfilled" ? profileResult.value : null
       const favoritesResponse = favoritesResult.status === "fulfilled" ? favoritesResult.value : null
       const robotsResponse = robotsResult.status === "fulfilled" ? robotsResult.value : null
+      const inventoryResponse = inventoryResult.status === "fulfilled" ? inventoryResult.value : null
 
       if (profileResponse && !profileResponse.error) {
         setProfile(
@@ -403,6 +424,35 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         setSavedRobots(robots)
         setRobotStorageReady(true)
         setRobotStorageError(null)
+      }
+
+      if (inventoryResponse && !inventoryResponse.error) {
+        const inventory = (inventoryResponse.data ?? [])
+          .map((row: unknown): GachaInventoryItem | null => {
+            if (!isRecord(row)) return null
+            const rewardId = row.reward_id
+            const quantity = row.quantity
+            if (
+              typeof rewardId !== "string" ||
+              !getGachaReward(rewardId) ||
+              typeof quantity !== "number" ||
+              !Number.isFinite(quantity)
+            ) return null
+            return {
+              rewardId,
+              quantity: Math.max(1, Math.floor(quantity)),
+              firstAcquiredAt:
+                typeof row.first_acquired_at === "string" ? row.first_acquired_at : undefined,
+              lastAcquiredAt:
+                typeof row.last_acquired_at === "string" ? row.last_acquired_at : undefined,
+            }
+          })
+          .filter((entry: GachaInventoryItem | null): entry is GachaInventoryItem => Boolean(entry))
+        setGachaInventory(inventory)
+      } else {
+        setAccountLoadError((current) =>
+          current ?? "ガチャ獲得アイテムの同期に時間がかかっています。アカウント画面を開き直すと再取得します。",
+        )
       }
     },
     [clearLocalAccount, getSupabase],
@@ -780,6 +830,98 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     [getSupabase, user],
   )
 
+  const spinGacha = useCallback(
+    async (rollId: string): Promise<GachaAccountResult> => {
+      const supabase = await getSupabase()
+      if (!supabase || !user) return { error: "ガチャを回すにはログインが必要です。" }
+
+      try {
+        const { data, error } = await withTimeout(
+          supabase.auth.getSession(),
+          5000,
+          "gacha session",
+        )
+        if (error || !data.session?.access_token) {
+          return { error: "ログイン情報を確認できませんでした。もう一度ログインしてください。" }
+        }
+
+        const response = await withTimeout(
+          fetch("/api/gacha", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+              Authorization: `Bearer ${data.session.access_token}`,
+            },
+            body: JSON.stringify({ rollId }),
+          }),
+          15000,
+          "gacha",
+        )
+        const payload = (await response.json().catch(() => null)) as
+          | ({ ok?: boolean; error?: string } & Partial<GachaSpinResult>)
+          | null
+
+        if (!response.ok || !payload?.ok || !payload.rollId || !payload.rewardId) {
+          return { error: payload?.error || "ガチャ処理を完了できませんでした。" }
+        }
+
+        const reward = getGachaReward(payload.rewardId)
+        if (!reward) return { error: "ガチャ景品の情報を読み取れませんでした。" }
+
+        const spin: GachaSpinResult = {
+          rollId: payload.rollId,
+          rewardId: payload.rewardId,
+          category: reward.category,
+          label: typeof payload.label === "string" ? payload.label : reward.label,
+          value: typeof payload.value === "string" ? payload.value : reward.value,
+          rarity:
+            payload.rarity === "rare" || payload.rarity === "special"
+              ? payload.rarity
+              : "normal",
+          quantity: Math.max(1, Number(payload.quantity) || 1),
+          pointsBalance: Math.max(0, Number(payload.pointsBalance) || 0),
+          duplicate: Boolean(payload.duplicate),
+        }
+
+        setProfile((current) => ({
+          user_id: user.id,
+          display_name:
+            current?.display_name ??
+            ((user.user_metadata?.display_name as string | undefined) ?? null),
+          bio: current?.bio ?? null,
+          points: spin.pointsBalance,
+          created_at: current?.created_at,
+          updated_at: new Date().toISOString(),
+        }))
+        setGachaInventory((current) => {
+          const existing = current.find((entry) => entry.rewardId === spin.rewardId)
+          if (!existing) {
+            return [
+              {
+                rewardId: spin.rewardId,
+                quantity: spin.quantity,
+                firstAcquiredAt: new Date().toISOString(),
+                lastAcquiredAt: new Date().toISOString(),
+              },
+              ...current,
+            ]
+          }
+          return current.map((entry) =>
+            entry.rewardId === spin.rewardId
+              ? { ...entry, quantity: spin.quantity, lastAcquiredAt: new Date().toISOString() }
+              : entry,
+          )
+        })
+
+        return { error: null, spin }
+      } catch {
+        return { error: "ガチャ処理がタイムアウトしました。通信状態を確認してください。" }
+      }
+    },
+    [getSupabase, user],
+  )
+
   const avatarRobot = useMemo(
     () => savedRobots.find((robot) => robot.is_avatar) ?? null,
     [savedRobots],
@@ -795,6 +937,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       favoriteProductIds,
       savedRobots,
       avatarRobot,
+      gachaInventory,
       robotStorageReady,
       robotStorageError,
       signUp,
@@ -806,6 +949,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       deleteRobot,
       setAvatarRobot,
       purchaseCart,
+      spinGacha,
       refreshAccount,
     }),
     [
@@ -813,9 +957,11 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       avatarRobot,
       deleteRobot,
       favoriteProductIds,
+      gachaInventory,
       loading,
       profile,
       purchaseCart,
+      spinGacha,
       refreshAccount,
       robotStorageError,
       robotStorageReady,

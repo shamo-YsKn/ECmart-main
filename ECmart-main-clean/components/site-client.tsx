@@ -11,6 +11,7 @@ import { ShopsView } from "@/components/views/shops-view"
 import { RankingView } from "@/components/views/ranking-view"
 import { CartView } from "@/components/views/cart-view"
 import { AccountView } from "@/components/views/account-view"
+import { GachaView } from "@/components/views/gacha-view"
 import { RobotWorkshop } from "@/components/robot/robot-workshop"
 import { RobotAvatar } from "@/components/robot/robot-avatar"
 import {
@@ -31,7 +32,9 @@ const TABS = [
   { key: "cart", label: "カート", icon: ShoppingBag },
 ] as const
 
-type TabKey = (typeof TABS)[number]["key"]
+type NavigationTabKey = (typeof TABS)[number]["key"]
+type TabKey = NavigationTabKey | "gacha"
+const VALID_PAGE_TABS = new Set<TabKey>([...TABS.map((item) => item.key), "gacha"])
 
 function hrefForTab(tab: TabKey) {
   return tab === "home" ? "?tab=home" : `?tab=${tab}`
@@ -56,7 +59,7 @@ function Site({ initialTab, initialAuthMode }: { initialTab: TabKey; initialAuth
   const [tab, setTab] = useState<TabKey>(initialTab)
 
   const navigate = useCallback((next: string, pushHistory = true) => {
-    if (!TABS.some((item) => item.key === next)) return
+    if (!VALID_PAGE_TABS.has(next as TabKey)) return
     const nextTab = next as TabKey
     setTab(nextTab)
 
@@ -71,7 +74,7 @@ function Site({ initialTab, initialAuthMode }: { initialTab: TabKey; initialAuth
   }, [])
 
   const handleNavLink = useCallback(
-    (event: MouseEvent<HTMLAnchorElement>, next: TabKey) => {
+    (event: MouseEvent<HTMLAnchorElement>, next: NavigationTabKey) => {
       // Keep normal browser behavior for opening in another tab/window.
       if (
         event.defaultPrevented ||
@@ -208,6 +211,7 @@ function Site({ initialTab, initialAuthMode }: { initialTab: TabKey; initialAuth
             <RobotWorkshop />
           </div>
         )}
+        {tab === "gacha" && <GachaView onNavigate={navigate} />}
         {tab === "account" && <AccountView cart={cart} initialMode={initialAuthMode} />}
         {tab === "cart" && <CartView cart={cart} onNavigate={navigate} />}
       </main>

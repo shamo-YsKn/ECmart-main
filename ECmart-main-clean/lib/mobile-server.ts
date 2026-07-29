@@ -1,7 +1,7 @@
 import "server-only"
 
 import { cookies } from "next/headers"
-import type { CartItem, PurchaseOrder, RobotConfig, SavedRobot } from "@/lib/types"
+import type { CartItem, GachaInventoryItem, PurchaseOrder, RobotConfig, SavedRobot } from "@/lib/types"
 
 const ACCESS_COOKIE = "machinowa_mobile_access"
 const CART_COOKIE = "machinowa_mobile_cart"
@@ -93,20 +93,40 @@ export async function getMobileAccountData() {
   const user = await getMobileUser()
   const token = await getMobileAccessToken()
   if (!user || !token) {
-    return { user: null, profile: null, favorites: new Set<string>(), robots: [] as SavedRobot[] }
+    return {
+      user: null,
+      profile: null,
+      favorites: new Set<string>(),
+      robots: [] as SavedRobot[],
+      gachaInventory: [] as GachaInventoryItem[],
+    }
   }
 
-  const [profiles, favorites, robots] = await Promise.all([
+  const [profiles, favorites, robots, inventoryRows] = await Promise.all([
     restGet<MobileProfile[]>(`profiles?select=user_id,display_name,bio,points&user_id=eq.${encodeURIComponent(user.id)}&limit=1`, token),
     restGet<Array<{ product_id: string }>>(`favorites?select=product_id&user_id=eq.${encodeURIComponent(user.id)}`, token),
     restGet<SavedRobot[]>(`saved_robots?select=id,user_id,name,config,is_avatar,created_at,updated_at&user_id=eq.${encodeURIComponent(user.id)}&order=updated_at.desc`, token),
+    restGet<Array<{
+      reward_id: string
+      quantity: number
+      first_acquired_at: string
+      last_acquired_at: string
+    }>>(`user_gacha_inventory?select=reward_id,quantity,first_acquired_at,last_acquired_at&user_id=eq.${encodeURIComponent(user.id)}&order=last_acquired_at.desc`, token),
   ])
+
+  const gachaInventory: GachaInventoryItem[] = (inventoryRows ?? []).map((row) => ({
+    rewardId: row.reward_id,
+    quantity: Math.max(1, Number(row.quantity) || 1),
+    firstAcquiredAt: row.first_acquired_at,
+    lastAcquiredAt: row.last_acquired_at,
+  }))
 
   return {
     user,
     profile: profiles?.[0] ?? null,
     favorites: new Set((favorites ?? []).map((item) => item.product_id)),
     robots: Array.isArray(robots) ? robots : [],
+    gachaInventory,
   }
 }
 
