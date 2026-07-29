@@ -76,7 +76,7 @@ function LimbSegment({ start, end, radius, color }: { start: Vec3; end: Vec3; ra
 function useHexHeadGeometry() {
   const geometry = useMemo(() => {
     // Top view should be a regular hexagon.
-    const result = new THREE.CylinderGeometry(0.74, 0.74, 0.36, 6, 1, false)
+    const result = new THREE.CylinderGeometry(0.66, 0.66, 0.36, 6, 1, false)
     result.rotateY(Math.PI / 6)
     result.computeVertexNormals()
     return result
@@ -112,10 +112,10 @@ function RobotHead({ bodyColor, accentColor }: Pick<RobotConfig, "bodyColor" | "
       <mesh geometry={geometry} position={[0, 1.855, 0]} castShadow receiveShadow>
         <MetalMaterial color={bodyColor} />
       </mesh>
-      <ScrewEye x={-0.38} bodyColor={bodyColor} accentColor={accentColor} />
-      <ScrewEye x={0.38} bodyColor={bodyColor} accentColor={accentColor} />
+      <ScrewEye x={-0.34} bodyColor={bodyColor} accentColor={accentColor} />
+      <ScrewEye x={0.34} bodyColor={bodyColor} accentColor={accentColor} />
       <mesh position={[0, 1.855, -0.325]} castShadow>
-        <boxGeometry args={[0.58, 0.14, 0.05]} />
+        <boxGeometry args={[0.5, 0.14, 0.05]} />
         <DarkMaterial />
       </mesh>
     </group>
