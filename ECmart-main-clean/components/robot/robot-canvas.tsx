@@ -88,16 +88,16 @@ function useHexHeadGeometry() {
 
 function ScrewEye({ x, bodyColor, accentColor }: { x: number; bodyColor: string; accentColor: string }) {
   return (
-    <group position={[x, 2.155, 0.34]}>
+    <group position={[x, 2.155, 0.46]}>
       <mesh castShadow rotation={[Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[0.265, 0.265, 0.145, 36]} />
         <MetalMaterial color={bodyColor} />
       </mesh>
-      <mesh position={[0, 0, 0.082]} castShadow>
+      <mesh position={[0, 0, 0.096]} castShadow>
         <boxGeometry args={[0.31, 0.06, 0.038]} />
         <AccentMaterial color={accentColor} />
       </mesh>
-      <mesh position={[0, 0, 0.084]} castShadow>
+      <mesh position={[0, 0, 0.098]} castShadow>
         <boxGeometry args={[0.06, 0.31, 0.038]} />
         <AccentMaterial color={accentColor} />
       </mesh>
