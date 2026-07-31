@@ -52,9 +52,6 @@ const CATEGORIES: { key: CategoryFilter; label: string }[] = [
   { key: "all", label: "すべて" },
   { key: "食品", label: "食品" },
   { key: "工芸", label: "工芸" },
-  { key: "雑貨", label: "雑貨" },
-  { key: "花・緑", label: "花・緑" },
-  { key: "喫茶", label: "喫茶" },
 ]
 
 const MEDALS = ["#e8842f", "#aeb4bb", "#c9955b"]
@@ -200,7 +197,7 @@ export function RankingView({ cart }: { cart: CartApi }) {
           ランキング
         </h1>
         <p className="text-muted-foreground">
-          町でいま人気のお店や商品を、いろいろな切り口でチェック。
+          室蘭でいま注目したいお店や商品を、いろいろな切り口でチェック。
         </p>
       </div>
 

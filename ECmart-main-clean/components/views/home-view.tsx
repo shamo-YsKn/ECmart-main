@@ -27,16 +27,16 @@ export function HomeView({
           <div className="flex flex-col items-start gap-5">
             <Badge variant="secondary" className="rounded-full px-3 py-1">
               <MapPin data-icon="inline-start" />
-              町とつながる、体験型マーケット
+              北の大地・室蘭のセレクトマーケット
             </Badge>
             <h1 className="font-display text-4xl leading-tight font-black text-balance md:text-5xl">
-              町のあたたかさを、
+              鉄のまちの、おいしさと
               <br />
-              おうちまで。
+              手仕事を。
             </h1>
             <p className="max-w-md leading-relaxed text-muted-foreground">
-              こだわりのお店や職人さんの手仕事を、ゆっくり選んで。
-              買い物のあとは、ロボット工房で自分だけの鉄の仲間づくりも楽しめます。
+              室蘭やきとり、うずらプリン、カレーラーメン、そして鉄の仲間ボルタ。
+              海と工場のまち・室蘭らしい品と体験を、ひとつのマーケットに集めました。
             </p>
             <div className="flex flex-wrap gap-3">
               <a
@@ -88,9 +88,9 @@ export function HomeView({
       {/* 特徴 */}
       <section className="grid gap-4 sm:grid-cols-3">
         {[
-          { icon: MapPin, title: "町の名店が集合", text: "食品・工芸・花・雑貨まで、選りすぐりのお店が並びます。" },
-          { icon: Sparkles, title: "顔が見える買い物", text: "つくり手の想いや町の物語ごと、あなたのもとへ。" },
-          { icon: Hammer, title: "つくる体験も", text: "ロボット工房で、世界にひとつの鉄の仲間をデザイン。" },
+          { icon: MapPin, title: "室蘭の名店が集合", text: "高砂町・中島町・石川町・中央町から、室蘭らしい店と品を集めました。" },
+          { icon: Sparkles, title: "二大ソウルフード", text: "室蘭やきとりと室蘭カレーラーメン。店ごとの味わいも楽しめます。" },
+          { icon: Hammer, title: "鉄のまちの手仕事", text: "ボルタとナッティを、自分だけの色やアイテムでデザインできます。" },
         ].map((f) => (
           <Card key={f.title} className="border-2">
             <CardContent className="flex flex-col gap-2 p-6">
@@ -108,14 +108,13 @@ export function HomeView({
       <section className="grid gap-8 lg:grid-cols-[1fr_1.3fr]">
         <div className="flex flex-col gap-4">
           <div>
-            <h2 className="font-display text-2xl font-bold">この町のこと</h2>
-            <p className="mt-1 text-sm text-muted-foreground">みどり町・こうば通り・やまて坂・えき前商店街</p>
+            <h2 className="font-display text-2xl font-bold">室蘭のこと</h2>
+            <p className="mt-1 text-sm text-muted-foreground">高砂町・石川町・中島町・中央町・こうば通り</p>
           </div>
           <p className="leading-relaxed text-muted-foreground">
-            小さな川に沿って広がる、人の顔が見える町。
-            朝はパン屋の薪窯から煙がのぼり、昼は喫茶店の珈琲が香り、
-            夕方には工房から金づちの音が響きます。
-            マチノワは、そんな町の日常をまるごと届けるマーケットです。
+            太平洋に面し、白鳥大橋と工場群の夜景、地球岬の大パノラマを楽しめる室蘭。
+            鉄のまちを支えてきた食文化から生まれた室蘭やきとりやカレーラーメン、
+            地元の素材を生かしたスイーツと手仕事を、マチノワ室蘭から紹介します。
           </p>
           <div className="flex flex-wrap gap-4 pt-2">
             <div>
@@ -123,18 +122,18 @@ export function HomeView({
               <div className="text-xs text-muted-foreground">出店するお店</div>
             </div>
             <div>
-              <div className="font-display text-2xl font-bold text-primary">4</div>
-              <div className="text-xs text-muted-foreground">町のエリア</div>
+              <div className="font-display text-2xl font-bold text-primary">{new Set(shops.map((shop) => shop.town)).size}</div>
+              <div className="text-xs text-muted-foreground">室蘭のエリア</div>
             </div>
             <div>
               <div className="font-display text-2xl font-bold text-primary">{townEvents.length}</div>
-              <div className="text-xs text-muted-foreground">今後のイベント</div>
+              <div className="text-xs text-muted-foreground">室蘭の見どころ</div>
             </div>
           </div>
         </div>
 
         <div className="flex flex-col gap-4">
-          <h2 className="font-display text-2xl font-bold">Upcoming Events</h2>
+          <h2 className="font-display text-2xl font-bold">室蘭の見どころ</h2>
           <ol className="relative flex flex-col gap-4 border-l-2 border-dashed border-border pl-6">
             {townEvents.map((ev) => (
               <li key={ev.id} className="relative">
@@ -144,8 +143,7 @@ export function HomeView({
                 <Card className="border-2">
                   <CardContent className="flex flex-col gap-2 p-4">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-display text-lg font-bold text-primary">{ev.date}</span>
-                      <span className="text-xs text-muted-foreground">（{ev.weekday}）</span>
+                      <Badge className="rounded-full">{ev.date}</Badge>
                       <Badge variant="secondary" className="rounded-full">{ev.tag}</Badge>
                     </div>
                     <h3 className="font-display font-bold text-pretty">{ev.title}</h3>
@@ -176,7 +174,7 @@ export function HomeView({
         <div className="flex items-end justify-between gap-4">
           <div>
             <h2 className="font-display text-2xl font-bold">いま人気の品</h2>
-            <p className="mt-1 text-sm text-muted-foreground">町のみんなに選ばれています</p>
+            <p className="mt-1 text-sm text-muted-foreground">室蘭の名物から、いま注目の品を紹介します</p>
           </div>
           <a
             href="?tab=ranking"

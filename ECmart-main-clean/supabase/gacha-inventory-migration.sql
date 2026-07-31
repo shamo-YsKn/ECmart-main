@@ -215,7 +215,7 @@ begin
     user_id, reward_id, quantity, first_acquired_at, last_acquired_at
   )
   values (p_user_id, v_reward.id, 1, now(), now())
-  on conflict (user_id, reward_id) do update
+  on conflict on constraint user_gacha_inventory_pkey do update
   set quantity = public.user_gacha_inventory.quantity + 1,
       last_acquired_at = now()
   returning quantity into v_quantity;

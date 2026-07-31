@@ -42,3 +42,17 @@ SUPABASE_SERVICE_ROLE_KEY=...
 - `components/views/gacha-view.tsx`: PC版の演出・結果画面
 - `components/mobile/mobile-site.tsx`: スマホ版ガチャ・所持品画面
 - `supabase/gacha-inventory-migration.sql`: DB/RPC設定
+
+
+## `reward_id is ambiguous` 修正
+
+旧版の `spin_gacha_for_user()` では、戻り値の `reward_id` と
+`user_gacha_inventory.reward_id` が `ON CONFLICT` 内で曖昧になる場合がありました。
+修正版では次を使用します。
+
+```sql
+on conflict on constraint user_gacha_inventory_pkey do update
+```
+
+旧版SQLを実行済みの場合は、同梱の
+`supabase/gacha-reward-id-ambiguity-fix.sql` をSQL Editorで実行してください。

@@ -65,7 +65,7 @@ export function CartView({
         <div>
           <h1 className="font-display text-3xl font-black">購入が完了しました！</h1>
           <p className="mt-2 leading-relaxed text-muted-foreground">
-            町のお店から、心をこめてお届けします。
+            室蘭のお店から、心をこめてお届けします。
           </p>
         </div>
 

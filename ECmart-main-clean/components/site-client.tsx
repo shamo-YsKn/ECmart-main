@@ -127,7 +127,7 @@ function Site({ initialTab, initialAuthMode }: { initialTab: TabKey; initialAuth
           >
             <BoltMark />
             <span className="font-display text-xl font-black tracking-tight">
-              マチノワ
+              マチノワ室蘭
             </span>
           </a>
 
@@ -220,9 +220,9 @@ function Site({ initialTab, initialAuthMode }: { initialTab: TabKey; initialAuth
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-4 py-8 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
             <BoltMark />
-            <span className="font-display text-base font-bold text-foreground">マチノワ</span>
+            <span className="font-display text-base font-bold text-foreground">マチノワ室蘭</span>
           </div>
-          <p>町とつながる体験型マーケット。※これはデモサイトです。</p>
+          <p>室蘭の名物と鉄の手仕事を集めた体験型マーケット。※商品・価格を含むデモサイトです。</p>
         </div>
       </footer>
 

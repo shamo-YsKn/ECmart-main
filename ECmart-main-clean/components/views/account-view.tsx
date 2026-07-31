@@ -402,7 +402,7 @@ export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; i
               <Badge variant="secondary" className="rounded-full">ログイン中</Badge>
             </div>
             <p className="mt-1 text-muted-foreground">
-              {account.profile?.display_name || account.user.email || "マチノワ会員"}さん、こんにちは。
+              {account.profile?.display_name || account.user.email || "マチノワ室蘭会員"}さん、こんにちは。
             </p>
           </div>
         </div>

@@ -3,9 +3,9 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'マチノワ｜町とつながる体験型マーケット',
+  title: 'マチノワ室蘭｜鉄のまちのセレクトマーケット',
   description:
-    '町のお店や職人さんとつながる、あたたかい体験型ECサイト。買い物も、ロボット工房での工作も、町のイベントも。',
+    '室蘭やきとり、うずらプリン、カレーラーメン、ボルタなど、室蘭の名物と手仕事を楽しむデモECサイト。',
   generator: 'v0.app',
 }
 

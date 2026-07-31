@@ -15,16 +15,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Star, MapPin, Store } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { MapPin, Store } from "lucide-react"
 
 const CATEGORIES: (ShopCategory | "すべて")[] = [
   "すべて",
   "食品",
   "工芸",
-  "花・緑",
-  "喫茶",
-  "雑貨",
 ]
 
 export function ShopsView({ cart }: { cart: CartApi }) {
@@ -44,7 +40,8 @@ export function ShopsView({ cart }: { cart: CartApi }) {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
         <h1 className="font-display text-3xl font-black">ショップ一覧</h1>
-        <p className="text-muted-foreground">町のお店をのぞいて、お気に入りを見つけましょう。</p>
+        <p className="text-muted-foreground">室蘭の名店と名物をのぞいて、お気に入りを見つけましょう。</p>
+        <p className="text-xs text-muted-foreground">※デモサイトのため、価格・提供内容・発送可否は各店の最新案内をご確認ください。</p>
       </div>
 
       {/* カテゴリ絞り込み */}
@@ -84,16 +81,12 @@ export function ShopsView({ cart }: { cart: CartApi }) {
               <CardContent className="flex flex-1 flex-col gap-2 p-5">
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="font-display text-lg font-bold">{shop.name}</h3>
-                  <span className="flex items-center gap-1 text-sm font-bold">
-                    <Star className="size-4 fill-primary text-primary" />
-                    {shop.rating}
-                  </span>
                 </div>
                 <p className="text-sm font-medium text-primary">{shop.tagline}</p>
                 <p className="line-clamp-2 text-sm text-muted-foreground">{shop.description}</p>
                 <div className="mt-auto flex items-center justify-between pt-3">
                   <span className="text-xs text-muted-foreground">
-                    店主：{shop.owner}・{count}品
+                    運営：{shop.owner}・{count}品
                   </span>
                   <Button size="sm" variant="secondary" className="rounded-full" onClick={() => setOpenShop(shop)}>
                     <Store data-icon="inline-start" />
@@ -126,10 +119,6 @@ export function ShopsView({ cart }: { cart: CartApi }) {
                       <span className="flex items-center gap-1">
                         <MapPin className="size-3.5" />
                         {openShop.town}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Star className={cn("size-3.5 fill-primary text-primary")} />
-                        {openShop.rating}
                       </span>
                       <span>創業 {openShop.established}</span>
                     </div>
