@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit",
     "dev:network": "next dev -H 0.0.0.0 -p 3000",
     "start:network": "next start -H 0.0.0.0 -p 3000",
-    "dev:network:webpack": "next dev --webpack -H 0.0.0.0 -p 3000"
+    "dev:network:webpack": "next dev --webpack -H 0.0.0.0 -p 3000",
+    "validate:foundation": "node scripts/validate-foundation.mjs",
+    "check": "npm run typecheck && npm run validate:foundation"
   },
   "dependencies": {
     "@vercel/analytics": "1.6.1",

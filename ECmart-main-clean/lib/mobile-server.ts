@@ -2,6 +2,7 @@ import "server-only"
 
 import { cookies } from "next/headers"
 import type { CartItem, GachaInventoryItem, PurchaseOrder, RobotConfig, SavedRobot } from "@/lib/types"
+import { normalizeRobotConfig, parseSavedRobotRow, sanitizeRobotName } from "@/lib/robot-config"
 
 const ACCESS_COOKIE = "machinowa_mobile_access"
 const CART_COOKIE = "machinowa_mobile_cart"
@@ -125,7 +126,9 @@ export async function getMobileAccountData() {
     user,
     profile: profiles?.[0] ?? null,
     favorites: new Set((favorites ?? []).map((item) => item.product_id)),
-    robots: Array.isArray(robots) ? robots : [],
+    robots: Array.isArray(robots)
+      ? robots.map((row) => parseSavedRobotRow(row)).filter((row): row is SavedRobot => row !== null)
+      : [],
     gachaInventory,
   }
 }
@@ -186,7 +189,8 @@ export async function saveMobileRobot(config: RobotConfig) {
   const user = await getMobileUser()
   const { url, key } = supabaseConfig()
   if (!token || !user || !url || !key) return false
-  const cleanName = config.name.trim().slice(0, 40) || (config.base === "volta" ? "ボルタ" : "ナッティ")
+  const cleanName = sanitizeRobotName(config.name, config.base)
+  const cleanConfig = normalizeRobotConfig({ ...config, name: cleanName })
   try {
     const response = await safeFetch(`${url}/rest/v1/saved_robots`, {
       method: "POST",
@@ -194,7 +198,7 @@ export async function saveMobileRobot(config: RobotConfig) {
       body: JSON.stringify({
         user_id: user.id,
         name: cleanName,
-        config: { ...config, name: cleanName },
+        config: cleanConfig,
       }),
     }, 7000)
     return response.ok

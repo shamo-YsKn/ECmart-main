@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { RobotCharacter, type RobotRenderMode } from "./robot-character"
 import { RobotAvatar } from "./robot-avatar"
-import type { RobotBase, RobotConfig, RobotItem, SavedRobot } from "@/lib/types"
+import type { RobotBase, RobotConfig, SavedRobot } from "@/lib/types"
 import { useAccount } from "@/lib/account-context"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -14,6 +14,13 @@ import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { ROBOT_BASE_OPTIONS, ROBOT_ITEM_OPTIONS, ROBOT_POSE_OPTIONS, ROBOT_VIEW_OPTIONS } from "@/lib/robot-parts"
 import { GACHA_COST, inventoryRewardIds } from "@/lib/gacha"
+import { DEFAULT_ROBOT_CONFIG, ROBOT_DRAFT_KEY, normalizeRobotConfig } from "@/lib/robot-config"
+import {
+  ROBOT_ACCENT_COLORS,
+  ROBOT_BODY_COLORS,
+  isRobotColorUnlocked,
+  isRobotItemUnlocked,
+} from "@/lib/robot-customization"
 import {
   Check,
   Database,
@@ -30,53 +37,10 @@ import {
   UserRound,
 } from "lucide-react"
 
-const ROBOT_DRAFT_KEY = "machinowa:robot-draft"
-
-const BODY_COLORS = [
-  { label: "しんちゅう", value: "#c9a24b", rewardId: null },
-  { label: "しろがね", value: "#eceeef", rewardId: "body-silver" },
-  { label: "くろがね", value: "#8d9194", rewardId: "body-dark-steel" },
-  { label: "はがね", value: "#8a8f96", rewardId: "body-hagane" },
-  { label: "レンガ", value: "#e8842f", rewardId: "body-brick" },
-  { label: "あおがね", value: "#5b8c9c", rewardId: "body-blue" },
-  { label: "もえぎ", value: "#7ba05b", rewardId: "body-green" },
-  { label: "うすべに", value: "#d98aa0", rewardId: "body-pink" },
-]
-
-const ACCENT_COLORS = [
-  { label: "黒", value: "#111111", rewardId: null },
-  { label: "濃いグレー", value: "#777777", rewardId: "eye-gray" },
-  { label: "たまご", value: "#ffcf4d", rewardId: "eye-yellow" },
-  { label: "みずいろ", value: "#5fb6d1", rewardId: "eye-blue" },
-  { label: "わかば", value: "#6fbf73", rewardId: "eye-green" },
-  { label: "さくら", value: "#e86a8f", rewardId: "eye-pink" },
-  { label: "だいだい", value: "#f08a3c", rewardId: "eye-orange" },
-]
-
-const ITEM_REWARD_IDS: Record<RobotItem, string | null> = {
-  none: null,
-  wrench: "item-wrench",
-  gear: "item-gear",
-  flower: "item-flower",
-  heart: "item-heart",
-}
-
-
 const BASES = ROBOT_BASE_OPTIONS
 const POSES = ROBOT_POSE_OPTIONS
 const ITEMS = ROBOT_ITEM_OPTIONS
 const VIEWS = ROBOT_VIEW_OPTIONS
-
-const DEFAULT_CONFIG: RobotConfig = {
-  base: "volta",
-  size: 55,
-  bodyColor: "#c9a24b",
-  accentColor: "#111111",
-  pose: "cheer",
-  item: "none",
-  view: "front",
-  name: "ボルタ",
-}
 
 type Notice = { type: "success" | "error"; text: string } | null
 
@@ -145,7 +109,7 @@ function dispatchNavigate(tab: "account" | "robot" | "gacha") {
 
 export function RobotWorkshop() {
   const account = useAccount()
-  const [config, setConfig] = useState<RobotConfig>(DEFAULT_CONFIG)
+  const [config, setConfig] = useState<RobotConfig>(() => ({ ...DEFAULT_ROBOT_CONFIG }))
   const [editingRobotId, setEditingRobotId] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [notice, setNotice] = useState<Notice>(null)
@@ -156,22 +120,21 @@ export function RobotWorkshop() {
     [account.gachaInventory],
   )
   const availableBodyColors = useMemo(
-    () => BODY_COLORS.filter((color) =>
-      !color.rewardId || unlockedRewardIds.has(color.rewardId) || color.value === config.bodyColor,
+    () => ROBOT_BODY_COLORS.filter((color) =>
+      isRobotColorUnlocked(color, unlockedRewardIds, config.bodyColor),
     ),
     [config.bodyColor, unlockedRewardIds],
   )
   const availableAccentColors = useMemo(
-    () => ACCENT_COLORS.filter((color) =>
-      !color.rewardId || unlockedRewardIds.has(color.rewardId) || color.value === config.accentColor,
+    () => ROBOT_ACCENT_COLORS.filter((color) =>
+      isRobotColorUnlocked(color, unlockedRewardIds, config.accentColor),
     ),
     [config.accentColor, unlockedRewardIds],
   )
   const availableItems = useMemo(
-    () => ITEMS.filter((item) => {
-      const rewardId = ITEM_REWARD_IDS[item.value]
-      return !rewardId || unlockedRewardIds.has(rewardId) || item.value === config.item
-    }),
+    () => ITEMS.filter((item) =>
+      isRobotItemUnlocked(item.value, unlockedRewardIds, config.item),
+    ),
     [config.item, unlockedRewardIds],
   )
 
@@ -182,8 +145,12 @@ export function RobotWorkshop() {
       if (!media.matches) setPreviewMode("2d")
     }
     sync()
-    media.addEventListener?.("change", sync)
-    return () => media.removeEventListener?.("change", sync)
+    if (media.addEventListener) {
+      media.addEventListener("change", sync)
+      return () => media.removeEventListener("change", sync)
+    }
+    media.addListener(sync)
+    return () => media.removeListener(sync)
   }, [])
 
   useEffect(() => {
@@ -192,9 +159,9 @@ export function RobotWorkshop() {
 
     window.sessionStorage.removeItem(ROBOT_DRAFT_KEY)
     try {
-      const draft = JSON.parse(rawDraft) as { id?: string; config?: RobotConfig }
+      const draft = JSON.parse(rawDraft) as { id?: string; config?: unknown }
       if (draft.config) {
-        setConfig(draft.config)
+        setConfig(normalizeRobotConfig(draft.config))
         setEditingRobotId(draft.id ?? null)
         setNotice({ type: "success", text: "保存したロボットを工房に読み込みました。" })
       }
@@ -234,7 +201,7 @@ export function RobotWorkshop() {
   }
 
   function startNewRobot() {
-    setConfig(DEFAULT_CONFIG)
+    setConfig({ ...DEFAULT_ROBOT_CONFIG })
     setEditingRobotId(null)
     setNotice(null)
   }

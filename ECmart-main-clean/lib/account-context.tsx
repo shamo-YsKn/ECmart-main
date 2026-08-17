@@ -16,15 +16,12 @@ import type {
   GachaInventoryItem,
   GachaSpinResult,
   PurchaseResult,
-  RobotBase,
   RobotConfig,
-  RobotItem,
-  RobotPose,
-  RobotView,
   SavedRobot,
 } from "@/lib/types"
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client"
 import { getGachaReward } from "@/lib/gacha"
+import { normalizeRobotConfig, parseSavedRobotRow, sanitizeRobotName } from "@/lib/robot-config"
 
 export interface Profile {
   user_id: string
@@ -79,10 +76,9 @@ interface AccountContextValue {
 
 const AccountContext = createContext<AccountContextValue | null>(null)
 
-const ROBOT_BASES = new Set<RobotBase>(["volta", "natty"])
-const ROBOT_VIEWS = new Set<RobotView>(["front", "side", "back"])
-const ROBOT_POSES = new Set<RobotPose>(["wave", "stand", "cheer", "point"])
-const ROBOT_ITEMS = new Set<RobotItem>(["none", "wrench", "flower", "gear", "heart"])
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
 
 
 const ACTIVE_LOGIN_KEY = "machinowa:active-login"
@@ -139,85 +135,6 @@ function readableAuthError(error: { code?: string; message: string }) {
   return error.message
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
-function parseRobotConfig(value: unknown, fallbackName: string): RobotConfig | null {
-  if (!isRecord(value)) return null
-
-  const base = value.base
-  const view = value.view
-  const pose = value.pose
-  const item = value.item
-  const size = value.size
-  const bodyColor = value.bodyColor
-  const accentColor = value.accentColor
-  const name = value.name
-
-  if (
-    typeof base !== "string" ||
-    !ROBOT_BASES.has(base as RobotBase) ||
-    typeof view !== "string" ||
-    !ROBOT_VIEWS.has(view as RobotView) ||
-    typeof pose !== "string" ||
-    !ROBOT_POSES.has(pose as RobotPose) ||
-    typeof item !== "string" ||
-    !ROBOT_ITEMS.has(item as RobotItem) ||
-    typeof size !== "number" ||
-    !Number.isFinite(size) ||
-    typeof bodyColor !== "string" ||
-    typeof accentColor !== "string"
-  ) {
-    return null
-  }
-
-  return {
-    base: base as RobotBase,
-    view: view as RobotView,
-    pose: pose as RobotPose,
-    item: item as RobotItem,
-    size: Math.min(90, Math.max(20, size)),
-    bodyColor,
-    accentColor,
-    name: typeof name === "string" && name.trim() ? name.slice(0, 40) : fallbackName,
-  }
-}
-
-function parseSavedRobot(row: unknown): SavedRobot | null {
-  if (!isRecord(row)) return null
-
-  const id = row.id
-  const userId = row.user_id
-  const name = row.name
-  const createdAt = row.created_at
-  const updatedAt = row.updated_at
-  const isAvatar = row.is_avatar
-
-  if (
-    typeof id !== "string" ||
-    typeof userId !== "string" ||
-    typeof name !== "string" ||
-    typeof createdAt !== "string" ||
-    typeof updatedAt !== "string" ||
-    typeof isAvatar !== "boolean"
-  ) {
-    return null
-  }
-
-  const config = parseRobotConfig(row.config, name)
-  if (!config) return null
-
-  return {
-    id,
-    user_id: userId,
-    name,
-    config,
-    is_avatar: isAvatar,
-    created_at: createdAt,
-    updated_at: updatedAt,
-  }
-}
 
 function isMissingRobotStorage(error: { code?: string; message: string }) {
   return (
@@ -419,7 +336,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         setRobotStorageError(robotStorageMessage(robotsResponse.error))
       } else {
         const robots = (robotsResponse.data ?? [])
-          .map((row: unknown) => parseSavedRobot(row))
+          .map((row: unknown) => parseSavedRobotRow(row))
           .filter((robot: SavedRobot | null): robot is SavedRobot => Boolean(robot))
         setSavedRobots(robots)
         setRobotStorageReady(true)
@@ -653,14 +570,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         return { error: robotStorageError ?? robotStorageMessage() }
       }
 
-      const cleanName =
-        config.name.trim().slice(0, 40) ||
-        (config.base === "volta" ? "ボルタ" : "ナッティ")
-      const cleanConfig: RobotConfig = {
-        ...config,
-        name: cleanName,
-        size: Math.min(90, Math.max(20, config.size)),
-      }
+      const cleanName = sanitizeRobotName(config.name, config.base)
+      const cleanConfig = normalizeRobotConfig({ ...config, name: cleanName })
       const payload = {
         user_id: user.id,
         name: cleanName,
@@ -688,7 +599,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         return { error: robotStorageMessage(error) }
       }
 
-      const robot = parseSavedRobot(data)
+      const robot = parseSavedRobotRow(data)
       if (!robot) return { error: "保存したロボットデータを読み取れませんでした。" }
 
       setSavedRobots((current) => {

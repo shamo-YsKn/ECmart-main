@@ -14,8 +14,11 @@ const nextConfig = {
     "lucide-react",
   ],
 
-  // Development access from the current network address.
-  allowedDevOrigins: ["157.19.67.219"],
+  // Additional development origins are optional. Normal LAN access uses the
+  // hostname passed to `next dev`; add proxy/custom origins only when needed.
+  ...(process.env.MACHINOWA_ALLOWED_DEV_ORIGINS
+    ? { allowedDevOrigins: process.env.MACHINOWA_ALLOWED_DEV_ORIGINS.split(",").map((origin) => origin.trim()).filter(Boolean) }
+    : {}),
 }
 
 export default nextConfig
