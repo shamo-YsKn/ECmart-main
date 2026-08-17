@@ -1,36 +1,25 @@
 "use client"
 
 import { useId } from "react"
-import type { RobotConfig, RobotItem, RobotPose } from "@/lib/types"
-import { ROBOT_BASE_PARTS, ROBOT_POSE_PARTS } from "@/lib/robot-parts"
+import type { RobotConfig, RobotItem } from "@/lib/types"
+import {
+  buildRobot2DLayout,
+  displayHardwareAngle,
+  linePath,
+  scaledGroupTransform,
+  segmentAngleDeg,
+} from "@/lib/robot-pose-2d"
 
 type HandSpec = { x: number; y: number; angle: number }
 
-const HANDS_BY_POSE: Record<RobotPose, { left: HandSpec; right: HandSpec }> = {
-  stand: {
-    left: { x: 79, y: 177, angle: -70 },
-    right: { x: 221, y: 177, angle: 70 },
-  },
-  wave: {
-    left: { x: 79, y: 177, angle: -70 },
-    right: { x: 222, y: 48, angle: 12 },
-  },
-  cheer: {
-    left: { x: 78, y: 48, angle: -12 },
-    right: { x: 222, y: 48, angle: 12 },
-  },
-  point: {
-    left: { x: 79, y: 177, angle: -70 },
-    right: { x: 267, y: 100, angle: 88 },
-  },
-}
+type ItemAnchor = { x: number; y: number; rotation: number }
 
-function ItemShape({ item, accentColor }: { item: RobotItem; accentColor: string }) {
+function ItemShape({ item, accentColor, anchor }: { item: RobotItem; accentColor: string; anchor: ItemAnchor }) {
   if (item === "none") return null
 
   if (item === "wrench") {
     return (
-      <g transform="translate(248 146) rotate(-18)">
+      <g transform={`translate(${anchor.x} ${anchor.y}) rotate(${anchor.rotation})`}>
         <rect x="-5" y="-28" width="10" height="54" rx="5" fill={accentColor} />
         <path d="M-15 -35 L-5 -25 L5 -25 L15 -35 L10 -47 L0 -39 L-10 -47 Z" fill={accentColor} />
         <circle cx="0" cy="28" r="8" fill="none" stroke="#263943" strokeWidth="5" />
@@ -40,7 +29,7 @@ function ItemShape({ item, accentColor }: { item: RobotItem; accentColor: string
 
   if (item === "gear") {
     return (
-      <g transform="translate(247 147)" fill={accentColor}>
+      <g transform={`translate(${anchor.x} ${anchor.y}) rotate(${anchor.rotation})`} fill={accentColor}>
         <circle r="20" />
         {Array.from({ length: 8 }, (_, index) => (
           <rect key={index} x="-5" y="-31" width="10" height="15" rx="2" transform={`rotate(${index * 45})`} />
@@ -52,7 +41,7 @@ function ItemShape({ item, accentColor }: { item: RobotItem; accentColor: string
 
   if (item === "flower") {
     return (
-      <g transform="translate(247 145)">
+      <g transform={`translate(${anchor.x} ${anchor.y}) rotate(${anchor.rotation})`}>
         <path d="M0 35 C-3 12 4 -3 1 -27" fill="none" stroke="#4d8757" strokeWidth="5" strokeLinecap="round" />
         {Array.from({ length: 6 }, (_, index) => {
           const angle = (index / 6) * Math.PI * 2
@@ -65,7 +54,7 @@ function ItemShape({ item, accentColor }: { item: RobotItem; accentColor: string
 
   return (
     <path
-      transform="translate(247 141) scale(.75)"
+      transform={`translate(${anchor.x} ${anchor.y}) rotate(${anchor.rotation}) scale(.75)`}
       d="M0 35 C-34 14 -43 -16 -25 -29 C-10 -40 -1 -28 0 -18 C1 -28 10 -40 25 -29 C43 -16 34 14 0 35 Z"
       fill={accentColor}
     />
@@ -81,9 +70,9 @@ function CounterSunkHand({ spec, fill }: { spec: HandSpec; fill: string }) {
   )
 }
 
-function CounterSunkFoot({ x, y, flip, fill }: { x: number; y: number; flip: number; fill: string }) {
+function CounterSunkFoot({ x, y, angle, fill }: { x: number; y: number; angle: number; fill: string }) {
   return (
-    <g transform={`translate(${x} ${y}) rotate(${flip * 2})`}>
+    <g transform={`translate(${x} ${y}) rotate(${angle})`}>
       <path
         d="M-8 -10 Q-14 -9 -17 -2 L-27 11 H27 L17 -2 Q14 -9 8 -10 Z"
         fill={fill}
@@ -100,20 +89,34 @@ export function RobotFallback({ config }: { config: RobotConfig }) {
   const id = useId().replace(/:/g, "")
   const metalId = `fallback-metal-${id}`
   const shadowId = `fallback-shadow-${id}`
-  const pose = ROBOT_POSE_PARTS[config.pose].twoD
-  const hands = HANDS_BY_POSE[config.pose]
+  const layout = buildRobot2DLayout(config)
   const isSide = config.view === "side"
   const isBack = config.view === "back"
-  const scale = 0.8 + ((Math.min(90, Math.max(20, config.size)) - 20) / 70) * 0.2
-  const basePart = ROBOT_BASE_PARTS[config.base]
-  const isNatty = basePart.twoD.waist === "nut"
-  const bodyBottomY = isNatty ? 182 : 188
-  const bodyHeight = bodyBottomY - 84
-  const legStartY = isNatty ? 182 : 183
-  const legEndY = isNatty ? 196 : 212
-  const footY = isNatty ? 204 : 220
-  const leftLegPath = `M138 ${legStartY} L111 ${legEndY}`
-  const rightLegPath = `M162 ${legStartY} L189 ${legEndY}`
+  const bodyBottomY = layout.bodyBottomY
+  const bodyHeight = layout.bodyHeight
+
+  const leftArmPath = linePath(layout.shoulders.left, layout.elbows.left, layout.hands.left)
+  const rightArmPath = linePath(layout.shoulders.right, layout.elbows.right, layout.hands.right)
+  const leftLegPath = linePath(layout.hips.left, layout.knees.left, layout.feet.left)
+  const rightLegPath = linePath(layout.hips.right, layout.knees.right, layout.feet.right)
+
+  const leftHand = {
+    x: layout.hands.left.x,
+    y: layout.hands.left.y,
+    angle: displayHardwareAngle(segmentAngleDeg(layout.elbows.left, layout.hands.left)),
+  }
+  const rightHand = {
+    x: layout.hands.right.x,
+    y: layout.hands.right.y,
+    angle: displayHardwareAngle(segmentAngleDeg(layout.elbows.right, layout.hands.right)),
+  }
+  const leftFootAngle = displayHardwareAngle(segmentAngleDeg(layout.knees.left, layout.feet.left)) * 0.18
+  const rightFootAngle = displayHardwareAngle(segmentAngleDeg(layout.knees.right, layout.feet.right)) * 0.18
+  const itemAnchor = {
+    x: layout.hands.right.x + 22,
+    y: layout.hands.right.y + 8,
+    rotation: rightHand.angle,
+  }
 
   return (
     <svg viewBox="0 0 300 260" className="h-full w-full" aria-hidden="true" focusable="false" preserveAspectRatio="xMidYMid meet">
@@ -131,21 +134,20 @@ export function RobotFallback({ config }: { config: RobotConfig }) {
 
       <ellipse cx="150" cy="237" rx="72" ry="10" fill="#173744" opacity="0.12" />
 
-      <g transform={`translate(150 132) scale(${scale}) translate(-150 -132)`} filter={`url(#${shadowId})`}>
+      <g transform={scaledGroupTransform(layout.scale)} filter={`url(#${shadowId})`}>
         {!isSide && (
           <>
-            <path d={pose.left} fill="none" stroke="#263943" strokeWidth="13" strokeLinecap="round" strokeLinejoin="round" />
-            <path d={pose.left} fill="none" stroke={config.bodyColor} strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
-            <CounterSunkHand spec={hands.left} fill={`url(#${metalId})`} />
+            <path d={leftArmPath} fill="none" stroke="#263943" strokeWidth="13" strokeLinecap="round" strokeLinejoin="round" />
+            <path d={leftArmPath} fill="none" stroke={config.bodyColor} strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
+            <CounterSunkHand spec={leftHand} fill={`url(#${metalId})`} />
           </>
         )}
-        <path d={pose.right} fill="none" stroke="#263943" strokeWidth="13" strokeLinecap="round" strokeLinejoin="round" />
-        <path d={pose.right} fill="none" stroke={config.bodyColor} strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
-        <CounterSunkHand spec={hands.right} fill={`url(#${metalId})`} />
+        <path d={rightArmPath} fill="none" stroke="#263943" strokeWidth="13" strokeLinecap="round" strokeLinejoin="round" />
+        <path d={rightArmPath} fill="none" stroke={config.bodyColor} strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
+        <CounterSunkHand spec={rightHand} fill={`url(#${metalId})`} />
 
-        {/* The small round connectors reproduce the handmade Natty-style shoulder joint. */}
-        {!isSide && <circle cx="116" cy="104" r="10" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />}
-        <circle cx="184" cy="104" r="10" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
+        {!isSide && <circle cx={layout.shoulders.left.x} cy={layout.shoulders.left.y} r="10" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />}
+        <circle cx={layout.shoulders.right.x} cy={layout.shoulders.right.y} r="10" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
 
         <path d={leftLegPath} fill="none" stroke="#263943" strokeWidth="13" strokeLinecap="round" />
         <path d={leftLegPath} fill="none" stroke={config.bodyColor} strokeWidth="8" strokeLinecap="round" />
@@ -155,20 +157,18 @@ export function RobotFallback({ config }: { config: RobotConfig }) {
             <path d={rightLegPath} fill="none" stroke={config.bodyColor} strokeWidth="8" strokeLinecap="round" />
           </>
         )}
-        <CounterSunkFoot x={111} y={footY} flip={-1} fill={`url(#${metalId})`} />
-        {!isSide && <CounterSunkFoot x={189} y={footY} flip={1} fill={`url(#${metalId})`} />}
+        <CounterSunkFoot x={layout.feet.left.x} y={layout.feet.left.y} angle={leftFootAngle} fill={`url(#${metalId})`} />
+        {!isSide && <CounterSunkFoot x={layout.feet.right.x} y={layout.feet.right.y} angle={rightFootAngle} fill={`url(#${metalId})`} />}
 
-        {/* Long threaded screw shaft. */}
         <rect x="128" y="84" width="44" height={bodyHeight} rx="20" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
-        {Array.from({ length: isNatty ? 10 : 12 }, (_, index) => (
+        {Array.from({ length: layout.isNatty ? 10 : 12 }, (_, index) => (
           <line key={index} x1="125" x2="175" y1={94 + index * 8} y2={94 + index * 8} stroke="#263943" strokeOpacity=".72" strokeWidth="4" strokeLinecap="round" />
         ))}
 
-        {isNatty && (
+        {layout.isNatty && (
           <path d="M129 153 H171 L197 182 H103 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" strokeLinejoin="round" />
         )}
 
-        {/* Lowered head so the eyes overlap the rounded top of the screw-body. */}
         <path d="M112 74 L121 66 H179 L188 74 V96 L179 104 H121 L112 96 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" strokeLinejoin="round" />
         <path d="M121 70 H179" stroke="#fff" strokeOpacity=".34" strokeWidth="3" strokeLinecap="round" />
 
@@ -189,7 +189,7 @@ export function RobotFallback({ config }: { config: RobotConfig }) {
         )}
         {isBack && <rect x="129" y="61" width="42" height="9" rx="4.5" fill={config.accentColor} opacity=".72" />}
 
-        <ItemShape item={config.item} accentColor={config.accentColor} />
+        <ItemShape item={config.item} accentColor={config.accentColor} anchor={itemAnchor} />
       </g>
     </svg>
   )

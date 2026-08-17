@@ -49,6 +49,24 @@ export type RobotView = "front" | "side" | "back"
 export type RobotPose = "wave" | "stand" | "cheer" | "point"
 export type RobotItem = "none" | "wrench" | "flower" | "gear" | "heart"
 
+export type RobotJointId =
+  | "leftShoulder"
+  | "leftElbow"
+  | "rightShoulder"
+  | "rightElbow"
+  | "leftHip"
+  | "leftKnee"
+  | "rightHip"
+  | "rightKnee"
+
+export type RobotJointAngles = Partial<Record<RobotJointId, number>>
+
+export interface RobotPoseState {
+  mode: "preset" | "custom"
+  preset: RobotPose
+  joints: RobotJointAngles
+}
+
 export interface RobotConfig {
   base: RobotBase
   size: number
@@ -58,6 +76,7 @@ export interface RobotConfig {
   item: RobotItem
   view: RobotView
   name: string
+  poseState?: RobotPoseState
 }
 
 /** Supabaseに保存されたロボット */

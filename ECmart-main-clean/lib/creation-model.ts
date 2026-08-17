@@ -1,4 +1,4 @@
-import type { RobotConfig, RobotItem, RobotPose } from "@/lib/types"
+import type { RobotConfig, RobotItem, RobotPose, RobotJointAngles, RobotPoseState } from "@/lib/types"
 import { normalizeRobotConfig } from "@/lib/robot-config"
 
 /**
@@ -26,25 +26,7 @@ export const IDENTITY_SCENE_TRANSFORM: Readonly<SceneTransform> = Object.freeze(
   scale: [1, 1, 1] as Vec3,
 })
 
-export type RobotJointId =
-  | "leftShoulder"
-  | "leftElbow"
-  | "rightShoulder"
-  | "rightElbow"
-  | "leftHip"
-  | "leftKnee"
-  | "rightHip"
-  | "rightKnee"
-
-export type RobotJointAngles = Partial<Record<RobotJointId, number>>
-
-export interface RobotPoseState {
-  mode: "preset" | "custom"
-  /** customでも編集開始時のプリセットを保持して再編集しやすくする */
-  preset: RobotPose
-  /** degree。未指定関節はpreset値を使う */
-  joints: RobotJointAngles
-}
+export interface RobotPoseStateCompat extends RobotPoseState {}
 
 export type HeldItemReference =
   | { kind: "builtin"; item: RobotItem }
@@ -128,7 +110,7 @@ export function robotConfigToCreationDocument(config: RobotConfig): RobotCreatio
     schemaVersion: CREATION_DOCUMENT_VERSION,
     kind: "robot",
     config: normalized,
-    poseState: { mode: "preset", preset: normalized.pose, joints: {} },
+    poseState: normalized.poseState ?? { mode: "preset", preset: normalized.pose, joints: {} },
     heldItem: { kind: "builtin", item: normalized.item },
   }
 }
@@ -139,6 +121,7 @@ export function creationDocumentToRobotConfig(document: RobotCreationDocument): 
   return {
     ...normalized,
     pose: document.poseState.preset,
+    poseState: document.poseState,
     item: document.heldItem.kind === "builtin" ? document.heldItem.item : "none",
   }
 }

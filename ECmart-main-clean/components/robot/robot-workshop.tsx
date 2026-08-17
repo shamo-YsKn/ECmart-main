@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react"
 import { RobotCharacter, type RobotRenderMode } from "./robot-character"
 import { RobotAvatar } from "./robot-avatar"
-import type { RobotBase, RobotConfig, SavedRobot } from "@/lib/types"
+import { RobotPoseEditor } from "./robot-pose-editor"
+import type { RobotBase, RobotConfig, RobotPoseState, SavedRobot } from "@/lib/types"
 import { useAccount } from "@/lib/account-context"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -187,12 +188,14 @@ export function RobotWorkshop() {
 
   function randomize() {
     const pick = <T,>(arr: T[]) => arr[Math.floor(Math.random() * arr.length)]
+    const nextPose = pick(POSES).value
     setConfig((current) => ({
       ...current,
       base: pick(BASES).value,
       bodyColor: pick(availableBodyColors).value,
       accentColor: pick(availableAccentColors).value,
-      pose: pick(POSES).value,
+      pose: nextPose,
+      poseState: { mode: "preset", preset: nextPose, joints: {} },
       item: pick(availableItems).value,
       size: 35 + Math.floor(Math.random() * 55),
     }))
@@ -204,6 +207,45 @@ export function RobotWorkshop() {
     setConfig({ ...DEFAULT_ROBOT_CONFIG })
     setEditingRobotId(null)
     setNotice(null)
+  }
+
+  function updatePosePreset(pose: RobotConfig["pose"]) {
+    setConfig((current) => ({
+      ...current,
+      pose,
+      poseState: {
+        mode: current.poseState?.mode === "custom" ? "custom" : "preset",
+        preset: pose,
+        joints: current.poseState?.mode === "custom" ? {} : {},
+      },
+    }))
+  }
+
+  function setPoseMode(mode: RobotPoseState["mode"]) {
+    if (mode === "custom") setPreviewMode("2d")
+    setConfig((current) => ({
+      ...current,
+      poseState:
+        mode === "custom"
+          ? {
+              mode: "custom",
+              preset: current.poseState?.preset ?? current.pose,
+              joints: current.poseState?.mode === "custom" ? current.poseState.joints : {},
+            }
+          : {
+              mode: "preset",
+              preset: current.poseState?.preset ?? current.pose,
+              joints: {},
+            },
+    }))
+  }
+
+  function updateCustomPoseState(poseState: RobotPoseState) {
+    setConfig((current) => ({
+      ...current,
+      pose: poseState.preset,
+      poseState,
+    }))
   }
 
   function loadRobot(robot: SavedRobot) {
@@ -313,16 +355,25 @@ export function RobotWorkshop() {
           <CardContent>
             <div className="rounded-2xl bg-[radial-gradient(circle_at_50%_35%,var(--color-secondary),var(--color-muted))] p-4">
               <div className="mx-auto flex aspect-square max-w-sm items-center justify-center">
-                <RobotCharacter
-                  config={config}
-                  interactive={previewMode === "3d"}
-                  mode={previewMode}
-                  on3DUnavailable={() => {
-                    setPreviewMode("2d")
-                    setNotice({ type: "error", text: "このPCでは3D表示を開始できなかったため、2D表示に戻しました。" })
-                  }}
-                  className="h-full w-full transition-all"
-                />
+                {previewMode === "2d" ? (
+                  <RobotPoseEditor
+                    config={config}
+                    enabled={config.poseState?.mode === "custom"}
+                    onPoseStateChange={updateCustomPoseState}
+                    className="h-full w-full transition-all"
+                  />
+                ) : (
+                  <RobotCharacter
+                    config={config}
+                    interactive={previewMode === "3d"}
+                    mode={previewMode}
+                    on3DUnavailable={() => {
+                      setPreviewMode("2d")
+                      setNotice({ type: "error", text: "このPCでは3D表示を開始できなかったため、2D表示に戻しました。" })
+                    }}
+                    className="h-full w-full transition-all"
+                  />
+                )}
               </div>
               <div className="mx-auto -mt-2 w-fit rounded-full border bg-background/90 px-4 py-1 font-display text-sm font-bold shadow-sm">
                 {config.name || (config.base === "volta" ? "ボルタ" : "ナッティ")}
@@ -332,7 +383,7 @@ export function RobotWorkshop() {
               {desktop3D ? (
                 <div className="flex items-center gap-2 rounded-full border bg-muted/40 p-1">
                   <Button size="sm" variant={previewMode === "2d" ? "default" : "ghost"} className="rounded-full" onClick={() => setPreviewMode("2d")}>2D</Button>
-                  <Button size="sm" variant={previewMode === "3d" ? "default" : "ghost"} className="rounded-full" onClick={() => setPreviewMode("3d")}>3D</Button>
+                  <Button size="sm" variant={previewMode === "3d" ? "default" : "ghost"} className="rounded-full" onClick={() => setPreviewMode("3d")} disabled={config.poseState?.mode === "custom"}>3D</Button>
                 </div>
               ) : (
                 <Badge variant="secondary" className="rounded-full">スマホ・タブレットは2D表示</Badge>
@@ -352,7 +403,15 @@ export function RobotWorkshop() {
               </div>
             </div>
             <p className="mt-3 text-center text-sm text-muted-foreground">
-              {previewMode === "3d" ? "PC限定3D：ドラッグで回転、ホイールで拡大縮小できます" : "2Dはアイコンと同じ正式表示。正面・側面・背面を切り替えられます"}
+              {previewMode === "3d"
+                ? config.poseState?.mode === "custom"
+                  ? "3D表示はプリセットポーズ時に利用できます。自由ポーズ編集中は2Dで編集してください"
+                  : "PC限定3D：ドラッグで回転、ホイールで拡大縮小できます"
+                : config.poseState?.mode === "custom"
+                  ? config.view === "front"
+                    ? "自由ポーズ編集中：白い丸をドラッグして腕と脚の角度を調整できます"
+                    : "自由ポーズの編集ハンドルは2Dの正面表示で使えます。見た目確認だけなら側面・背面にも切り替えられます"
+                  : "2Dはアイコンと同じ正式表示。正面・側面・背面を切り替えられます"}
             </p>
           </CardContent>
         </Card>
@@ -442,8 +501,40 @@ export function RobotWorkshop() {
             </CardHeader>
             <CardContent className="flex flex-col gap-6">
               <div className="flex flex-col gap-3">
-                <Label>ポーズ</Label>
-                <OptionPicker options={POSES} value={config.pose} onChange={(value) => update("pose", value)} />
+                <div className="flex items-center justify-between gap-3">
+                  <Label>ポーズ</Label>
+                  <div className="flex items-center gap-2 rounded-full border bg-muted/40 p-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={config.poseState?.mode !== "custom" ? "default" : "ghost"}
+                      className="rounded-full"
+                      onClick={() => setPoseMode("preset")}
+                    >
+                      プリセット
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={config.poseState?.mode === "custom" ? "default" : "ghost"}
+                      className="rounded-full"
+                      onClick={() => setPoseMode("custom")}
+                    >
+                      自由ポーズ
+                    </Button>
+                  </div>
+                </div>
+                <OptionPicker options={POSES} value={config.poseState?.preset ?? config.pose} onChange={updatePosePreset} />
+                {config.poseState?.mode === "custom" && (
+                  <div className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-muted-foreground">
+                    正面表示にして白い丸をドラッグすると、肩・ひじ・股関節・ひざを自由に動かせます。
+                    <div className="mt-2">
+                      <Button type="button" size="sm" variant="outline" className="rounded-full" onClick={() => updateCustomPoseState({ mode: "custom", preset: config.poseState?.preset ?? config.pose, joints: {} })}>
+                        プリセット位置に戻す
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="flex flex-col gap-3">
                 <Label>持たせるモノ</Label>
