@@ -139,12 +139,16 @@ schemaVersion = 1
 
 将来形式を変更する場合は、保存済みデータを破壊せず `v1 -> v2` の変換関数を用意します。
 
-## 現段階で未実装のもの
+## 現段階の実装状況
 
-2D自由ポーズ編集と `saved_robots.config.poseState` 保存は実装済みです。以下は今後のPhaseです。
+2D自由ポーズ編集、`saved_robots.config.poseState` 保存、2D自作アイテム編集UI、`custom_items` テーブルは実装済みです。
 
-- 自作アイテム編集UI
-- custom item テーブル
+Phase 2-1では `CustomItemDocument.parts[]` の配列順を2Dの重なり順として使用し、各パーツの `SceneTransform` に位置・Z回転・均一スケールを保存します。`attachedTo` はまだ使わず、Phase 2-2のスナップ接続で利用します。
+
+以下は今後のPhaseです。
+
+- 自作パーツのスナップ接続
+- 自作アイテムをロボットへ装備
 - ジオラマ編集UI
 - diorama テーブル
 - 壁画共有テーブル

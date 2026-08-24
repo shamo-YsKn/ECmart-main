@@ -13,6 +13,7 @@ import { CartView } from "@/components/views/cart-view"
 import { AccountView } from "@/components/views/account-view"
 import { GachaView } from "@/components/views/gacha-view"
 import { RobotWorkshop } from "@/components/robot/robot-workshop"
+import { CustomItemWorkshop } from "@/components/workbench/custom-item-workshop"
 import { RobotAvatar } from "@/components/robot/robot-avatar"
 import {
   Hammer,
@@ -33,8 +34,8 @@ const TABS = [
 ] as const
 
 type NavigationTabKey = (typeof TABS)[number]["key"]
-type TabKey = NavigationTabKey | "gacha"
-const VALID_PAGE_TABS = new Set<TabKey>([...TABS.map((item) => item.key), "gacha"])
+type TabKey = NavigationTabKey | "gacha" | "workbench"
+const VALID_PAGE_TABS = new Set<TabKey>([...TABS.map((item) => item.key), "gacha", "workbench"])
 
 function hrefForTab(tab: TabKey) {
   return tab === "home" ? "?tab=home" : `?tab=${tab}`
@@ -202,13 +203,32 @@ function Site({ initialTab, initialAuthMode }: { initialTab: TabKey; initialAuth
         {tab === "ranking" && <RankingView cart={cart} />}
         {tab === "robot" && (
           <div className="flex flex-col gap-6">
-            <div className="flex flex-col gap-2">
-              <h1 className="font-display text-3xl font-black">ロボット工房</h1>
-              <p className="text-muted-foreground">
-                てつ工房ボルタ監修。ボルタ＆ナッティ風の、あなただけの鉄の仲間をデザインしよう。
-              </p>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div className="flex flex-col gap-2">
+                <h1 className="font-display text-3xl font-black">ロボット工房</h1>
+                <p className="text-muted-foreground">
+                  てつ工房ボルタ監修。ボルタ＆ナッティ風の、あなただけの鉄の仲間をデザインしよう。
+                </p>
+              </div>
+              <button type="button" className={cn(buttonVariants({ variant: "outline" }), "rounded-full")} onClick={() => navigate("workbench")}>
+                <Hammer data-icon="inline-start" />
+                アイテム工作へ
+              </button>
             </div>
             <RobotWorkshop />
+          </div>
+        )}
+        {tab === "workbench" && (
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <div className="text-sm font-bold text-primary">Phase 2-1</div>
+                <h1 className="font-display mt-1 text-3xl font-black">2Dアイテム工作</h1>
+                <p className="mt-2 text-muted-foreground">ネジ・ナット・LEDなどを組み合わせて、自分だけの工作アイテムを作ろう。</p>
+              </div>
+              <button type="button" className={cn(buttonVariants({ variant: "outline" }), "rounded-full")} onClick={() => navigate("robot")}>ロボット工房へ戻る</button>
+            </div>
+            <CustomItemWorkshop />
           </div>
         )}
         {tab === "gacha" && <GachaView onNavigate={navigate} />}

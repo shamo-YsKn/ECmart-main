@@ -22,6 +22,13 @@ import type {
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client"
 import { getGachaReward } from "@/lib/gacha"
 import { normalizeRobotConfig, parseSavedRobotRow, sanitizeRobotName } from "@/lib/robot-config"
+import type { CustomItemDocument } from "@/lib/creation-model"
+import {
+  normalizeCustomItemDocument,
+  parseSavedCustomItemRow,
+  sanitizeCustomItemName,
+  type SavedCustomItem,
+} from "@/lib/custom-item-model"
 
 export interface Profile {
   user_id: string
@@ -39,6 +46,10 @@ type AccountResult = {
 
 type RobotAccountResult = AccountResult & {
   robot?: SavedRobot
+}
+
+type CustomItemAccountResult = AccountResult & {
+  item?: SavedCustomItem
 }
 
 type PurchaseAccountResult = AccountResult & {
@@ -59,8 +70,11 @@ interface AccountContextValue {
   savedRobots: SavedRobot[]
   avatarRobot: SavedRobot | null
   gachaInventory: GachaInventoryItem[]
+  savedCustomItems: SavedCustomItem[]
   robotStorageReady: boolean
   robotStorageError: string | null
+  customItemStorageReady: boolean
+  customItemStorageError: string | null
   signUp: (email: string, password: string, displayName: string) => Promise<AccountResult>
   signIn: (email: string, password: string) => Promise<AccountResult>
   signOut: () => Promise<AccountResult>
@@ -68,6 +82,8 @@ interface AccountContextValue {
   toggleFavorite: (productId: string) => Promise<AccountResult>
   saveRobot: (config: RobotConfig, robotId?: string) => Promise<RobotAccountResult>
   deleteRobot: (robotId: string) => Promise<AccountResult>
+  saveCustomItem: (document: CustomItemDocument, itemId?: string) => Promise<CustomItemAccountResult>
+  deleteCustomItem: (itemId: string) => Promise<AccountResult>
   setAvatarRobot: (robotId: string | null) => Promise<AccountResult>
   purchaseCart: (items: CartItem[], idempotencyKey: string) => Promise<PurchaseAccountResult>
   spinGacha: (rollId: string) => Promise<GachaAccountResult>
@@ -151,6 +167,15 @@ function robotStorageMessage(error?: { message?: string } | null) {
   return `ロボット保存用のSupabase設定を確認してください：${error.message}`
 }
 
+function isMissingCustomItemStorage(error: { code?: string; message: string }) {
+  return error.code === "42P01" || error.message.toLowerCase().includes("custom_items")
+}
+
+function customItemStorageMessage(error?: { message?: string } | null) {
+  if (!error?.message) return "自作アイテム保存用のSupabase設定がまだ完了していません。"
+  return `自作アイテム保存用のSupabase設定を確認してください：${error.message}`
+}
+
 
 function withTimeout<T>(promiseLike: PromiseLike<T>, timeoutMs: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -207,8 +232,11 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   )
   const [savedRobots, setSavedRobots] = useState<SavedRobot[]>([])
   const [gachaInventory, setGachaInventory] = useState<GachaInventoryItem[]>([])
+  const [savedCustomItems, setSavedCustomItems] = useState<SavedCustomItem[]>([])
   const [robotStorageReady, setRobotStorageReady] = useState(true)
   const [robotStorageError, setRobotStorageError] = useState<string | null>(null)
+  const [customItemStorageReady, setCustomItemStorageReady] = useState(true)
+  const [customItemStorageError, setCustomItemStorageError] = useState<string | null>(null)
 
   const getSupabase = useCallback(async () => {
     if (supabaseRef.current) return supabaseRef.current
@@ -231,8 +259,11 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     setFavoriteProductIds(new Set())
     setSavedRobots([])
     setGachaInventory([])
+    setSavedCustomItems([])
     setRobotStorageReady(true)
     setRobotStorageError(null)
+    setCustomItemStorageReady(true)
+    setCustomItemStorageError(null)
   }, [])
 
   const loadUserData = useCallback(
@@ -250,7 +281,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      const [profileResult, favoritesResult, robotsResult, inventoryResult] = await Promise.allSettled([
+      const [profileResult, favoritesResult, robotsResult, inventoryResult, customItemsResult] = await Promise.allSettled([
         retryRequest(
           () =>
             supabase
@@ -286,12 +317,22 @@ export function AccountProvider({ children }: { children: ReactNode }) {
               .order("last_acquired_at", { ascending: false }),
           "gacha inventory",
         ),
+        retryRequest(
+          () =>
+            supabase
+              .from("custom_items")
+              .select("id, user_id, name, document, created_at, updated_at")
+              .eq("user_id", nextUser.id)
+              .order("updated_at", { ascending: false }),
+          "custom items",
+        ),
       ])
 
       const profileResponse = profileResult.status === "fulfilled" ? profileResult.value : null
       const favoritesResponse = favoritesResult.status === "fulfilled" ? favoritesResult.value : null
       const robotsResponse = robotsResult.status === "fulfilled" ? robotsResult.value : null
       const inventoryResponse = inventoryResult.status === "fulfilled" ? inventoryResult.value : null
+      const customItemsResponse = customItemsResult.status === "fulfilled" ? customItemsResult.value : null
 
       if (profileResponse && !profileResponse.error) {
         setProfile(
@@ -370,6 +411,21 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         setAccountLoadError((current) =>
           current ?? "ガチャ獲得アイテムの同期に時間がかかっています。アカウント画面を開き直すと再取得します。",
         )
+      }
+
+      if (!customItemsResponse) {
+        setCustomItemStorageReady(true)
+        setCustomItemStorageError("自作アイテム情報の取得に時間がかかっています。再度アカウント画面を開くと再取得します。")
+      } else if (customItemsResponse.error) {
+        setCustomItemStorageReady(!isMissingCustomItemStorage(customItemsResponse.error))
+        setCustomItemStorageError(customItemStorageMessage(customItemsResponse.error))
+      } else {
+        const items = (customItemsResponse.data ?? [])
+          .map((row: unknown) => parseSavedCustomItemRow(row))
+          .filter((item: SavedCustomItem | null): item is SavedCustomItem => Boolean(item))
+        setSavedCustomItems(items)
+        setCustomItemStorageReady(true)
+        setCustomItemStorageError(null)
       }
     },
     [clearLocalAccount, getSupabase],
@@ -631,6 +687,58 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     [getSupabase, robotStorageError, robotStorageReady, user],
   )
 
+  const saveCustomItem = useCallback(
+    async (document: CustomItemDocument, itemId?: string): Promise<CustomItemAccountResult> => {
+      const supabase = await getSupabase()
+      if (!supabase || !user) return { error: "自作アイテムの保存にはログインが必要です。" }
+      if (!customItemStorageReady) return { error: customItemStorageError ?? customItemStorageMessage() }
+
+      const cleanName = sanitizeCustomItemName(document.name)
+      const cleanDocument = normalizeCustomItemDocument({ ...document, name: cleanName }, cleanName)
+      if (cleanDocument.parts.length === 0) return { error: "工作部品を1つ以上配置してください。" }
+
+      const payload = {
+        user_id: user.id,
+        name: cleanName,
+        document: cleanDocument,
+        updated_at: new Date().toISOString(),
+      }
+      const query = itemId
+        ? supabase.from("custom_items").update(payload).eq("id", itemId).eq("user_id", user.id)
+        : supabase.from("custom_items").insert(payload)
+      const { data, error } = await query
+        .select("id, user_id, name, document, created_at, updated_at")
+        .single()
+
+      if (error) {
+        if (isMissingCustomItemStorage(error)) {
+          setCustomItemStorageReady(false)
+          setCustomItemStorageError(customItemStorageMessage(error))
+        }
+        return { error: customItemStorageMessage(error) }
+      }
+
+      const item = parseSavedCustomItemRow(data)
+      if (!item) return { error: "保存した自作アイテムデータを読み取れませんでした。" }
+      setSavedCustomItems((current) => [item, ...current.filter((entry) => entry.id !== item.id)])
+      return { error: null, item }
+    },
+    [customItemStorageError, customItemStorageReady, getSupabase, user],
+  )
+
+  const deleteCustomItem = useCallback(
+    async (itemId: string): Promise<AccountResult> => {
+      const supabase = await getSupabase()
+      if (!supabase || !user) return { error: "ログインが必要です。" }
+      if (!customItemStorageReady) return { error: customItemStorageError ?? customItemStorageMessage() }
+      const { error } = await supabase.from("custom_items").delete().eq("id", itemId).eq("user_id", user.id)
+      if (error) return { error: customItemStorageMessage(error) }
+      setSavedCustomItems((current) => current.filter((item) => item.id !== itemId))
+      return { error: null }
+    },
+    [customItemStorageError, customItemStorageReady, getSupabase, user],
+  )
+
   const setAvatarRobot = useCallback(
     async (robotId: string | null): Promise<AccountResult> => {
       const supabase = await getSupabase()
@@ -849,8 +957,11 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       savedRobots,
       avatarRobot,
       gachaInventory,
+      savedCustomItems,
       robotStorageReady,
       robotStorageError,
+      customItemStorageReady,
+      customItemStorageError,
       signUp,
       signIn,
       signOut,
@@ -858,6 +969,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       toggleFavorite,
       saveRobot,
       deleteRobot,
+      saveCustomItem,
+      deleteCustomItem,
       setAvatarRobot,
       purchaseCart,
       spinGacha,
@@ -867,8 +980,12 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       accountLoadError,
       avatarRobot,
       deleteRobot,
+      deleteCustomItem,
       favoriteProductIds,
       gachaInventory,
+      savedCustomItems,
+      customItemStorageError,
+      customItemStorageReady,
       loading,
       profile,
       purchaseCart,
@@ -878,6 +995,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       robotStorageReady,
       saveProfile,
       saveRobot,
+      saveCustomItem,
       savedRobots,
       setAvatarRobot,
       signIn,

@@ -9,6 +9,7 @@ import { useAccount } from "@/lib/account-context"
 import { ProductCard } from "@/components/product-card"
 import { RobotAvatar } from "@/components/robot/robot-avatar"
 import { RobotCharacter } from "@/components/robot/robot-character"
+import { CustomItemPreview } from "@/components/workbench/custom-item-preview"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -30,10 +31,12 @@ import {
   Save,
   Settings2,
   Trash2,
+  Wrench,
   UserPlus,
   UserRound,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { CUSTOM_ITEM_DRAFT_KEY, type SavedCustomItem } from "@/lib/custom-item-model"
 
 type AuthMode = "signIn" | "signUp"
 
@@ -62,7 +65,7 @@ function NoticeBox({ notice }: { notice: Notice }) {
   )
 }
 
-function navigateTo(tab: "robot" | "shops" | "gacha") {
+function navigateTo(tab: "robot" | "shops" | "gacha" | "workbench") {
   window.dispatchEvent(new CustomEvent("machinowa:navigate", { detail: { tab } }))
 }
 
@@ -76,6 +79,7 @@ export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; i
   const [bio, setBio] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [robotActionId, setRobotActionId] = useState<string | null>(null)
+  const [itemActionId, setItemActionId] = useState<string | null>(null)
   const [notice, setNotice] = useState<Notice>(null)
 
   useEffect(() => {
@@ -212,6 +216,31 @@ export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; i
       result.error
         ? { type: "error", text: result.error }
         : { type: "success", text: `${robot.name}を削除しました。` },
+    )
+  }
+
+  function openCustomItem(item?: SavedCustomItem) {
+    if (item) {
+      window.sessionStorage.setItem(
+        CUSTOM_ITEM_DRAFT_KEY,
+        JSON.stringify({ id: item.id, document: item.document }),
+      )
+    } else {
+      window.sessionStorage.removeItem(CUSTOM_ITEM_DRAFT_KEY)
+    }
+    navigateTo("workbench")
+  }
+
+  async function deleteCustomItem(item: SavedCustomItem) {
+    if (!window.confirm(`${item.name}を削除しますか？`)) return
+    setItemActionId(item.id)
+    setNotice(null)
+    const result = await account.deleteCustomItem(item.id)
+    setItemActionId(null)
+    setNotice(
+      result.error
+        ? { type: "error", text: result.error }
+        : { type: "success", text: `${item.name}を削除しました。` },
     )
   }
 
@@ -518,10 +547,10 @@ export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; i
             <div>
               <h2 className="font-display text-xl font-black">アカウント保存が有効です</h2>
               <p className="mt-2 leading-relaxed text-muted-foreground">
-                お気に入りと自作ロボットはSupabaseに保存されるため、同じアカウントなら別の端末からも確認できます。
+                お気に入り・自作ロボット・工作アイテムはSupabaseに保存されるため、同じアカウントなら別の端末からも確認できます。
               </p>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
               <div className="rounded-xl border bg-background/80 p-4 text-sm">
                 <div className="text-muted-foreground">保有ポイント</div>
                 <div className="font-display mt-1 flex items-center gap-2 text-3xl font-black text-primary">
@@ -548,6 +577,13 @@ export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; i
                   {gachaItems.length}<span className="ml-1 text-sm text-foreground">種類</span>
                 </div>
                 <button type="button" className="mt-2 text-xs font-bold text-primary underline-offset-4 hover:underline" onClick={() => navigateTo("gacha")}>ガチャを回す</button>
+              </div>
+              <div className="rounded-xl border bg-background/80 p-4 text-sm">
+                <div className="text-muted-foreground">自作アイテム</div>
+                <div className="font-display mt-1 text-3xl font-black text-primary">
+                  {account.savedCustomItems.length}<span className="ml-1 text-sm text-foreground">個</span>
+                </div>
+                <button type="button" className="mt-2 text-xs font-bold text-primary underline-offset-4 hover:underline" onClick={() => openCustomItem()}>工作する</button>
               </div>
             </div>
           </CardContent>
@@ -706,6 +742,67 @@ export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; i
             </CardContent>
           </Card>
         ) : null}
+      </section>
+
+      <section className="flex flex-col gap-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="font-display flex items-center gap-2 text-2xl font-black">
+              <Wrench className="size-6 text-primary" />
+              自作アイテム
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              ナット・ねじ・LEDなどを組み合わせて作った作品です。
+            </p>
+          </div>
+          <Button className="rounded-full" onClick={() => openCustomItem()}>
+            <Plus data-icon="inline-start" />
+            新しく工作する
+          </Button>
+        </div>
+
+        {!account.customItemStorageReady ? (
+          <Card className="border-2 border-amber-300 bg-amber-50">
+            <CardContent className="p-5 text-sm text-amber-900">
+              <p className="font-bold">自作アイテム保存用のSupabase設定が必要です。</p>
+              <p className="mt-1"><code>supabase/custom-items-migration.sql</code> をSQL Editorで実行してください。</p>
+            </CardContent>
+          </Card>
+        ) : account.savedCustomItems.length > 0 ? (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {account.savedCustomItems.map((item) => (
+              <Card key={item.id} className="overflow-hidden border-2">
+                <CustomItemPreview document={item.document} className="aspect-[4/3] w-full rounded-none" />
+                <CardContent className="flex flex-col gap-3 p-4">
+                  <div>
+                    <h3 className="font-display text-lg font-black">{item.name}</h3>
+                    <p className="mt-1 text-xs text-muted-foreground">{item.document.parts.length}パーツで制作</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" className="rounded-full" onClick={() => openCustomItem(item)}>
+                      <Pencil data-icon="inline-start" />工作台で編集
+                    </Button>
+                    <Button size="sm" variant="ghost" className="rounded-full text-destructive hover:text-destructive" onClick={() => void deleteCustomItem(item)} disabled={itemActionId === item.id}>
+                      {itemActionId === item.id ? <LoaderCircle className="animate-spin" data-icon="inline-start" /> : <Trash2 data-icon="inline-start" />}
+                      削除
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Card className="border-2 border-dashed">
+            <CardContent className="flex flex-col items-center gap-3 py-12 text-center text-muted-foreground">
+              <Wrench className="size-9" />
+              <div>
+                <p className="font-display font-bold text-foreground">まだ自作アイテムはありません</p>
+                <p className="mt-1 text-sm">工作台でネジやLEDを組み合わせて、最初の作品を作ってみましょう。</p>
+              </div>
+              <Button className="mt-2 rounded-full" onClick={() => openCustomItem()}>アイテム工作を開く</Button>
+            </CardContent>
+          </Card>
+        )}
       </section>
 
       <section className="flex flex-col gap-5">
