@@ -12,9 +12,10 @@
     "start:network": "next start -H 0.0.0.0 -p 3000",
     "dev:network:webpack": "next dev --webpack -H 0.0.0.0 -p 3000",
     "validate:foundation": "node scripts/validate-foundation.mjs",
-    "check": "npm run typecheck && npm run validate:foundation && npm run validate:phase2-1 && npm run validate:phase2",
+    "check": "npm run typecheck && npm run validate:foundation && npm run validate:phase2-1 && npm run validate:phase2 && npm run validate:phase3",
     "validate:phase2-1": "node scripts/validate-phase2-1.mjs",
-    "validate:phase2": "node scripts/validate-phase2.mjs"
+    "validate:phase2": "node scripts/validate-phase2.mjs",
+    "validate:phase3": "node scripts/validate-phase3.mjs"
   },
   "dependencies": {
     "@vercel/analytics": "1.6.1",

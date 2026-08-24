@@ -23,6 +23,7 @@ import { createClient, isSupabaseConfigured } from "@/lib/supabase/client"
 import { getGachaReward } from "@/lib/gacha"
 import { normalizeRobotConfig, parseSavedRobotRow, sanitizeRobotName } from "@/lib/robot-config"
 import { normalizeRobotHeldItem } from "@/lib/robot-held-item"
+import { getWorkbenchVariant } from "@/lib/workbench-variants"
 import type { CustomItemDocument } from "@/lib/creation-model"
 import {
   normalizeCustomItemDocument,
@@ -697,6 +698,14 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       const cleanName = sanitizeCustomItemName(document.name)
       const cleanDocument = normalizeCustomItemDocument({ ...document, name: cleanName }, cleanName)
       if (cleanDocument.parts.length === 0) return { error: "工作部品を1つ以上配置してください。" }
+      const ownedRewardIds = new Set(gachaInventory.map((entry) => entry.rewardId))
+      for (const part of cleanDocument.parts) {
+        if (!part.variantId) continue
+        const variant = getWorkbenchVariant(part.variantId)
+        if (!variant || !ownedRewardIds.has(variant.rewardId)) {
+          return { error: "ガチャで未獲得の特殊工作素材が含まれています。獲得済み素材だけで保存してください。" }
+        }
+      }
 
       const payload = {
         user_id: user.id,
@@ -724,7 +733,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       setSavedCustomItems((current) => [item, ...current.filter((entry) => entry.id !== item.id)])
       return { error: null, item }
     },
-    [customItemStorageError, customItemStorageReady, getSupabase, user],
+    [customItemStorageError, customItemStorageReady, gachaInventory, getSupabase, user],
   )
 
   const deleteCustomItem = useCallback(

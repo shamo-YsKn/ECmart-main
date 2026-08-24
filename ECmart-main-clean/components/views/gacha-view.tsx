@@ -10,10 +10,12 @@ import {
   rewardPreview,
 } from "@/lib/gacha"
 import type { GachaSpinResult } from "@/lib/types"
+import { getDioramaStage } from "@/lib/diorama-stages"
+import { DioramaStagePreview } from "@/components/diorama/diorama-stage-preview"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Coins, Gift, LoaderCircle, LockKeyhole, RotateCcw, Sparkles, Wrench } from "lucide-react"
+import { Coins, Gift, Hammer, LoaderCircle, LockKeyhole, RotateCcw, Sparkles, UserRound, Wrench } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 function createRollId() {
@@ -97,7 +99,7 @@ export function GachaView({ onNavigate }: { onNavigate: (tab: string) => void })
         </div>
         <h1 className="font-display mt-3 text-3xl font-black">ボルタ・ナッティ ガチャ</h1>
         <p className="mt-2 text-muted-foreground">
-          ボディカラー、目の色、持ちものを獲得できます。
+          カラー、持ちもの、工作素材、室蘭ジオラマ背景を獲得できます。
         </p>
       </div>
 
@@ -138,8 +140,14 @@ export function GachaView({ onNavigate }: { onNavigate: (tab: string) => void })
             <div>
               <h2 className="font-display text-2xl font-black">1回 {GACHA_COST}pt</h2>
               <p className="mt-2 text-sm text-muted-foreground">
-                重複した景品は所持数として加算されます。
+                重複した景品は所持数として加算されます。特殊工作素材は一度獲得すれば何度でも工作に使えます。
               </p>
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                <Badge variant="secondary" className="rounded-full">カラー</Badge>
+                <Badge variant="secondary" className="rounded-full">持ちもの</Badge>
+                <Badge variant="secondary" className="rounded-full">工作素材</Badge>
+                <Badge variant="secondary" className="rounded-full">室蘭ジオラマ</Badge>
+              </div>
             </div>
             <Button size="lg" className="rounded-full px-10" onClick={prepareSpin}>
               <Sparkles data-icon="inline-start" />
@@ -191,16 +199,20 @@ export function GachaView({ onNavigate }: { onNavigate: (tab: string) => void })
             <CardTitle className="font-display text-3xl">{result.duplicate ? "また会えた！" : "新しい景品を獲得！"}</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-6 pb-10 text-center">
-            <div className="flex size-52 items-center justify-center rounded-[2.5rem] border-4 bg-[radial-gradient(circle_at_35%_25%,white,var(--color-secondary))] shadow-xl">
-              {rewardPreview(reward).kind === "color" ? (
-                <div
-                  className="size-28 rounded-full border-4 border-white shadow-lg ring-2 ring-foreground/15"
-                  style={{ backgroundColor: reward.value }}
-                />
-              ) : (
-                <span className="text-8xl">{rewardPreview(reward).icon}</span>
-              )}
-            </div>
+            {reward.category === "diorama_stage" && getDioramaStage(reward.value) ? (
+              <DioramaStagePreview stageId={reward.value} className="aspect-video w-full max-w-lg rounded-[2rem] border-4 shadow-xl" />
+            ) : (
+              <div className="flex size-52 items-center justify-center rounded-[2.5rem] border-4 bg-[radial-gradient(circle_at_35%_25%,white,var(--color-secondary))] shadow-xl">
+                {rewardPreview(reward).kind === "color" ? (
+                  <div
+                    className="size-28 rounded-full border-4 border-white shadow-lg ring-2 ring-foreground/15"
+                    style={{ backgroundColor: reward.value }}
+                  />
+                ) : (
+                  <span className="text-8xl">{rewardPreview(reward).icon}</span>
+                )}
+              </div>
+            )}
             <div>
               <div className="text-sm font-bold text-muted-foreground">{GACHA_CATEGORY_LABELS[reward.category]}</div>
               <h2 className="font-display mt-1 text-3xl font-black">{reward.label}</h2>
@@ -217,10 +229,22 @@ export function GachaView({ onNavigate }: { onNavigate: (tab: string) => void })
                 <RotateCcw data-icon="inline-start" />
                 もう一度
               </Button>
-              <Button className="rounded-full" onClick={() => onNavigate("robot")}>
-                <Wrench data-icon="inline-start" />
-                工房で使う
-              </Button>
+              {reward.category === "workbench_part" ? (
+                <Button className="rounded-full" onClick={() => onNavigate("workbench")}>
+                  <Hammer data-icon="inline-start" />
+                  工作台で使う
+                </Button>
+              ) : reward.category === "diorama_stage" ? (
+                <Button className="rounded-full" onClick={() => onNavigate("account")}>
+                  <UserRound data-icon="inline-start" />
+                  マイページで確認
+                </Button>
+              ) : (
+                <Button className="rounded-full" onClick={() => onNavigate("robot")}>
+                  <Wrench data-icon="inline-start" />
+                  工房で使う
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>

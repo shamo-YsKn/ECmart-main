@@ -13,6 +13,7 @@ import {
   sanitizeCustomItemName,
 } from "@/lib/custom-item-model"
 import { WORKBENCH_PARTS, WORKBENCH_PART_BY_TYPE } from "@/lib/workbench-parts"
+import { WORKBENCH_PART_VARIANTS, getWorkbenchVariant, unlockedWorkbenchVariants } from "@/lib/workbench-variants"
 import {
   collectPartTreeIds,
   connectedCount,
@@ -62,7 +63,7 @@ function dispatchNavigate(tab: "account" | "robot") {
   window.dispatchEvent(new CustomEvent("machinowa:navigate", { detail: { tab } }))
 }
 
-function newPart(type: WorkbenchPartType, index: number): CustomItemPartPlacement {
+function newPart(type: WorkbenchPartType, index: number, variantId?: string): CustomItemPartPlacement {
   const spread = ((index % 7) - 3) * 12
   return {
     instanceId: newWorkbenchInstanceId(),
@@ -72,13 +73,14 @@ function newPart(type: WorkbenchPartType, index: number): CustomItemPartPlacemen
       rotationDeg: [0, 0, 0],
       scale: [1, 1, 1],
     },
+    ...(variantId ? { variantId } : {}),
   }
 }
 
-function PartPalettePreview({ type }: { type: WorkbenchPartType }) {
+function PartPalettePreview({ type, variantId }: { type: WorkbenchPartType; variantId?: string }) {
   return (
     <svg viewBox="-75 -60 150 120" className="size-16" aria-hidden="true">
-      <g transform="scale(.72)"><WorkbenchPartShape type={type} /></g>
+      <g transform="scale(.72)"><WorkbenchPartShape type={type} variantId={variantId} /></g>
     </svg>
   )
 }
@@ -87,6 +89,8 @@ export function CustomItemWorkshop() {
   const account = useAccount()
   const svgRef = useRef<SVGSVGElement | null>(null)
   const [document, setDocument] = useState<CustomItemDocument>(() => createEmptyCustomItemDocument())
+  const unlockedRewardIds = useMemo(() => new Set(account.gachaInventory.map((entry) => entry.rewardId)), [account.gachaInventory])
+  const unlockedVariants = useMemo(() => unlockedWorkbenchVariants(unlockedRewardIds), [unlockedRewardIds])
   const documentRef = useRef(document)
   const [editingItemId, setEditingItemId] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -151,12 +155,19 @@ export function CustomItemWorkshop() {
     })
   }
 
-  function addPart(type: WorkbenchPartType) {
+  function addPart(type: WorkbenchPartType, variantId?: string) {
     if (document.parts.length >= CUSTOM_ITEM_MAX_PARTS) {
       setNotice({ type: "error", text: `1つのアイテムには最大${CUSTOM_ITEM_MAX_PARTS}個まで配置できます。` })
       return
     }
-    const part = newPart(type, document.parts.length)
+    if (variantId) {
+      const variant = getWorkbenchVariant(variantId)
+      if (!variant || !unlockedRewardIds.has(variant.rewardId)) {
+        setNotice({ type: "error", text: "この特殊工作素材はまだガチャで獲得していません。" })
+        return
+      }
+    }
+    const part = newPart(type, document.parts.length, variantId)
     setDocument((current) => ({ ...current, parts: [...current.parts, part] }))
     setSelectedId(part.instanceId)
     setNotice(null)
@@ -358,13 +369,35 @@ export function CustomItemWorkshop() {
             <CardTitle className="font-display flex items-center gap-2 text-lg"><Hammer className="size-5 text-primary" />工作パーツ</CardTitle>
             <p className="text-sm text-muted-foreground">クリックすると工作台へ追加します。</p>
           </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-2 xl:grid-cols-1">
-            {WORKBENCH_PARTS.map((part) => (
-              <button key={part.type} type="button" onClick={() => addPart(part.type)} className="flex items-center gap-2 rounded-xl border p-2 text-left transition-colors hover:border-primary hover:bg-primary/5">
-                <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#f4ead6]"><PartPalettePreview type={part.type} /></div>
-                <div className="min-w-0"><div className="font-display text-sm font-black">{part.shortLabel}</div><div className="text-[11px] text-muted-foreground">{part.category}</div></div>
-              </button>
-            ))}
+          <CardContent className="flex flex-col gap-4">
+            <div>
+              <div className="mb-2 text-xs font-bold text-muted-foreground">基本パーツ（いつでも使用可能）</div>
+              <div className="grid grid-cols-2 gap-2 xl:grid-cols-1">
+                {WORKBENCH_PARTS.map((part) => (
+                  <button key={part.type} type="button" onClick={() => addPart(part.type)} className="flex items-center gap-2 rounded-xl border p-2 text-left transition-colors hover:border-primary hover:bg-primary/5">
+                    <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#f4ead6]"><PartPalettePreview type={part.type} /></div>
+                    <div className="min-w-0"><div className="font-display text-sm font-black">{part.shortLabel}</div><div className="text-[11px] text-muted-foreground">{part.category}</div></div>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="border-t pt-4">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <div className="text-xs font-bold text-muted-foreground">ガチャ限定素材</div>
+                <Badge variant="secondary" className="rounded-full">{unlockedVariants.length}/{WORKBENCH_PART_VARIANTS.length}</Badge>
+              </div>
+              <div className="grid grid-cols-2 gap-2 xl:grid-cols-1">
+                {WORKBENCH_PART_VARIANTS.map((variant) => {
+                  const unlocked = unlockedRewardIds.has(variant.rewardId)
+                  return (
+                    <button key={variant.id} type="button" disabled={!unlocked} onClick={() => addPart(variant.baseType, variant.id)} className={cn("flex items-center gap-2 rounded-xl border p-2 text-left transition-colors", unlocked ? "hover:border-primary hover:bg-primary/5" : "cursor-not-allowed opacity-45")}>
+                      <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#f4ead6]"><PartPalettePreview type={variant.baseType} variantId={variant.id} /></div>
+                      <div className="min-w-0"><div className="font-display text-sm font-black">{variant.shortLabel}</div><div className="text-[11px] text-muted-foreground">{unlocked ? "獲得済み" : "ガチャで解放"}</div></div>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -408,7 +441,7 @@ export function CustomItemWorkshop() {
                   {document.parts.map((part) => (
                     <g key={part.instanceId} transform={`translate(${part.transform.position[0]} ${part.transform.position[1]}) rotate(${part.transform.rotationDeg[2]}) scale(${part.transform.scale[0]})`} onPointerDown={(event) => startDrag(event, part)} className="cursor-grab active:cursor-grabbing">
                       <rect x="-70" y="-58" width="140" height="116" rx="12" fill="transparent" />
-                      <WorkbenchPartShape type={part.partType} selected={part.instanceId === selectedId} />
+                      <WorkbenchPartShape type={part.partType} variantId={part.variantId} selected={part.instanceId === selectedId} />
                       {snapEnabled && (drag?.instanceId === part.instanceId || part.instanceId === selectedId) && WORKBENCH_PART_BY_TYPE[part.partType].sockets.map((socket) => (
                         <circle key={socket.id} cx={socket.x} cy={socket.y} r="5" fill="#fff" stroke="#f97316" strokeWidth="2.5" vectorEffect="non-scaling-stroke" className="pointer-events-none" />
                       ))}
@@ -457,7 +490,7 @@ export function CustomItemWorkshop() {
           <CardContent className="flex flex-col gap-5">
             {selectedPart ? (
               <>
-                <div className="flex items-center gap-3 rounded-xl bg-muted p-3"><div className="flex size-16 items-center justify-center rounded-lg bg-[#f4ead6]"><PartPalettePreview type={selectedPart.partType} /></div><div><div className="font-display font-black">{WORKBENCH_PART_BY_TYPE[selectedPart.partType].label}</div><p className="mt-1 text-xs text-muted-foreground">{WORKBENCH_PART_BY_TYPE[selectedPart.partType].description}</p></div></div>
+                <div className="flex items-center gap-3 rounded-xl bg-muted p-3"><div className="flex size-16 items-center justify-center rounded-lg bg-[#f4ead6]"><PartPalettePreview type={selectedPart.partType} variantId={selectedPart.variantId} /></div><div><div className="font-display font-black">{getWorkbenchVariant(selectedPart.variantId)?.label ?? WORKBENCH_PART_BY_TYPE[selectedPart.partType].label}</div><p className="mt-1 text-xs text-muted-foreground">{getWorkbenchVariant(selectedPart.variantId)?.description ?? WORKBENCH_PART_BY_TYPE[selectedPart.partType].description}</p></div></div>
                 <div className="flex flex-col gap-3"><div className="flex items-center justify-between"><Label>回転</Label><span className="text-sm tabular-nums text-muted-foreground">{Math.round(selectedPart.transform.rotationDeg[2])}°</span></div><Slider value={[selectedPart.transform.rotationDeg[2]]} min={-180} max={180} step={1} onValueChange={(value) => { const rotation = Array.isArray(value) ? value[0] : (value as number); patchSelected((part) => ({ ...part, transform: { ...part.transform, rotationDeg: [0, 0, rotation] } })) }} /></div>
                 <div className="flex flex-col gap-3"><div className="flex items-center justify-between"><Label>大きさ</Label><span className="text-sm tabular-nums text-muted-foreground">{Math.round(selectedPart.transform.scale[0] * 100)}%</span></div><Slider value={[selectedPart.transform.scale[0]]} min={0.4} max={2.5} step={0.05} onValueChange={(value) => { const scale = Array.isArray(value) ? value[0] : (value as number); patchSelected((part) => ({ ...part, transform: { ...part.transform, scale: [scale, scale, scale] } })) }} /></div>
                 {selectedPart.attachedTo && (

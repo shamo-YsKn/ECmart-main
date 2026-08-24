@@ -53,7 +53,7 @@ export function CustomItemArtwork({ document }: { document: CustomItemDocument }
           key={part.instanceId}
           transform={`translate(${part.transform.position[0]} ${part.transform.position[1]}) rotate(${part.transform.rotationDeg[2]}) scale(${part.transform.scale[0]})`}
         >
-          <WorkbenchPartShape type={part.partType} />
+          <WorkbenchPartShape type={part.partType} variantId={part.variantId} />
         </g>
       ))}
     </>

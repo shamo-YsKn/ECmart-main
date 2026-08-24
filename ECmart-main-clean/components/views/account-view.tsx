@@ -10,6 +10,7 @@ import { ProductCard } from "@/components/product-card"
 import { RobotAvatar } from "@/components/robot/robot-avatar"
 import { RobotCharacter } from "@/components/robot/robot-character"
 import { CustomItemPreview } from "@/components/workbench/custom-item-preview"
+import { DioramaStagePreview } from "@/components/diorama/diorama-stage-preview"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -23,7 +24,9 @@ import {
   Database,
   Heart,
   Gift,
+  Hammer,
   LoaderCircle,
+  MapPin,
   LogIn,
   LogOut,
   Pencil,
@@ -38,6 +41,7 @@ import {
 import { cn } from "@/lib/utils"
 import { CUSTOM_ITEM_DRAFT_KEY, type SavedCustomItem } from "@/lib/custom-item-model"
 import { normalizeRobotHeldItem } from "@/lib/robot-held-item"
+import { getDioramaStageByRewardId } from "@/lib/diorama-stages"
 
 type AuthMode = "signIn" | "signUp"
 
@@ -109,6 +113,20 @@ export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; i
       })
       .filter((item): item is NonNullable<typeof item> => Boolean(item)),
     [account.gachaInventory],
+  )
+
+  const dioramaStageItems = useMemo(
+    () => gachaItems.flatMap(({ entry, reward }) => {
+      if (reward.category !== "diorama_stage") return []
+      const stage = getDioramaStageByRewardId(reward.id)
+      return stage ? [{ entry, reward, stage }] : []
+    }),
+    [gachaItems],
+  )
+
+  const workbenchRewardCount = useMemo(
+    () => gachaItems.filter(({ reward }) => reward.category === "workbench_part").length,
+    [gachaItems],
   )
 
   async function handleAuth(event: FormEvent<HTMLFormElement>) {
@@ -607,7 +625,7 @@ export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; i
               ガチャで獲得したもの
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              獲得したカラーと持ちものは、ロボット工房の選択肢に追加されます。
+              獲得したカラー・持ちもの・特殊工作素材・ジオラマ背景をアカウントに保存します。
             </p>
           </div>
           <Button className="rounded-full" onClick={() => navigateTo("gacha")}>
@@ -649,11 +667,45 @@ export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; i
               <Gift className="size-9" />
               <div>
                 <p className="font-display font-bold text-foreground">まだガチャ景品はありません</p>
-                <p className="mt-1 text-sm">ポイントを使って、最初のカラーや持ちものを獲得してみましょう。</p>
+                <p className="mt-1 text-sm">ポイントを使って、カラー・工作素材・室蘭ジオラマなどを獲得してみましょう。</p>
               </div>
               <Button className="rounded-full" onClick={() => navigateTo("gacha")}>ガチャを回す</Button>
             </CardContent>
           </Card>
+        )}
+      </section>
+
+      <section className="flex flex-col gap-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="font-display flex items-center gap-2 text-2xl font-black">
+              <MapPin className="size-6 text-primary" />
+              マイジオラマ背景
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              ガチャで獲得した室蘭のステージです。Phase 4のジオラマエディタで使用できるようになります。
+            </p>
+          </div>
+          <Badge variant="secondary" className="w-fit rounded-full">{dioramaStageItems.length}ステージ</Badge>
+        </div>
+        {dioramaStageItems.length > 0 ? (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {dioramaStageItems.map(({ entry, reward, stage }) => (
+              <Card key={reward.id} className="overflow-hidden border-2">
+                <DioramaStagePreview stageId={stage.id} className="aspect-[16/8] w-full" />
+                <CardContent className="p-4">
+                  <div className="flex flex-wrap gap-1"><Badge className="rounded-full">{GACHA_RARITY_LABELS[reward.rarity]}</Badge><Badge variant="secondary" className="rounded-full">×{entry.quantity}</Badge></div>
+                  <h3 className="font-display mt-2 text-lg font-black">{stage.label}</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">{stage.description}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Card className="border-2 border-dashed"><CardContent className="flex flex-col items-center gap-3 py-9 text-center text-muted-foreground"><MapPin className="size-9" /><p className="font-display font-bold text-foreground">まだジオラマ背景を持っていません</p><p className="text-sm">ガチャから室蘭の景色を集めてみましょう。</p></CardContent></Card>
+        )}
+        {workbenchRewardCount > 0 && (
+          <div className="flex items-center gap-2 rounded-xl border bg-primary/5 px-4 py-3 text-sm"><Hammer className="size-4 text-primary" /><span><strong>{workbenchRewardCount}種類</strong>のガチャ限定工作素材を獲得済みです。アイテム工作のパレットから使用できます。</span></div>
         )}
       </section>
 

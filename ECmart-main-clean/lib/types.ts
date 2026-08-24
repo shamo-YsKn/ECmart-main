@@ -147,7 +147,7 @@ export interface PurchaseOrder extends PurchaseResult {
 
 
 /** ガチャ景品 */
-export type GachaRewardCategory = "body_color" | "accent_color" | "item"
+export type GachaRewardCategory = "body_color" | "accent_color" | "item" | "workbench_part" | "diorama_stage"
 export type GachaRarity = "normal" | "rare" | "special"
 
 export interface GachaReward {

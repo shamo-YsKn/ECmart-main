@@ -32,6 +32,21 @@ export const GACHA_REWARDS: GachaReward[] = [
   { id: "item-gear", category: "item", label: "歯車", value: "gear", rarity: "normal", weight: 10 },
   { id: "item-flower", category: "item", label: "お花", value: "flower", rarity: "rare", weight: 6 },
   { id: "item-heart", category: "item", label: "ハート", value: "heart", rarity: "special", weight: 3 },
+
+  { id: "workbench-gold-nut", category: "workbench_part", label: "金色六角ナット", value: "gold-nut", rarity: "normal", weight: 8 },
+  { id: "workbench-black-nut", category: "workbench_part", label: "黒鉄六角ナット", value: "black-nut", rarity: "normal", weight: 8 },
+  { id: "workbench-brass-bolt", category: "workbench_part", label: "真鍮ボルト", value: "brass-bolt", rarity: "normal", weight: 7 },
+  { id: "workbench-copper-wire", category: "workbench_part", label: "銅色の針金", value: "copper-wire", rarity: "rare", weight: 5 },
+  { id: "workbench-dark-spring", category: "workbench_part", label: "黒ばね", value: "dark-spring", rarity: "rare", weight: 5 },
+  { id: "workbench-blue-led", category: "workbench_part", label: "青LED", value: "blue-led", rarity: "rare", weight: 4 },
+  { id: "workbench-purple-led", category: "workbench_part", label: "紫LED", value: "purple-led", rarity: "special", weight: 2 },
+
+  { id: "stage-muroran-port", category: "diorama_stage", label: "室蘭港", value: "muroran-port", rarity: "normal", weight: 7 },
+  { id: "stage-muroran-it", category: "diorama_stage", label: "室蘭工業大学", value: "muroran-it", rarity: "rare", weight: 5 },
+  { id: "stage-chikyu-misaki", category: "diorama_stage", label: "地球岬", value: "chikyu-misaki", rarity: "rare", weight: 5 },
+  { id: "stage-sokuryozan", category: "diorama_stage", label: "測量山", value: "sokuryozan", rarity: "rare", weight: 4 },
+  { id: "stage-hakucho-bridge", category: "diorama_stage", label: "白鳥大橋", value: "hakucho-bridge", rarity: "special", weight: 3 },
+  { id: "stage-factory-night", category: "diorama_stage", label: "室蘭工場夜景", value: "factory-night", rarity: "special", weight: 2 },
 ]
 
 export const GACHA_REWARD_BY_ID = new Map(GACHA_REWARDS.map((reward) => [reward.id, reward]))
@@ -40,6 +55,8 @@ export const GACHA_CATEGORY_LABELS: Record<GachaRewardCategory, string> = {
   body_color: "ボディカラー",
   accent_color: "目の色",
   item: "持ちもの",
+  workbench_part: "工作素材",
+  diorama_stage: "ジオラマ背景",
 }
 
 export const GACHA_RARITY_LABELS: Record<GachaRarity, string> = {
@@ -80,6 +97,19 @@ export function rewardPreview(reward: GachaReward) {
     gear: "⚙️",
     flower: "🌼",
     heart: "❤",
+    "gold-nut": "🔩",
+    "black-nut": "🔩",
+    "brass-bolt": "🔩",
+    "copper-wire": "〰️",
+    "dark-spring": "🌀",
+    "blue-led": "🔵",
+    "purple-led": "🟣",
+    "muroran-port": "⚓",
+    "muroran-it": "🏫",
+    "chikyu-misaki": "🌊",
+    sokuryozan: "⛰️",
+    "hakucho-bridge": "🌉",
+    "factory-night": "🌃",
   }
   return { kind: "icon" as const, icon: icons[reward.value] ?? "🎁" }
 }

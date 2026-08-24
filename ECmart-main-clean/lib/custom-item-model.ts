@@ -6,6 +6,7 @@ import {
   type Vec3,
   type WorkbenchPartType,
 } from "@/lib/creation-model"
+import { getWorkbenchVariant } from "@/lib/workbench-variants"
 
 export const CUSTOM_ITEM_DRAFT_KEY = "machinowa:custom-item-draft"
 export const CUSTOM_ITEM_EQUIP_DRAFT_KEY = "machinowa:custom-item-equip-draft"
@@ -99,13 +100,13 @@ export function normalizeCustomItemPart(value: unknown, index = 0): CustomItemPa
       }
     : undefined
 
+  const variant = typeof value.variantId === "string" ? getWorkbenchVariant(value.variantId.trim()) : null
+
   return {
     instanceId,
     partType,
     transform: normalizeWorkbenchTransform(value.transform),
-    ...(typeof value.variantId === "string" && value.variantId.trim()
-      ? { variantId: value.variantId.slice(0, 80) }
-      : {}),
+    ...(variant && variant.baseType === partType ? { variantId: variant.id } : {}),
     ...(attachedTo ? { attachedTo } : {}),
   }
 }

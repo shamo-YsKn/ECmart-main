@@ -194,3 +194,14 @@ headPose: {
 ```
 
 2D/3Dで同じ値を使います。旧 `RobotConfig` に `headPose` が無い場合はすべて0°として読み込みます。
+
+## Phase 3: ガチャ限定工作素材とジオラマ背景
+
+`CustomItemPartPlacement.variantId` を、基本パーツの特殊見た目を表す安定IDとして使用します。
+
+- `partType`: 接続socketや基本形状を決める
+- `variantId`: ガチャで解放される材質・発光色などを決める
+
+例: `partType: "hex_nut"` + `variantId: "gold-nut"`。
+
+ジオラマ背景は `DioramaStageReference` の `reward` 参照へつなげられるよう、`lib/diorama-stages.ts` で `stageId` と `rewardId` を対応付けます。Phase 3では所持判定まで、Phase 4で `DioramaDocument.stage` に実際の選択結果を保存します。

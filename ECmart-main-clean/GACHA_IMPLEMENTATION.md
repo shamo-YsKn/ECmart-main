@@ -3,7 +3,7 @@
 ## 概要
 
 - ガチャ1回: 100pt
-- 景品: ボディカラー、目の色、持ちもの
+- 景品: ボディカラー、目の色、持ちもの、特殊工作素材、室蘭ジオラマ背景
 - 抽選・ポイント消費・所持品保存はSupabase上の1トランザクションで処理
 - 同じ抽選IDを再送してもポイントは二重消費されません
 - 重複景品は `quantity` が増えます
@@ -13,7 +13,7 @@
 
 ## Supabase設定
 
-購入・ポイント機能の設定後、Supabase DashboardのSQL Editorで次を実行します。
+新規環境では購入・ポイント機能の設定後、Supabase DashboardのSQL Editorで次を実行します。
 
 ```text
 supabase/gacha-inventory-migration.sql
@@ -56,3 +56,14 @@ on conflict on constraint user_gacha_inventory_pkey do update
 
 旧版SQLを実行済みの場合は、同梱の
 `supabase/gacha-reward-id-ambiguity-fix.sql` をSQL Editorで実行してください。
+
+
+## Phase 3追加景品
+
+既にガチャ機能をセットアップ済みの場合は、次の追加SQLだけを1回実行します。
+
+```text
+supabase/phase3-gacha-expansion-migration.sql
+```
+
+追加カテゴリは `workbench_part` と `diorama_stage` です。基本工作パーツは無料のまま、ガチャ限定素材のみ所持判定を行います。
