@@ -3,7 +3,8 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber"
 import { useEffect, useMemo, useRef } from "react"
 import * as THREE from "three"
-import type { RobotConfig, RobotItem } from "@/lib/types"
+import type { RobotConfig, RobotHeadPose, RobotItem } from "@/lib/types"
+import { normalizeRobotHeadPose } from "@/lib/robot-head-pose"
 import { ROBOT_BASE_PARTS, ROBOT_POSE_PARTS, ROBOT_VIEW_PARTS } from "@/lib/robot-parts"
 
 type Vec3 = [number, number, number]
@@ -86,9 +87,24 @@ function useHexHeadGeometry() {
   return geometry
 }
 
-function ScrewEye({ x, bodyColor, accentColor }: { x: number; bodyColor: string; accentColor: string }) {
+function ScrewEye({
+  x,
+  bodyColor,
+  accentColor,
+  eyeYaw,
+  eyePitch,
+}: {
+  x: number
+  bodyColor: string
+  accentColor: string
+  eyeYaw: number
+  eyePitch: number
+}) {
   return (
-    <group position={[x, 2.19, 0.58]}>
+    <group
+      position={[x, 0.335, 0.58]}
+      rotation={[THREE.MathUtils.degToRad(eyePitch), THREE.MathUtils.degToRad(eyeYaw), 0]}
+    >
       <mesh castShadow rotation={[Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[0.265, 0.265, 0.145, 36]} />
         <MetalMaterial color={bodyColor} />
@@ -105,16 +121,24 @@ function ScrewEye({ x, bodyColor, accentColor }: { x: number; bodyColor: string;
   )
 }
 
-function RobotHead({ bodyColor, accentColor }: Pick<RobotConfig, "bodyColor" | "accentColor">) {
+function RobotHead({
+  bodyColor,
+  accentColor,
+  headPose,
+}: Pick<RobotConfig, "bodyColor" | "accentColor"> & { headPose?: RobotHeadPose }) {
   const geometry = useHexHeadGeometry()
+  const pose = normalizeRobotHeadPose(headPose)
   return (
-    <group>
-      <mesh geometry={geometry} position={[0, 1.855, 0]} castShadow receiveShadow>
+    <group
+      position={[0, 1.855, 0]}
+      rotation={[THREE.MathUtils.degToRad(pose.pitch), THREE.MathUtils.degToRad(pose.yaw), 0]}
+    >
+      <mesh geometry={geometry} castShadow receiveShadow>
         <MetalMaterial color={bodyColor} />
       </mesh>
-      <ScrewEye x={-0.34} bodyColor={bodyColor} accentColor={accentColor} />
-      <ScrewEye x={0.34} bodyColor={bodyColor} accentColor={accentColor} />
-      <mesh position={[0, 1.855, -0.325]} castShadow>
+      <ScrewEye x={-0.34} bodyColor={bodyColor} accentColor={accentColor} eyeYaw={pose.eyeYaw} eyePitch={pose.eyePitch} />
+      <ScrewEye x={0.34} bodyColor={bodyColor} accentColor={accentColor} eyeYaw={pose.eyeYaw} eyePitch={pose.eyePitch} />
+      <mesh position={[0, 0, -0.325]} castShadow>
         <boxGeometry args={[0.5, 0.14, 0.05]} />
         <DarkMaterial />
       </mesh>
@@ -369,7 +393,7 @@ function RobotModel({ config }: { config: RobotConfig }) {
       <RobotLeg side={1} base={config.base} bodyColor={config.bodyColor} />
       <ThreadedBody bodyColor={config.bodyColor} />
       <Waist base={config.base} bodyColor={config.bodyColor} />
-      <RobotHead bodyColor={config.bodyColor} accentColor={config.accentColor} />
+      <RobotHead bodyColor={config.bodyColor} accentColor={config.accentColor} headPose={config.headPose} />
     </group>
   )
 }

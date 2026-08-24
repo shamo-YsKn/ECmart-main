@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { RobotCharacter, type RobotRenderMode } from "./robot-character"
 import { RobotAvatar } from "./robot-avatar"
 import { RobotPoseEditor } from "./robot-pose-editor"
-import type { RobotBase, RobotConfig, RobotPoseState, SavedRobot } from "@/lib/types"
+import type { RobotBase, RobotConfig, RobotHeadPose, RobotPoseState, SavedRobot } from "@/lib/types"
 import { useAccount } from "@/lib/account-context"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -17,6 +17,14 @@ import { ROBOT_BASE_OPTIONS, ROBOT_ITEM_OPTIONS, ROBOT_POSE_OPTIONS, ROBOT_VIEW_
 import { GACHA_COST, inventoryRewardIds } from "@/lib/gacha"
 import { DEFAULT_ROBOT_CONFIG, ROBOT_DRAFT_KEY, normalizeRobotConfig } from "@/lib/robot-config"
 import { clearCustomPose, normalizePoseState } from "@/lib/robot-pose-2d"
+import {
+  DEFAULT_ROBOT_HEAD_POSE,
+  EYE_PITCH_LIMIT,
+  EYE_YAW_LIMIT,
+  HEAD_PITCH_LIMIT,
+  HEAD_YAW_LIMIT,
+  normalizeRobotHeadPose,
+} from "@/lib/robot-head-pose"
 import {
   ROBOT_ACCENT_COLORS,
   ROBOT_BODY_COLORS,
@@ -139,6 +147,7 @@ export function RobotWorkshop() {
     ),
     [config.item, unlockedRewardIds],
   )
+  const headPose = normalizeRobotHeadPose(config.headPose)
 
   useEffect(() => {
     const media = window.matchMedia("(min-width: 900px) and (hover: hover) and (pointer: fine)")
@@ -197,6 +206,7 @@ export function RobotWorkshop() {
       accentColor: pick(availableAccentColors).value,
       pose: nextPose,
       poseState: { mode: "preset", preset: nextPose, joints: {}, axes: { front: {}, side: {} } },
+      headPose: { ...DEFAULT_ROBOT_HEAD_POSE },
       item: pick(availableItems).value,
       size: 35 + Math.floor(Math.random() * 55),
     }))
@@ -248,6 +258,20 @@ export function RobotWorkshop() {
   function resetCustomPose() {
     const preset = config.poseState?.preset ?? config.pose
     updateCustomPoseState(clearCustomPose(preset))
+  }
+
+  function updateHeadPose<K extends keyof RobotHeadPose>(key: K, value: RobotHeadPose[K]) {
+    setConfig((current) => ({
+      ...current,
+      headPose: {
+        ...normalizeRobotHeadPose(current.headPose),
+        [key]: value,
+      },
+    }))
+  }
+
+  function resetHeadPose() {
+    setConfig((current) => ({ ...current, headPose: { ...DEFAULT_ROBOT_HEAD_POSE } }))
   }
 
   function loadRobot(robot: SavedRobot) {
@@ -493,6 +517,51 @@ export function RobotWorkshop() {
                   value={config.accentColor}
                   onChange={(value) => update("accentColor", value)}
                 />
+              </div>
+
+              <div className="rounded-xl border bg-muted/30 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <Label>頭・目の向き</Label>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      頭全体と、目ねじだけの向きを少しずつ調整できます。
+                    </p>
+                  </div>
+                  <Button type="button" size="sm" variant="outline" className="rounded-full" onClick={resetHeadPose}>
+                    向きをリセット
+                  </Button>
+                </div>
+
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium">頭：左右</span>
+                      <span className="text-xs text-muted-foreground">{Math.round(headPose.yaw)}°</span>
+                    </div>
+                    <Slider value={[headPose.yaw]} min={-HEAD_YAW_LIMIT} max={HEAD_YAW_LIMIT} step={1} onValueChange={(value) => updateHeadPose("yaw", Array.isArray(value) ? value[0] : (value as number))} />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium">頭：上下</span>
+                      <span className="text-xs text-muted-foreground">{Math.round(headPose.pitch)}°</span>
+                    </div>
+                    <Slider value={[headPose.pitch]} min={-HEAD_PITCH_LIMIT} max={HEAD_PITCH_LIMIT} step={1} onValueChange={(value) => updateHeadPose("pitch", Array.isArray(value) ? value[0] : (value as number))} />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium">目：左右</span>
+                      <span className="text-xs text-muted-foreground">{Math.round(headPose.eyeYaw)}°</span>
+                    </div>
+                    <Slider value={[headPose.eyeYaw]} min={-EYE_YAW_LIMIT} max={EYE_YAW_LIMIT} step={1} onValueChange={(value) => updateHeadPose("eyeYaw", Array.isArray(value) ? value[0] : (value as number))} />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium">目：上下</span>
+                      <span className="text-xs text-muted-foreground">{Math.round(headPose.eyePitch)}°</span>
+                    </div>
+                    <Slider value={[headPose.eyePitch]} min={-EYE_PITCH_LIMIT} max={EYE_PITCH_LIMIT} step={1} onValueChange={(value) => updateHeadPose("eyePitch", Array.isArray(value) ? value[0] : (value as number))} />
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>

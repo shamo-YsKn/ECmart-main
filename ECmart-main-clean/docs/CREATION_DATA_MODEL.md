@@ -150,3 +150,18 @@ schemaVersion = 1
 - 壁画共有テーブル
 
 次のPhaseで、この共通形式を使って順番に実装します。
+
+## 頭部姿勢（Phase 1-2 v3）
+
+ロボット設定には次の頭部姿勢を追加しています。
+
+```ts
+headPose: {
+  yaw: number       // 左右 ±30°
+  pitch: number     // 上下 ±15°
+  eyeYaw: number    // 目ねじ左右 ±15°
+  eyePitch: number  // 目ねじ上下 ±8°
+}
+```
+
+2D/3Dで同じ値を使います。旧 `RobotConfig` に `headPose` が無い場合はすべて0°として読み込みます。

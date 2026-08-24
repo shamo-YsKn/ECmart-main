@@ -2,6 +2,7 @@
 
 import { useId } from "react"
 import type { RobotConfig, RobotItem } from "@/lib/types"
+import { normalizeRobotHeadPose } from "@/lib/robot-head-pose"
 import {
   ROBOT_2D_VIEWBOX,
   buildRobot2DLayout,
@@ -122,9 +123,106 @@ function itemAnchor(elbow: Point, hand: Point): ItemAnchor {
   }
 }
 
+function EyeScrewFront({
+  x,
+  y,
+  metalId,
+  accentColor,
+  scale = 1,
+}: {
+  x: number
+  y: number
+  metalId: string
+  accentColor: string
+  scale?: number
+}) {
+  return (
+    <g transform={`translate(${x} ${y}) scale(${scale})`}>
+      <circle r="19" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
+      <path d="M-10 0 H10 M0 -10 V10" stroke={accentColor} strokeWidth="5" strokeLinecap="round" />
+    </g>
+  )
+}
+
+function EyeScrewBack({ x, y, metalId, scale = 1 }: { x: number; y: number; metalId: string; scale?: number }) {
+  return (
+    <g transform={`translate(${x} ${y}) scale(${scale}) translate(${-x} ${-y})`}>
+      <rect x={x - 5} y={y + 14} width="10" height="12" rx="3" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="2.5" />
+      <circle cx={x} cy={y} r="16" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="3.5" />
+      <circle cx={x} cy={y} r="5" fill="none" stroke="#263943" strokeOpacity=".45" strokeWidth="2" />
+    </g>
+  )
+}
+
+function FrontOrBackHead({ config, metalId }: { config: RobotConfig; metalId: string }) {
+  const isBack = config.view === "back"
+  const head = normalizeRobotHeadPose(config.headPose)
+  const headShiftX = head.yaw * 0.12
+  const headShiftY = head.pitch * 0.14
+  const headTilt = head.pitch * 0.22
+  const eyeShiftX = head.yaw * 0.08 + head.eyeYaw * 0.2
+  const eyeShiftY = head.pitch * 0.04 + head.eyePitch * 0.24
+  const turn = Math.abs(head.yaw) / 30
+  const farEyeScale = 1 - turn * 0.1
+  const nearEyeScale = 1 + turn * 0.04
+  const leftScale = head.yaw >= 0 ? farEyeScale : nearEyeScale
+  const rightScale = head.yaw >= 0 ? nearEyeScale : farEyeScale
+
+  return (
+    <g transform={`translate(150 85) translate(${headShiftX} ${headShiftY}) rotate(${headTilt}) translate(-150 -85)`}>
+      {isBack ? (
+        <>
+          {/* 背面でも、ボルト頭本体と目ねじの裏側を別部品として描画します。 */}
+          <path d="M112 82 L121 74 H179 L188 82 V102 L179 110 H121 L112 102 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" strokeLinejoin="round" />
+          <path d="M121 78 H179" stroke="#fff" strokeOpacity=".28" strokeWidth="3" strokeLinecap="round" />
+          <EyeScrewBack x={132 + eyeShiftX} y={56 + eyeShiftY} metalId={metalId} scale={leftScale} />
+          <EyeScrewBack x={168 + eyeShiftX} y={56 + eyeShiftY} metalId={metalId} scale={rightScale} />
+        </>
+      ) : (
+        <>
+          <path d="M112 74 L121 66 H179 L188 74 V96 L179 104 H121 L112 96 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" strokeLinejoin="round" />
+          <path d="M121 70 H179" stroke="#fff" strokeOpacity=".34" strokeWidth="3" strokeLinecap="round" />
+          <EyeScrewFront x={132 + eyeShiftX} y={67 + eyeShiftY} metalId={metalId} accentColor={config.accentColor} scale={leftScale} />
+          <EyeScrewFront x={168 + eyeShiftX} y={67 + eyeShiftY} metalId={metalId} accentColor={config.accentColor} scale={rightScale} />
+        </>
+      )}
+    </g>
+  )
+}
+
+function SideHead({ config, metalId }: { config: RobotConfig; metalId: string }) {
+  const head = normalizeRobotHeadPose(config.headPose)
+  const headShiftX = head.yaw * 0.18
+  const headShiftY = head.pitch * 0.14
+  const headTilt = head.pitch * 0.28
+  const eyeShiftX = head.eyeYaw * 0.24 + head.yaw * 0.08
+  const eyeShiftY = head.eyePitch * 0.25
+
+  return (
+    <g transform={`translate(145 81) translate(${headShiftX} ${headShiftY}) rotate(${headTilt}) translate(-145 -81)`}>
+      {/* 奥側の目ねじ。近側より少し上・薄くして奥行きを出します。 */}
+      <g opacity=".48" transform={`translate(${eyeShiftX - 2} ${eyeShiftY - 7})`}>
+        <rect x="113" y="75" width="13" height="10" rx="3" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="2.5" />
+        <path d="M91 61 L113 67 V93 L91 99 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="3" strokeLinejoin="round" />
+      </g>
+
+      {/* ボルト頭本体。目ねじとは別SVG部品として輪郭を明確に分けます。 */}
+      <path d="M128 63 H181 Q194 63 194 76 V85 Q194 98 181 98 H128 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
+      <path d="M133 68 H179" stroke="#fff" strokeOpacity=".34" strokeWidth="3" strokeLinecap="round" />
+      <path d="M128 63 V98" stroke="#263943" strokeOpacity=".45" strokeWidth="3" />
+
+      {/* 手前側の目ねじ：頭部本体から短い軸を介して独立した部品として見せます。 */}
+      <g transform={`translate(${eyeShiftX} ${eyeShiftY})`}>
+        <rect x="114" y="76" width="13" height="10" rx="3" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="2.5" />
+        <path d="M91 59 L114 66 V96 L91 103 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="3.5" strokeLinejoin="round" />
+        <path d="M96 65 L108 69 M96 97 L108 93" stroke="#fff" strokeOpacity=".28" strokeWidth="2" strokeLinecap="round" />
+      </g>
+    </g>
+  )
+}
+
 function FrontOrBackRobot({ config, metalId }: { config: RobotConfig; metalId: string }) {
   const layout = buildRobot2DLayout(config)
-  const isBack = config.view === "back"
   const leftArmPath = linePath(layout.shoulders.left, layout.elbows.left, layout.hands.left)
   const rightArmPath = linePath(layout.shoulders.right, layout.elbows.right, layout.hands.right)
   const leftLegPath = linePath(layout.hips.left, layout.knees.left, layout.feet.left)
@@ -160,22 +258,7 @@ function FrontOrBackRobot({ config, metalId }: { config: RobotConfig; metalId: s
         <path d="M129 153 H171 L197 182 H103 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" strokeLinejoin="round" />
       )}
 
-      <path d="M112 74 L121 66 H179 L188 74 V96 L179 104 H121 L112 96 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" strokeLinejoin="round" />
-      <path d="M121 70 H179" stroke="#fff" strokeOpacity=".34" strokeWidth="3" strokeLinecap="round" />
-
-      {!isBack ? (
-        <>
-          <circle cx="132" cy="67" r="19" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
-          <circle cx="168" cy="67" r="19" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
-          <path d="M122 67 H142 M132 57 V77 M158 67 H178 M168 57 V77" stroke={config.accentColor} strokeWidth="5" strokeLinecap="round" />
-        </>
-      ) : (
-        <>
-          <path d="M123 74 H177" stroke="#263943" strokeOpacity=".6" strokeWidth="4" strokeLinecap="round" />
-          <circle cx="150" cy="87" r="7" fill={config.bodyColor} stroke="#263943" strokeWidth="3" />
-          <path d="M145 87 H155" stroke="#263943" strokeWidth="2.5" strokeLinecap="round" />
-        </>
-      )}
+      <FrontOrBackHead config={config} metalId={metalId} />
 
       <ItemShape item={config.item} accentColor={config.accentColor} anchor={itemAnchor(layout.elbows.right, layout.hands.right)} />
     </>
@@ -195,7 +278,6 @@ function SideRobot({ config, metalId }: { config: RobotConfig; metalId: string }
 
   return (
     <>
-      {/* 奥側の腕・脚を先に描き、PowerPoint案のように2本の奥行きを見せます。 */}
       <Limb path={farArmPath} bodyColor={config.bodyColor} opacity={0.58} />
       <g opacity="0.62"><CounterSunkHand spec={farHand} fill={`url(#${metalId})`} /></g>
       <Limb path={farLegPath} bodyColor={config.bodyColor} opacity={0.58} />
@@ -221,15 +303,10 @@ function SideRobot({ config, metalId }: { config: RobotConfig; metalId: string }
         <path d="M124 188 H180 L204 218 H100 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" strokeLinejoin="round" />
       )}
 
-      {/* 側面頭部：共有図の台形＋横長の丸みを持つボルト頭プロファイル。 */}
-      <path d="M96 58 L123 65 V94 L96 101 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" strokeLinejoin="round" />
-      <path d="M123 65 H181 Q193 65 193 77 V84 Q193 96 181 96 H123 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
-      <path d="M128 69 H179" stroke="#fff" strokeOpacity=".32" strokeWidth="3" strokeLinecap="round" />
-      <path d="M123 65 V96" stroke="#263943" strokeOpacity=".5" strokeWidth="3" />
+      <SideHead config={config} metalId={metalId} />
 
       <circle cx={layout.shoulders.right.x} cy={layout.shoulders.right.y} r="9" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
 
-      {/* 手前側を胴体の前に描画。 */}
       <Limb path={nearArmPath} bodyColor={config.bodyColor} />
       <CounterSunkHand spec={nearHand} fill={`url(#${metalId})`} />
       <Limb path={nearLegPath} bodyColor={config.bodyColor} />

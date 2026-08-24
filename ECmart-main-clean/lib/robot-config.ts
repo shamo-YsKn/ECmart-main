@@ -7,6 +7,7 @@ import type {
   SavedRobot,
 } from "@/lib/types"
 import { normalizePoseState } from "@/lib/robot-pose-2d"
+import { normalizeRobotHeadPose } from "@/lib/robot-head-pose"
 
 export const ROBOT_CONFIG_SCHEMA_VERSION = 1 as const
 export const ROBOT_DRAFT_KEY = "machinowa:robot-draft"
@@ -32,6 +33,7 @@ export const DEFAULT_ROBOT_CONFIG: Readonly<RobotConfig> = Object.freeze({
   view: "front",
   name: "ボルタ",
   poseState: { mode: "preset" as const, preset: "cheer" as const, joints: {}, axes: { front: {}, side: {} } },
+  headPose: { yaw: 0, pitch: 0, eyeYaw: 0, eyePitch: 0 },
 })
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -109,6 +111,7 @@ export function normalizeRobotConfig(
       options.fallbackName ?? (fallback.base === base ? fallback.name : defaultRobotName(base)),
     ),
     poseState: normalizePoseState(pose, input.poseState),
+    headPose: normalizeRobotHeadPose(input.headPose),
   }
 }
 

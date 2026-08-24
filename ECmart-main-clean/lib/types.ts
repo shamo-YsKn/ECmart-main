@@ -76,6 +76,17 @@ export interface RobotPoseState {
   }
 }
 
+/**
+ * 頭部の向き。degreeで保存します。
+ * yaw/pitch はボルト頭全体、eyeYaw/eyePitch は目ねじの微調整です。
+ */
+export interface RobotHeadPose {
+  yaw: number
+  pitch: number
+  eyeYaw: number
+  eyePitch: number
+}
+
 export interface RobotConfig {
   base: RobotBase
   size: number
@@ -87,6 +98,8 @@ export interface RobotConfig {
   name: string
   /** 旧保存データには存在しないためoptional。読み込み時に補完します。 */
   poseState?: RobotPoseState
+  /** 旧保存データはすべて0°として補完します。 */
+  headPose?: RobotHeadPose
 }
 
 /** Supabaseに保存されたロボット */
