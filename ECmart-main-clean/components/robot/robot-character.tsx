@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic"
 import { Component, useEffect, useState, type ErrorInfo, type ReactNode } from "react"
 import type { RobotConfig } from "@/lib/types"
+import type { CustomItemDocument } from "@/lib/creation-model"
 import { cn } from "@/lib/utils"
 import { RobotFallback } from "./robot-fallback"
 
@@ -61,12 +62,14 @@ export function RobotCharacter({
   interactive = false,
   mode = "2d",
   on3DUnavailable,
+  customItemDocument,
 }: {
   config: RobotConfig
   className?: string
   interactive?: boolean
   mode?: RobotRenderMode
   on3DUnavailable?: () => void
+  customItemDocument?: CustomItemDocument | null
 }) {
   const [webGLReady, setWebGLReady] = useState(false)
   const name = config.name || (config.base === "volta" ? "ボルタ" : "ナッティ")
@@ -82,7 +85,7 @@ export function RobotCharacter({
     if (!ok) on3DUnavailable?.()
   }, [mode, on3DUnavailable])
 
-  const fallback = <RobotFallback config={config} />
+  const fallback = <RobotFallback config={config} customItemDocument={customItemDocument} />
   const show3D = mode === "3d" && webGLReady
 
   return (

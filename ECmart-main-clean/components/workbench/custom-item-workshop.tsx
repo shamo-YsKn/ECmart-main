@@ -5,6 +5,7 @@ import { useAccount } from "@/lib/account-context"
 import type { CustomItemDocument, CustomItemPartPlacement, WorkbenchPartType } from "@/lib/creation-model"
 import {
   CUSTOM_ITEM_DRAFT_KEY,
+  CUSTOM_ITEM_EQUIP_DRAFT_KEY,
   CUSTOM_ITEM_MAX_PARTS,
   createEmptyCustomItemDocument,
   newWorkbenchInstanceId,
@@ -12,6 +13,14 @@ import {
   sanitizeCustomItemName,
 } from "@/lib/custom-item-model"
 import { WORKBENCH_PARTS, WORKBENCH_PART_BY_TYPE } from "@/lib/workbench-parts"
+import {
+  collectPartTreeIds,
+  connectedCount,
+  findSnapCandidate,
+  reflowAttachedParts,
+  translatePartTree,
+  type SnapCandidate,
+} from "@/lib/workbench-snap"
 import { WorkbenchPartShape } from "./workbench-part-shape"
 import { CustomItemPreview } from "./custom-item-preview"
 import { Button } from "@/components/ui/button"
@@ -26,7 +35,8 @@ import {
   ArrowUp,
   Copy,
   Hammer,
-  Layers3,
+  Link2,
+  Link2Off,
   LoaderCircle,
   Move,
   Plus,
@@ -46,6 +56,7 @@ type DragState = {
 }
 
 const VIEWBOX = { minX: -300, minY: -220, width: 600, height: 440 }
+const SNAP_THRESHOLD = 26
 
 function dispatchNavigate(tab: "account" | "robot") {
   window.dispatchEvent(new CustomEvent("machinowa:navigate", { detail: { tab } }))
@@ -67,9 +78,7 @@ function newPart(type: WorkbenchPartType, index: number): CustomItemPartPlacemen
 function PartPalettePreview({ type }: { type: WorkbenchPartType }) {
   return (
     <svg viewBox="-75 -60 150 120" className="size-16" aria-hidden="true">
-      <g transform="scale(.72)">
-        <WorkbenchPartShape type={type} />
-      </g>
+      <g transform="scale(.72)"><WorkbenchPartShape type={type} /></g>
     </svg>
   )
 }
@@ -78,9 +87,12 @@ export function CustomItemWorkshop() {
   const account = useAccount()
   const svgRef = useRef<SVGSVGElement | null>(null)
   const [document, setDocument] = useState<CustomItemDocument>(() => createEmptyCustomItemDocument())
+  const documentRef = useRef(document)
   const [editingItemId, setEditingItemId] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [drag, setDrag] = useState<DragState | null>(null)
+  const [snapEnabled, setSnapEnabled] = useState(true)
+  const [snapCandidate, setSnapCandidate] = useState<SnapCandidate | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [notice, setNotice] = useState<Notice>(null)
 
@@ -88,6 +100,16 @@ export function CustomItemWorkshop() {
     () => document.parts.find((part) => part.instanceId === selectedId) ?? null,
     [document.parts, selectedId],
   )
+  const attachmentCount = useMemo(() => connectedCount(document.parts), [document.parts])
+
+  useEffect(() => {
+    documentRef.current = document
+  }, [document])
+
+  function commitDocument(next: CustomItemDocument) {
+    documentRef.current = next
+    setDocument(next)
+  }
 
   useEffect(() => {
     const raw = window.sessionStorage.getItem(CUSTOM_ITEM_DRAFT_KEY)
@@ -123,10 +145,10 @@ export function CustomItemWorkshop() {
 
   function patchSelected(mutator: (part: CustomItemPartPlacement) => CustomItemPartPlacement) {
     if (!selectedId) return
-    setDocument((current) => ({
-      ...current,
-      parts: current.parts.map((part) => part.instanceId === selectedId ? mutator(part) : part),
-    }))
+    setDocument((current) => {
+      const parts = current.parts.map((part) => part.instanceId === selectedId ? mutator(part) : part)
+      return { ...current, parts: reflowAttachedParts(parts) }
+    })
   }
 
   function addPart(type: WorkbenchPartType) {
@@ -146,6 +168,12 @@ export function CustomItemWorkshop() {
     event.preventDefault()
     event.stopPropagation()
     setSelectedId(part.instanceId)
+    setSnapCandidate(null)
+    // 自分を動かし始めたら親との接続だけ解除。子パーツは一緒に移動します。
+    setDocument((current) => ({
+      ...current,
+      parts: current.parts.map((entry) => entry.instanceId === part.instanceId ? { ...entry, attachedTo: undefined } : entry),
+    }))
     setDrag({
       pointerId: event.pointerId,
       instanceId: part.instanceId,
@@ -160,29 +188,74 @@ export function CustomItemWorkshop() {
     const point = pointerToWorkbench(event.clientX, event.clientY)
     if (!point) return
     event.preventDefault()
-    setDocument((current) => ({
-      ...current,
-      parts: current.parts.map((part) => part.instanceId === drag.instanceId
-        ? {
-            ...part,
-            transform: {
-              ...part.transform,
-              position: [point.x - drag.offsetX, point.y - drag.offsetY, part.transform.position[2]],
-            },
-          }
-        : part),
-    }))
+
+    const current = documentRef.current
+    const moving = current.parts.find((part) => part.instanceId === drag.instanceId)
+    if (!moving) return
+    const desiredX = point.x - drag.offsetX
+    const desiredY = point.y - drag.offsetY
+    let parts = translatePartTree(
+      current.parts,
+      moving.instanceId,
+      desiredX - moving.transform.position[0],
+      desiredY - moving.transform.position[1],
+    )
+    let root = parts.find((part) => part.instanceId === moving.instanceId)!
+    root = { ...root, attachedTo: undefined }
+    parts = parts.map((part) => part.instanceId === root.instanceId ? root : part)
+
+    let candidate: SnapCandidate | null = null
+    if (snapEnabled) {
+      const excluded = collectPartTreeIds(parts, root.instanceId)
+      candidate = findSnapCandidate(root, parts, SNAP_THRESHOLD, excluded)
+      if (candidate) {
+        const ownSocket = WORKBENCH_PART_BY_TYPE[root.partType].sockets.find((socket) => socket.id === candidate!.movingSocketId)
+        if (ownSocket) {
+          const angle = (root.transform.rotationDeg[2] * Math.PI) / 180
+          const scale = root.transform.scale[0]
+          const sx = ownSocket.x * scale
+          const sy = ownSocket.y * scale
+          const socketOffsetX = sx * Math.cos(angle) - sy * Math.sin(angle)
+          const socketOffsetY = sx * Math.sin(angle) + sy * Math.cos(angle)
+          const snappedX = candidate.targetPoint.x - socketOffsetX
+          const snappedY = candidate.targetPoint.y - socketOffsetY
+          parts = translatePartTree(parts, root.instanceId, snappedX - root.transform.position[0], snappedY - root.transform.position[1])
+          parts = parts.map((part) => part.instanceId === root.instanceId
+            ? {
+                ...part,
+                attachedTo: {
+                  instanceId: candidate!.targetInstanceId,
+                  socketId: candidate!.targetSocketId,
+                  ownSocketId: candidate!.movingSocketId,
+                },
+              }
+            : part)
+        }
+      }
+    }
+    setSnapCandidate(candidate)
+    commitDocument({ ...current, parts })
   }
 
   function endDrag(event: ReactPointerEvent<SVGSVGElement>) {
     if (!drag || drag.pointerId !== event.pointerId) return
     if (svgRef.current?.hasPointerCapture(event.pointerId)) svgRef.current.releasePointerCapture(event.pointerId)
     setDrag(null)
+    setSnapCandidate(null)
+  }
+
+  function detachSelected() {
+    patchSelected((part) => ({ ...part, attachedTo: undefined }))
   }
 
   function removeSelected() {
     if (!selectedId) return
-    setDocument((current) => ({ ...current, parts: current.parts.filter((part) => part.instanceId !== selectedId) }))
+    setDocument((current) => ({
+      ...current,
+      parts: current.parts
+        .filter((part) => part.instanceId !== selectedId)
+        .map((part) => part.attachedTo?.instanceId === selectedId ? { ...part, attachedTo: undefined } : part),
+    }))
     setSelectedId(null)
   }
 
@@ -190,6 +263,7 @@ export function CustomItemWorkshop() {
     if (!selectedPart || document.parts.length >= CUSTOM_ITEM_MAX_PARTS) return
     const copy: CustomItemPartPlacement = {
       ...selectedPart,
+      attachedTo: undefined,
       instanceId: newWorkbenchInstanceId(),
       transform: {
         ...selectedPart.transform,
@@ -220,7 +294,17 @@ export function CustomItemWorkshop() {
     setDocument(createEmptyCustomItemDocument())
     setEditingItemId(null)
     setSelectedId(null)
+    setSnapCandidate(null)
     setNotice(null)
+  }
+
+  function equipInRobotWorkshop() {
+    if (!editingItemId) {
+      setNotice({ type: "error", text: "先にこの自作アイテムを保存してください。" })
+      return
+    }
+    window.sessionStorage.setItem(CUSTOM_ITEM_EQUIP_DRAFT_KEY, editingItemId)
+    dispatchNavigate("robot")
   }
 
   async function save(asNew = false) {
@@ -250,10 +334,7 @@ export function CustomItemWorkshop() {
     }
     setDocument(cleanDocument)
     if (result.item) setEditingItemId(result.item.id)
-    setNotice({
-      type: "success",
-      text: asNew || !editingItemId ? "自作アイテムをアカウントへ保存しました。" : "自作アイテムを上書き保存しました。",
-    })
+    setNotice({ type: "success", text: asNew || !editingItemId ? "自作アイテムをアカウントへ保存しました。" : "自作アイテムを上書き保存しました。" })
   }
 
   return (
@@ -275,16 +356,13 @@ export function CustomItemWorkshop() {
         <Card className="border-2 xl:sticky xl:top-24 xl:self-start">
           <CardHeader>
             <CardTitle className="font-display flex items-center gap-2 text-lg"><Hammer className="size-5 text-primary" />工作パーツ</CardTitle>
-            <p className="text-sm text-muted-foreground">クリックすると工作台の中央へ追加します。</p>
+            <p className="text-sm text-muted-foreground">クリックすると工作台へ追加します。</p>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-2 xl:grid-cols-1">
             {WORKBENCH_PARTS.map((part) => (
               <button key={part.type} type="button" onClick={() => addPart(part.type)} className="flex items-center gap-2 rounded-xl border p-2 text-left transition-colors hover:border-primary hover:bg-primary/5">
                 <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#f4ead6]"><PartPalettePreview type={part.type} /></div>
-                <div className="min-w-0">
-                  <div className="font-display text-sm font-black">{part.shortLabel}</div>
-                  <div className="text-[11px] text-muted-foreground">{part.category}</div>
-                </div>
+                <div className="min-w-0"><div className="font-display text-sm font-black">{part.shortLabel}</div><div className="text-[11px] text-muted-foreground">{part.category}</div></div>
               </button>
             ))}
           </CardContent>
@@ -295,11 +373,21 @@ export function CustomItemWorkshop() {
             <CardHeader className="flex-row items-center justify-between gap-3">
               <div>
                 <CardTitle className="font-display flex items-center gap-2 text-lg"><Move className="size-5 text-primary" />工作台</CardTitle>
-                <p className="mt-1 text-sm text-muted-foreground">部品をドラッグして自由に配置できます。</p>
+                <p className="mt-1 text-sm text-muted-foreground">近い接続点へパーツがカチッと吸着します。</p>
               </div>
-              <Badge variant="secondary" className="rounded-full">{document.parts.length}/{CUSTOM_ITEM_MAX_PARTS}パーツ</Badge>
+              <div className="flex flex-wrap justify-end gap-2">
+                <Badge variant="secondary" className="rounded-full">{document.parts.length}/{CUSTOM_ITEM_MAX_PARTS}パーツ</Badge>
+                <Badge variant="secondary" className="rounded-full"><Link2 className="mr-1 size-3" />{attachmentCount}接続</Badge>
+              </div>
             </CardHeader>
             <CardContent>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <Button type="button" size="sm" variant={snapEnabled ? "default" : "outline"} className="rounded-full" onClick={() => { setSnapEnabled((value) => !value); setSnapCandidate(null) }}>
+                  {snapEnabled ? <Link2 data-icon="inline-start" /> : <Link2Off data-icon="inline-start" />}
+                  スナップ {snapEnabled ? "ON" : "OFF"}
+                </Button>
+                <span className="text-xs text-muted-foreground">自由配置したいときはOFFにできます</span>
+              </div>
               <div className="overflow-hidden rounded-2xl border-2 border-dashed border-[#b9a98c] bg-[#f4ead6] shadow-inner">
                 <svg
                   ref={svgRef}
@@ -309,9 +397,7 @@ export function CustomItemWorkshop() {
                   onPointerMove={moveDrag}
                   onPointerUp={endDrag}
                   onPointerCancel={endDrag}
-                  onPointerDown={(event) => {
-                    if (event.target === event.currentTarget) setSelectedId(null)
-                  }}
+                  onPointerDown={(event) => { if (event.target === event.currentTarget) setSelectedId(null) }}
                 >
                   <g stroke="#7c6851" strokeOpacity=".12" strokeWidth="1">
                     {Array.from({ length: 13 }, (_, i) => <line key={`v-${i}`} x1={-300 + i * 50} y1="-220" x2={-300 + i * 50} y2="220" />)}
@@ -320,23 +406,31 @@ export function CustomItemWorkshop() {
                   <line x1="-280" y1="0" x2="280" y2="0" stroke="#7c6851" strokeOpacity=".16" strokeDasharray="6 8" />
                   <line x1="0" y1="-205" x2="0" y2="205" stroke="#7c6851" strokeOpacity=".16" strokeDasharray="6 8" />
                   {document.parts.map((part) => (
-                    <g
-                      key={part.instanceId}
-                      transform={`translate(${part.transform.position[0]} ${part.transform.position[1]}) rotate(${part.transform.rotationDeg[2]}) scale(${part.transform.scale[0]})`}
-                      onPointerDown={(event) => startDrag(event, part)}
-                      className="cursor-grab active:cursor-grabbing"
-                    >
+                    <g key={part.instanceId} transform={`translate(${part.transform.position[0]} ${part.transform.position[1]}) rotate(${part.transform.rotationDeg[2]}) scale(${part.transform.scale[0]})`} onPointerDown={(event) => startDrag(event, part)} className="cursor-grab active:cursor-grabbing">
                       <rect x="-70" y="-58" width="140" height="116" rx="12" fill="transparent" />
                       <WorkbenchPartShape type={part.partType} selected={part.instanceId === selectedId} />
+                      {snapEnabled && (drag?.instanceId === part.instanceId || part.instanceId === selectedId) && WORKBENCH_PART_BY_TYPE[part.partType].sockets.map((socket) => (
+                        <circle key={socket.id} cx={socket.x} cy={socket.y} r="5" fill="#fff" stroke="#f97316" strokeWidth="2.5" vectorEffect="non-scaling-stroke" className="pointer-events-none" />
+                      ))}
                     </g>
                   ))}
-                  {document.parts.length === 0 && (
-                    <text x="0" y="0" textAnchor="middle" dominantBaseline="middle" fill="#7c6851" fontSize="18" fontWeight="700">左のパーツを追加して工作を始めよう</text>
+                  {snapEnabled && drag && document.parts.filter((part) => part.instanceId !== drag.instanceId).flatMap((part) =>
+                    WORKBENCH_PART_BY_TYPE[part.partType].sockets.map((socket) => {
+                      const angle = (part.transform.rotationDeg[2] * Math.PI) / 180
+                      const scale = part.transform.scale[0]
+                      const sx = socket.x * scale
+                      const sy = socket.y * scale
+                      const x = part.transform.position[0] + sx * Math.cos(angle) - sy * Math.sin(angle)
+                      const y = part.transform.position[1] + sx * Math.sin(angle) + sy * Math.cos(angle)
+                      const active = snapCandidate?.targetInstanceId === part.instanceId && snapCandidate.targetSocketId === socket.id
+                      return <circle key={`${part.instanceId}-${socket.id}`} cx={x} cy={y} r={active ? 8 : 4} fill={active ? "#f97316" : "#fff"} stroke="#334155" strokeWidth="2" className="pointer-events-none" />
+                    }),
                   )}
+                  {document.parts.length === 0 && <text x="0" y="0" textAnchor="middle" dominantBaseline="middle" fill="#7c6851" fontSize="18" fontWeight="700">左のパーツを追加して工作を始めよう</text>}
                 </svg>
               </div>
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-                <span>ドラッグ：移動　／　右のパネル：回転・大きさ・重なり順</span>
+                <span>ドラッグ：移動　／　オレンジ点：接続候補　／　接続済みの子パーツは親と一緒に移動</span>
                 <Button type="button" variant="ghost" size="sm" className="rounded-full" onClick={() => setSelectedId(null)}>選択解除</Button>
               </div>
             </CardContent>
@@ -344,20 +438,14 @@ export function CustomItemWorkshop() {
 
           <Card className="border-2 border-primary/25 bg-primary/5">
             <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-end">
-              <div className="flex-1">
-                <Label htmlFor="custom-item-name">作品名</Label>
-                <Input id="custom-item-name" value={document.name} maxLength={40} onChange={(event) => setDocument((current) => ({ ...current, name: event.target.value }))} className="mt-2" placeholder="れい：LED花束" />
-              </div>
+              <div className="flex-1"><Label htmlFor="custom-item-name">作品名</Label><Input id="custom-item-name" value={document.name} maxLength={40} onChange={(event) => setDocument((current) => ({ ...current, name: event.target.value }))} className="mt-2" placeholder="れい：LED花束" /></div>
               <div className="flex flex-wrap gap-2">
                 <Button type="button" className="rounded-full" onClick={() => void save(false)} disabled={submitting || (Boolean(account.user) && !account.customItemStorageReady)}>
                   {submitting ? <LoaderCircle className="animate-spin" data-icon="inline-start" /> : account.user ? <Save data-icon="inline-start" /> : <UserRound data-icon="inline-start" />}
                   {!account.user ? "ログインして保存" : editingItemId ? "上書き保存" : "保存する"}
                 </Button>
-                {editingItemId && account.user && (
-                  <Button type="button" variant="outline" className="rounded-full" onClick={() => void save(true)} disabled={submitting || !account.customItemStorageReady}>
-                    <Plus data-icon="inline-start" />別作品として保存
-                  </Button>
-                )}
+                {editingItemId && account.user && <Button type="button" variant="outline" className="rounded-full" onClick={() => void save(true)} disabled={submitting || !account.customItemStorageReady}><Plus data-icon="inline-start" />別作品として保存</Button>}
+                {editingItemId && account.user && <Button type="button" variant="outline" className="rounded-full" onClick={equipInRobotWorkshop}><Link2 data-icon="inline-start" />ロボットに持たせる</Button>}
                 <Button type="button" variant="outline" className="rounded-full" onClick={resetWorkbench}><RotateCcw data-icon="inline-start" />新しく作る</Button>
               </div>
             </CardContent>
@@ -365,52 +453,32 @@ export function CustomItemWorkshop() {
         </div>
 
         <Card className="border-2 xl:sticky xl:top-24 xl:self-start">
-          <CardHeader>
-            <CardTitle className="font-display flex items-center gap-2 text-lg"><Layers3 className="size-5 text-primary" />選択パーツ</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle className="font-display flex items-center gap-2 text-lg"><Link2 className="size-5 text-primary" />選択パーツ</CardTitle></CardHeader>
           <CardContent className="flex flex-col gap-5">
             {selectedPart ? (
               <>
-                <div className="flex items-center gap-3 rounded-xl bg-muted p-3">
-                  <div className="flex size-16 items-center justify-center rounded-lg bg-[#f4ead6]"><PartPalettePreview type={selectedPart.partType} /></div>
-                  <div><div className="font-display font-black">{WORKBENCH_PART_BY_TYPE[selectedPart.partType].label}</div><p className="mt-1 text-xs text-muted-foreground">{WORKBENCH_PART_BY_TYPE[selectedPart.partType].description}</p></div>
-                </div>
-
-                <div className="flex flex-col gap-3">
-                  <div className="flex items-center justify-between"><Label>回転</Label><span className="text-sm tabular-nums text-muted-foreground">{Math.round(selectedPart.transform.rotationDeg[2])}°</span></div>
-                  <Slider value={[selectedPart.transform.rotationDeg[2]]} min={-180} max={180} step={1} onValueChange={(value) => {
-                    const rotation = Array.isArray(value) ? value[0] : (value as number)
-                    patchSelected((part) => ({ ...part, transform: { ...part.transform, rotationDeg: [0, 0, rotation] } }))
-                  }} />
-                </div>
-
-                <div className="flex flex-col gap-3">
-                  <div className="flex items-center justify-between"><Label>大きさ</Label><span className="text-sm tabular-nums text-muted-foreground">{Math.round(selectedPart.transform.scale[0] * 100)}%</span></div>
-                  <Slider value={[selectedPart.transform.scale[0]]} min={0.4} max={2.5} step={0.05} onValueChange={(value) => {
-                    const scale = Array.isArray(value) ? value[0] : (value as number)
-                    patchSelected((part) => ({ ...part, transform: { ...part.transform, scale: [scale, scale, scale] } }))
-                  }} />
-                </div>
-
+                <div className="flex items-center gap-3 rounded-xl bg-muted p-3"><div className="flex size-16 items-center justify-center rounded-lg bg-[#f4ead6]"><PartPalettePreview type={selectedPart.partType} /></div><div><div className="font-display font-black">{WORKBENCH_PART_BY_TYPE[selectedPart.partType].label}</div><p className="mt-1 text-xs text-muted-foreground">{WORKBENCH_PART_BY_TYPE[selectedPart.partType].description}</p></div></div>
+                <div className="flex flex-col gap-3"><div className="flex items-center justify-between"><Label>回転</Label><span className="text-sm tabular-nums text-muted-foreground">{Math.round(selectedPart.transform.rotationDeg[2])}°</span></div><Slider value={[selectedPart.transform.rotationDeg[2]]} min={-180} max={180} step={1} onValueChange={(value) => { const rotation = Array.isArray(value) ? value[0] : (value as number); patchSelected((part) => ({ ...part, transform: { ...part.transform, rotationDeg: [0, 0, rotation] } })) }} /></div>
+                <div className="flex flex-col gap-3"><div className="flex items-center justify-between"><Label>大きさ</Label><span className="text-sm tabular-nums text-muted-foreground">{Math.round(selectedPart.transform.scale[0] * 100)}%</span></div><Slider value={[selectedPart.transform.scale[0]]} min={0.4} max={2.5} step={0.05} onValueChange={(value) => { const scale = Array.isArray(value) ? value[0] : (value as number); patchSelected((part) => ({ ...part, transform: { ...part.transform, scale: [scale, scale, scale] } })) }} /></div>
+                {selectedPart.attachedTo && (
+                  <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-xs text-emerald-900">
+                    <div className="font-bold">接続済み</div>
+                    <div className="mt-1">このパーツは別パーツの接続点に固定されています。</div>
+                    <Button type="button" size="sm" variant="outline" className="mt-2 rounded-full" onClick={detachSelected}><Link2Off data-icon="inline-start" />接続を外す</Button>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-2">
                   <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={() => moveLayer("up")}><ArrowUp data-icon="inline-start" />手前へ</Button>
                   <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={() => moveLayer("down")}><ArrowDown data-icon="inline-start" />奥へ</Button>
                   <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={duplicateSelected}><Copy data-icon="inline-start" />複製</Button>
                   <Button type="button" variant="outline" size="sm" className="rounded-full text-destructive hover:text-destructive" onClick={removeSelected}><Trash2 data-icon="inline-start" />削除</Button>
                 </div>
-
-                <div className="rounded-xl bg-muted p-3 text-xs text-muted-foreground">
-                  位置：X {Math.round(selectedPart.transform.position[0])} / Y {Math.round(selectedPart.transform.position[1])}
-                </div>
+                <div className="rounded-xl bg-muted p-3 text-xs text-muted-foreground">位置：X {Math.round(selectedPart.transform.position[0])} / Y {Math.round(selectedPart.transform.position[1])}</div>
               </>
             ) : (
-              <div className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">工作台のパーツを選択すると、ここで回転・大きさ・重なり順を調整できます。</div>
+              <div className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">工作台のパーツを選択すると、回転・大きさ・接続状態を調整できます。</div>
             )}
-
-            <div className="border-t pt-4">
-              <div className="mb-2 text-sm font-bold">完成イメージ</div>
-              <CustomItemPreview document={document} className="aspect-square w-full border" />
-            </div>
+            <div className="border-t pt-4"><div className="mb-2 text-sm font-bold">完成イメージ</div><CustomItemPreview document={document} className="aspect-square w-full border" /></div>
           </CardContent>
         </Card>
       </div>

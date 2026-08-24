@@ -1,6 +1,7 @@
 "use client"
 
 import type { RobotConfig } from "@/lib/types"
+import type { CustomItemDocument } from "@/lib/creation-model"
 import { cn } from "@/lib/utils"
 import { UserRound } from "lucide-react"
 import { RobotCharacter } from "./robot-character"
@@ -9,10 +10,12 @@ export function RobotAvatar({
   config,
   className,
   title = "アカウントアイコン",
+  customItemDocument,
 }: {
   config?: RobotConfig | null
   className?: string
   title?: string
+  customItemDocument?: CustomItemDocument | null
 }) {
   if (!config) {
     return (
@@ -46,7 +49,7 @@ export function RobotAvatar({
       title={title}
     >
       <div className="absolute -inset-[18%] top-[-10%]">
-        <RobotCharacter config={avatarConfig} className="h-full w-full" />
+        <RobotCharacter config={avatarConfig} customItemDocument={customItemDocument} className="h-full w-full" />
       </div>
     </div>
   )

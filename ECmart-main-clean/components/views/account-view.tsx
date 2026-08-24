@@ -37,6 +37,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CUSTOM_ITEM_DRAFT_KEY, type SavedCustomItem } from "@/lib/custom-item-model"
+import { normalizeRobotHeldItem } from "@/lib/robot-held-item"
 
 type AuthMode = "signIn" | "signUp"
 
@@ -91,6 +92,14 @@ export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; i
     () => products.filter((product) => account.favoriteProductIds.has(product.id)),
     [account.favoriteProductIds],
   )
+
+  function customItemDocumentFor(robot: SavedRobot | null | undefined) {
+    if (!robot) return null
+    const held = normalizeRobotHeldItem(robot.config.heldItem, robot.config.item)
+    return held.kind === "custom"
+      ? account.savedCustomItems.find((item) => item.id === held.customItemId)?.document ?? null
+      : null
+  }
 
   const gachaItems = useMemo(
     () => account.gachaInventory
@@ -424,7 +433,7 @@ export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; i
     <div className="flex flex-col gap-10">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-4">
-          <RobotAvatar config={account.avatarRobot?.config} className="size-20 shadow-sm" />
+          <RobotAvatar config={account.avatarRobot?.config} customItemDocument={customItemDocumentFor(account.avatarRobot)} className="size-20 shadow-sm" />
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="font-display text-3xl font-black">マイページ</h1>
@@ -474,7 +483,7 @@ export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; i
           <CardContent>
             <form className="flex flex-col gap-5" onSubmit={handleSaveProfile}>
               <div className="flex items-center gap-4 rounded-2xl border bg-muted/40 p-4">
-                <RobotAvatar config={account.avatarRobot?.config} className="size-24" />
+                <RobotAvatar config={account.avatarRobot?.config} customItemDocument={customItemDocumentFor(account.avatarRobot)} className="size-24" />
                 <div className="min-w-0 flex-1">
                   <p className="font-display font-black">
                     {account.avatarRobot?.name ?? "標準アイコン"}
@@ -673,7 +682,7 @@ export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; i
                 className={cn("overflow-hidden border-2", robot.is_avatar && "border-primary")}
               >
                 <div className="relative aspect-[4/3] bg-[radial-gradient(circle_at_50%_35%,var(--color-secondary),var(--color-muted))] p-3">
-                  <RobotCharacter config={{ ...robot.config, view: "front" }} className="h-full w-full" />
+                  <RobotCharacter config={{ ...robot.config, view: "front" }} customItemDocument={customItemDocumentFor(robot)} className="h-full w-full" />
                   {robot.is_avatar && (
                     <Badge className="absolute left-3 top-3 rounded-full">
                       <Check className="size-3" />

@@ -1,4 +1,4 @@
-import type { RobotConfig, RobotItem, RobotPoseState } from "@/lib/types"
+import type { RobotConfig, RobotHeldItemReference, RobotPoseState } from "@/lib/types"
 import { normalizeRobotConfig } from "@/lib/robot-config"
 
 /**
@@ -26,9 +26,8 @@ export const IDENTITY_SCENE_TRANSFORM: Readonly<SceneTransform> = Object.freeze(
   scale: [1, 1, 1] as Vec3,
 })
 
-export type HeldItemReference =
-  | { kind: "builtin"; item: RobotItem }
-  | { kind: "custom"; customItemId: string }
+export type HeldItemReference = RobotHeldItemReference
+
 
 export interface RobotCreationDocument {
   schemaVersion: typeof CREATION_DOCUMENT_VERSION
@@ -56,8 +55,8 @@ export interface CustomItemPartPlacement {
   partType: WorkbenchPartType
   transform: SceneTransform
   variantId?: string
-  /** 将来のスナップ接続用。例: part-a:end -> part-b:center */
-  attachedTo?: { instanceId: string; socketId: string }
+  /** Phase 2-2: 自分のsocketを相手のsocketへ接続。 */
+  attachedTo?: { instanceId: string; socketId: string; ownSocketId: string }
 }
 
 export interface CustomItemDocument {
@@ -109,7 +108,7 @@ export function robotConfigToCreationDocument(config: RobotConfig): RobotCreatio
     kind: "robot",
     config: normalized,
     poseState: normalized.poseState ?? { mode: "preset", preset: normalized.pose, joints: {}, axes: { front: {}, side: {} } },
-    heldItem: { kind: "builtin", item: normalized.item },
+    heldItem: normalized.heldItem ?? { kind: "builtin", item: normalized.item },
   }
 }
 
@@ -121,5 +120,6 @@ export function creationDocumentToRobotConfig(document: RobotCreationDocument): 
     pose: document.poseState.preset,
     poseState: document.poseState,
     item: document.heldItem.kind === "builtin" ? document.heldItem.item : "none",
+    heldItem: document.heldItem,
   }
 }

@@ -8,6 +8,7 @@ import {
 } from "@/lib/creation-model"
 
 export const CUSTOM_ITEM_DRAFT_KEY = "machinowa:custom-item-draft"
+export const CUSTOM_ITEM_EQUIP_DRAFT_KEY = "machinowa:custom-item-equip-draft"
 export const CUSTOM_ITEM_MAX_PARTS = 60
 
 export const WORKBENCH_PART_TYPES = [
@@ -86,6 +87,18 @@ export function normalizeCustomItemPart(value: unknown, index = 0): CustomItemPa
     ? value.instanceId.slice(0, 100)
     : `part-${index + 1}`
 
+  const attachedInput = isRecord(value.attachedTo) ? value.attachedTo : null
+  const attachedTo = attachedInput
+    && typeof attachedInput.instanceId === "string"
+    && typeof attachedInput.socketId === "string"
+    && typeof attachedInput.ownSocketId === "string"
+    ? {
+        instanceId: attachedInput.instanceId.slice(0, 100),
+        socketId: attachedInput.socketId.slice(0, 80),
+        ownSocketId: attachedInput.ownSocketId.slice(0, 80),
+      }
+    : undefined
+
   return {
     instanceId,
     partType,
@@ -93,6 +106,7 @@ export function normalizeCustomItemPart(value: unknown, index = 0): CustomItemPa
     ...(typeof value.variantId === "string" && value.variantId.trim()
       ? { variantId: value.variantId.slice(0, 80) }
       : {}),
+    ...(attachedTo ? { attachedTo } : {}),
   }
 }
 
@@ -110,9 +124,15 @@ export function createEmptyCustomItemDocument(name = "マイアイテム"): Cust
 export function normalizeCustomItemDocument(value: unknown, fallbackName = "マイアイテム"): CustomItemDocument {
   const input = isRecord(value) ? value : {}
   const partsInput = Array.isArray(input.parts) ? input.parts.slice(0, CUSTOM_ITEM_MAX_PARTS) : []
-  const parts = partsInput
+  const rawParts = partsInput
     .map((part, index) => normalizeCustomItemPart(part, index))
     .filter((part): part is CustomItemPartPlacement => Boolean(part))
+  const ids = new Set(rawParts.map((part) => part.instanceId))
+  const parts = rawParts.map((part) =>
+    part.attachedTo && (!ids.has(part.attachedTo.instanceId) || part.attachedTo.instanceId === part.instanceId)
+      ? { ...part, attachedTo: undefined }
+      : part,
+  )
 
   return {
     schemaVersion: CREATION_DOCUMENT_VERSION,

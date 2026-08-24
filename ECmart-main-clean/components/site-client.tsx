@@ -15,6 +15,7 @@ import { GachaView } from "@/components/views/gacha-view"
 import { RobotWorkshop } from "@/components/robot/robot-workshop"
 import { CustomItemWorkshop } from "@/components/workbench/custom-item-workshop"
 import { RobotAvatar } from "@/components/robot/robot-avatar"
+import { normalizeRobotHeldItem } from "@/lib/robot-held-item"
 import {
   Hammer,
   Home,
@@ -116,6 +117,15 @@ function Site({ initialTab, initialAuthMode }: { initialTab: TabKey; initialAuth
     ? account.profile?.display_name || "マイページ"
     : "ログイン"
 
+  function avatarCustomItemDocument() {
+    if (!account.avatarRobot) return null
+    const held = normalizeRobotHeldItem(account.avatarRobot.config.heldItem, account.avatarRobot.config.item)
+    return held.kind === "custom"
+      ? account.savedCustomItems.find((item) => item.id === held.customItemId)?.document ?? null
+      : null
+  }
+
+
   return (
     <div className="flex min-h-svh flex-col">
       <header className="sticky top-0 z-40 border-b bg-background/90 backdrop-blur">
@@ -163,6 +173,7 @@ function Site({ initialTab, initialAuthMode }: { initialTab: TabKey; initialAuth
               {account.user ? (
                 <RobotAvatar
                   config={account.avatarRobot?.config}
+                  customItemDocument={avatarCustomItemDocument()}
                   className="-ml-1 mr-1 size-7 border-0"
                   title="マイアカウント"
                 />
@@ -222,9 +233,9 @@ function Site({ initialTab, initialAuthMode }: { initialTab: TabKey; initialAuth
           <div className="flex flex-col gap-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <div className="text-sm font-bold text-primary">Phase 2-1</div>
+                <div className="text-sm font-bold text-primary">Phase 2</div>
                 <h1 className="font-display mt-1 text-3xl font-black">2Dアイテム工作</h1>
-                <p className="mt-2 text-muted-foreground">ネジ・ナット・LEDなどを組み合わせて、自分だけの工作アイテムを作ろう。</p>
+                <p className="mt-2 text-muted-foreground">ネジ・ナット・LEDをつなげて工作し、完成品をボルタ・ナッティに持たせよう。</p>
               </div>
               <button type="button" className={cn(buttonVariants({ variant: "outline" }), "rounded-full")} onClick={() => navigate("robot")}>ロボット工房へ戻る</button>
             </div>
@@ -263,6 +274,7 @@ function Site({ initialTab, initialAuthMode }: { initialTab: TabKey; initialAuth
                 {item.key === "account" && account.user ? (
                   <RobotAvatar
                     config={account.avatarRobot?.config}
+                    customItemDocument={avatarCustomItemDocument()}
                     className="size-6 border-0"
                     title="マイアカウント"
                   />

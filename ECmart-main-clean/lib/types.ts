@@ -49,6 +49,17 @@ export type RobotView = "front" | "side" | "back"
 export type RobotPose = "wave" | "stand" | "cheer" | "point"
 export type RobotItem = "none" | "wrench" | "flower" | "gear" | "heart"
 
+export interface CustomHeldItemAdjustment {
+  offsetX: number
+  offsetY: number
+  rotationDeg: number
+  scale: number
+}
+
+export type RobotHeldItemReference =
+  | { kind: "builtin"; item: RobotItem }
+  | { kind: "custom"; customItemId: string; adjustment: CustomHeldItemAdjustment }
+
 export type RobotJointId =
   | "leftShoulder"
   | "leftElbow"
@@ -100,6 +111,8 @@ export interface RobotConfig {
   poseState?: RobotPoseState
   /** 旧保存データはすべて0°として補完します。 */
   headPose?: RobotHeadPose
+  /** Phase 2-3。未指定時は従来の item を装備扱いにします。 */
+  heldItem?: RobotHeldItemReference
 }
 
 /** Supabaseに保存されたロボット */

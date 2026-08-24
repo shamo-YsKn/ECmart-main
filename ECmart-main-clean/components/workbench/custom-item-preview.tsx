@@ -4,6 +4,62 @@ import type { CustomItemDocument } from "@/lib/creation-model"
 import { WorkbenchPartShape } from "./workbench-part-shape"
 import { cn } from "@/lib/utils"
 
+export interface CustomItemBounds {
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+  centerX: number
+  centerY: number
+  width: number
+  height: number
+}
+
+export function getCustomItemBounds(document: CustomItemDocument): CustomItemBounds {
+  if (document.parts.length === 0) {
+    return { minX: -50, minY: -50, maxX: 50, maxY: 50, centerX: 0, centerY: 0, width: 100, height: 100 }
+  }
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const part of document.parts) {
+    // 各基本パーツはおよそ140×120以内。回転も考慮して余裕を持たせます。
+    const radius = 82 * part.transform.scale[0]
+    const x = part.transform.position[0]
+    const y = part.transform.position[1]
+    minX = Math.min(minX, x - radius)
+    minY = Math.min(minY, y - radius)
+    maxX = Math.max(maxX, x + radius)
+    maxY = Math.max(maxY, y + radius)
+  }
+  return {
+    minX,
+    minY,
+    maxX,
+    maxY,
+    centerX: (minX + maxX) / 2,
+    centerY: (minY + maxY) / 2,
+    width: Math.max(1, maxX - minX),
+    height: Math.max(1, maxY - minY),
+  }
+}
+
+export function CustomItemArtwork({ document }: { document: CustomItemDocument }) {
+  return (
+    <>
+      {document.parts.map((part) => (
+        <g
+          key={part.instanceId}
+          transform={`translate(${part.transform.position[0]} ${part.transform.position[1]}) rotate(${part.transform.rotationDeg[2]}) scale(${part.transform.scale[0]})`}
+        >
+          <WorkbenchPartShape type={part.partType} />
+        </g>
+      ))}
+    </>
+  )
+}
+
 export function CustomItemPreview({
   document,
   className,
@@ -24,14 +80,7 @@ export function CustomItemPreview({
         )}
         <line x1="-280" y1="0" x2="280" y2="0" stroke="#7c6851" strokeOpacity=".16" strokeDasharray="6 8" />
         <line x1="0" y1="-205" x2="0" y2="205" stroke="#7c6851" strokeOpacity=".16" strokeDasharray="6 8" />
-        {document.parts.map((part) => (
-          <g
-            key={part.instanceId}
-            transform={`translate(${part.transform.position[0]} ${part.transform.position[1]}) rotate(${part.transform.rotationDeg[2]}) scale(${part.transform.scale[0]})`}
-          >
-            <WorkbenchPartShape type={part.partType} />
-          </g>
-        ))}
+        <CustomItemArtwork document={document} />
       </svg>
     </div>
   )

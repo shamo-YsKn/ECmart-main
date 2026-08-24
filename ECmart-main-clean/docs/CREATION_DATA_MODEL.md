@@ -20,7 +20,9 @@
   item,
   view,
   name,
-  poseState?
+  poseState?,
+  headPose?,
+  heldItem?
 }
 ```
 
@@ -110,7 +112,17 @@ interface RobotPoseState {
 
 を持ちます。
 
-`attachedTo` は将来の「近づけるとカチッと接続する」スナップ機能用です。
+`attachedTo` はPhase 2-2で実装済みです。
+
+```ts
+attachedTo?: {
+  instanceId: string
+  socketId: string
+  ownSocketId: string
+}
+```
+
+自分側socketと接続先socketを記録し、親移動・回転・拡大縮小後も接続位置を再計算します。
 
 ## ジオラマ
 
@@ -141,14 +153,27 @@ schemaVersion = 1
 
 ## 現段階の実装状況
 
-2D自由ポーズ編集、`saved_robots.config.poseState` 保存、2D自作アイテム編集UI、`custom_items` テーブルは実装済みです。
+2D自由ポーズ、2D自作アイテム編集、スナップ接続、自作アイテムのロボット装備まで実装済みです。
 
-Phase 2-1では `CustomItemDocument.parts[]` の配列順を2Dの重なり順として使用し、各パーツの `SceneTransform` に位置・Z回転・均一スケールを保存します。`attachedTo` はまだ使わず、Phase 2-2のスナップ接続で利用します。
+`CustomItemDocument.parts[]` の配列順を2D重なり順として使い、各パーツの `SceneTransform` に位置・Z回転・均一スケールを保存します。接続関係は `attachedTo` へ保存します。
+
+ロボットの装備参照は `RobotConfig.heldItem` で保持します。
+
+```ts
+heldItem:
+  | { kind: "builtin", item: RobotItem }
+  | {
+      kind: "custom",
+      customItemId: string,
+      adjustment: { offsetX, offsetY, rotationDeg, scale }
+    }
+```
+
+旧保存データに `heldItem` が無い場合は従来の `item` をbuiltin装備として自動補完します。
 
 以下は今後のPhaseです。
 
-- 自作パーツのスナップ接続
-- 自作アイテムをロボットへ装備
+- ガチャの特殊工作素材
 - ジオラマ編集UI
 - diorama テーブル
 - 壁画共有テーブル

@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react"
 import type { PointerEvent as ReactPointerEvent } from "react"
 import type { RobotConfig, RobotJointId, RobotPoseState } from "@/lib/types"
+import type { CustomItemDocument } from "@/lib/creation-model"
 import { RobotFallback } from "./robot-fallback"
 import {
   ROBOT_2D_VIEWBOX,
@@ -58,11 +59,13 @@ export function RobotPoseEditor({
   enabled,
   onPoseStateChange,
   className,
+  customItemDocument,
 }: {
   config: RobotConfig
   enabled: boolean
   onPoseStateChange: (poseState: RobotPoseState) => void
   className?: string
+  customItemDocument?: CustomItemDocument | null
 }) {
   const svgRef = useRef<SVGSVGElement | null>(null)
   const [dragState, setDragState] = useState<DragState | null>(null)
@@ -190,7 +193,7 @@ export function RobotPoseEditor({
 
   return (
     <div className={cn("relative h-full w-full", className)}>
-      <RobotFallback config={config} />
+      <RobotFallback config={config} customItemDocument={customItemDocument} />
       {enabled && (
         <svg
           ref={svgRef}

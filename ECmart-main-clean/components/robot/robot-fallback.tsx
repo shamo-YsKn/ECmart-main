@@ -2,6 +2,9 @@
 
 import { useId } from "react"
 import type { RobotConfig, RobotItem } from "@/lib/types"
+import type { CustomItemDocument } from "@/lib/creation-model"
+import { normalizeRobotHeldItem } from "@/lib/robot-held-item"
+import { CustomItemArtwork, getCustomItemBounds } from "@/components/workbench/custom-item-preview"
 import { normalizeRobotHeadPose } from "@/lib/robot-head-pose"
 import {
   ROBOT_2D_VIEWBOX,
@@ -61,6 +64,43 @@ function ItemShape({ item, accentColor, anchor }: { item: RobotItem; accentColor
       fill={accentColor}
     />
   )
+}
+
+
+function HeldCustomItem({
+  document,
+  anchor,
+  adjustment,
+}: {
+  document: CustomItemDocument
+  anchor: ItemAnchor
+  adjustment: { offsetX: number; offsetY: number; rotationDeg: number; scale: number }
+}) {
+  const bounds = getCustomItemBounds(document)
+  const fitScale = 78 / Math.max(bounds.width, bounds.height)
+  return (
+    <g
+      transform={`translate(${anchor.x + adjustment.offsetX} ${anchor.y + adjustment.offsetY}) rotate(${anchor.rotation + adjustment.rotationDeg}) scale(${fitScale * adjustment.scale}) translate(${-bounds.centerX} ${-bounds.centerY})`}
+    >
+      <CustomItemArtwork document={document} />
+    </g>
+  )
+}
+
+function HeldItemShape({
+  config,
+  anchor,
+  customItemDocument,
+}: {
+  config: RobotConfig
+  anchor: ItemAnchor
+  customItemDocument?: CustomItemDocument | null
+}) {
+  const held = normalizeRobotHeldItem(config.heldItem, config.item)
+  if (held.kind === "custom") {
+    return customItemDocument ? <HeldCustomItem document={customItemDocument} anchor={anchor} adjustment={held.adjustment} /> : null
+  }
+  return <ItemShape item={held.item} accentColor={config.accentColor} anchor={anchor} />
 }
 
 function CounterSunkHand({ spec, fill }: { spec: HandSpec; fill: string }) {
@@ -223,7 +263,7 @@ function SideHead({ config, metalId }: { config: RobotConfig; metalId: string })
   )
 }
 
-function FrontOrBackRobot({ config, metalId }: { config: RobotConfig; metalId: string }) {
+function FrontOrBackRobot({ config, metalId, customItemDocument }: { config: RobotConfig; metalId: string; customItemDocument?: CustomItemDocument | null }) {
   const layout = buildRobot2DLayout(config)
   const leftArmPath = linePath(layout.shoulders.left, layout.elbows.left, layout.hands.left)
   const rightArmPath = linePath(layout.shoulders.right, layout.elbows.right, layout.hands.right)
@@ -262,12 +302,12 @@ function FrontOrBackRobot({ config, metalId }: { config: RobotConfig; metalId: s
 
       <FrontOrBackHead config={config} metalId={metalId} />
 
-      <ItemShape item={config.item} accentColor={config.accentColor} anchor={itemAnchor(layout.elbows.right, layout.hands.right)} />
+      <HeldItemShape config={config} customItemDocument={customItemDocument} anchor={itemAnchor(layout.elbows.right, layout.hands.right)} />
     </>
   )
 }
 
-function SideRobot({ config, metalId }: { config: RobotConfig; metalId: string }) {
+function SideRobot({ config, metalId, customItemDocument }: { config: RobotConfig; metalId: string; customItemDocument?: CustomItemDocument | null }) {
   const layout = buildRobot2DLayout(config)
   const farArmPath = linePath(layout.shoulders.left, layout.elbows.left, layout.hands.left)
   const nearArmPath = linePath(layout.shoulders.right, layout.elbows.right, layout.hands.right)
@@ -314,12 +354,12 @@ function SideRobot({ config, metalId }: { config: RobotConfig; metalId: string }
       <Limb path={nearLegPath} bodyColor={config.bodyColor} />
       <SideFoot x={layout.feet.right.x} y={layout.feet.right.y} angle={nearFootAngle} fill={`url(#${metalId})`} />
 
-      <ItemShape item={config.item} accentColor={config.accentColor} anchor={itemAnchor(layout.elbows.right, layout.hands.right)} />
+      <HeldItemShape config={config} customItemDocument={customItemDocument} anchor={itemAnchor(layout.elbows.right, layout.hands.right)} />
     </>
   )
 }
 
-export function RobotFallback({ config }: { config: RobotConfig }) {
+export function RobotFallback({ config, customItemDocument }: { config: RobotConfig; customItemDocument?: CustomItemDocument | null }) {
   const id = useId().replace(/:/g, "")
   const metalId = `fallback-metal-${id}`
   const shadowId = `fallback-shadow-${id}`
@@ -343,9 +383,9 @@ export function RobotFallback({ config }: { config: RobotConfig }) {
 
       <g transform={scaledGroupTransform(layout.scale)} filter={`url(#${shadowId})`}>
         {config.view === "side" ? (
-          <SideRobot config={config} metalId={metalId} />
+          <SideRobot config={config} metalId={metalId} customItemDocument={customItemDocument} />
         ) : (
-          <FrontOrBackRobot config={config} metalId={metalId} />
+          <FrontOrBackRobot config={config} metalId={metalId} customItemDocument={customItemDocument} />
         )}
       </g>
     </svg>

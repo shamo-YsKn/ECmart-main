@@ -22,6 +22,7 @@ import type {
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client"
 import { getGachaReward } from "@/lib/gacha"
 import { normalizeRobotConfig, parseSavedRobotRow, sanitizeRobotName } from "@/lib/robot-config"
+import { normalizeRobotHeldItem } from "@/lib/robot-held-item"
 import type { CustomItemDocument } from "@/lib/creation-model"
 import {
   normalizeCustomItemDocument,
@@ -731,12 +732,19 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       const supabase = await getSupabase()
       if (!supabase || !user) return { error: "ログインが必要です。" }
       if (!customItemStorageReady) return { error: customItemStorageError ?? customItemStorageMessage() }
+      const usedByRobot = savedRobots.some((robot) => {
+        const held = normalizeRobotHeldItem(robot.config.heldItem, robot.config.item)
+        return held.kind === "custom" && held.customItemId === itemId
+      })
+      if (usedByRobot) {
+        return { error: "この自作アイテムは保存済みロボットが装備しています。先にロボット側で別の持ちものへ変更してください。" }
+      }
       const { error } = await supabase.from("custom_items").delete().eq("id", itemId).eq("user_id", user.id)
       if (error) return { error: customItemStorageMessage(error) }
       setSavedCustomItems((current) => current.filter((item) => item.id !== itemId))
       return { error: null }
     },
-    [customItemStorageError, customItemStorageReady, getSupabase, user],
+    [customItemStorageError, customItemStorageReady, getSupabase, savedRobots, user],
   )
 
   const setAvatarRobot = useCallback(

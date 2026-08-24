@@ -25,6 +25,9 @@ import {
   HEAD_YAW_LIMIT,
   normalizeRobotHeadPose,
 } from "@/lib/robot-head-pose"
+import { DEFAULT_CUSTOM_HELD_ITEM_ADJUSTMENT, normalizeRobotHeldItem } from "@/lib/robot-held-item"
+import { CustomItemPreview } from "@/components/workbench/custom-item-preview"
+import { CUSTOM_ITEM_EQUIP_DRAFT_KEY } from "@/lib/custom-item-model"
 import {
   ROBOT_ACCENT_COLORS,
   ROBOT_BODY_COLORS,
@@ -113,7 +116,7 @@ function Swatches({
   )
 }
 
-function dispatchNavigate(tab: "account" | "robot" | "gacha") {
+function dispatchNavigate(tab: "account" | "robot" | "gacha" | "workbench") {
   window.dispatchEvent(new CustomEvent("machinowa:navigate", { detail: { tab } }))
 }
 
@@ -148,6 +151,21 @@ export function RobotWorkshop() {
     [config.item, unlockedRewardIds],
   )
   const headPose = normalizeRobotHeadPose(config.headPose)
+  const heldItem = normalizeRobotHeldItem(config.heldItem, config.item)
+  const equippedCustomItem = useMemo(
+    () => heldItem.kind === "custom"
+      ? account.savedCustomItems.find((item) => item.id === heldItem.customItemId) ?? null
+      : null,
+    [account.savedCustomItems, heldItem],
+  )
+  const customHeld = heldItem.kind === "custom"
+
+  function customItemDocumentFor(robotConfig: RobotConfig) {
+    const held = normalizeRobotHeldItem(robotConfig.heldItem, robotConfig.item)
+    return held.kind === "custom"
+      ? account.savedCustomItems.find((item) => item.id === held.customItemId)?.document ?? null
+      : null
+  }
 
   useEffect(() => {
     const media = window.matchMedia("(min-width: 900px) and (hover: hover) and (pointer: fine)")
@@ -181,6 +199,24 @@ export function RobotWorkshop() {
     }
   }, [])
 
+  useEffect(() => {
+    const customItemId = window.sessionStorage.getItem(CUSTOM_ITEM_EQUIP_DRAFT_KEY)
+    if (!customItemId) return
+    if (!account.savedCustomItems.some((item) => item.id === customItemId)) return
+    window.sessionStorage.removeItem(CUSTOM_ITEM_EQUIP_DRAFT_KEY)
+    setPreviewMode("2d")
+    setConfig((current) => ({
+      ...current,
+      item: "none",
+      heldItem: {
+        kind: "custom",
+        customItemId,
+        adjustment: { ...DEFAULT_CUSTOM_HELD_ITEM_ADJUSTMENT },
+      },
+    }))
+    setNotice({ type: "success", text: "自作アイテムを右手に持たせました。位置や大きさを調整できます。" })
+  }, [account.savedCustomItems])
+
   function update<K extends keyof RobotConfig>(key: K, val: RobotConfig[K]) {
     setConfig((current) => ({ ...current, [key]: val }))
   }
@@ -207,7 +243,10 @@ export function RobotWorkshop() {
       pose: nextPose,
       poseState: { mode: "preset", preset: nextPose, joints: {}, axes: { front: {}, side: {} } },
       headPose: { ...DEFAULT_ROBOT_HEAD_POSE },
-      item: pick(availableItems).value,
+      ...(() => {
+        const item = pick(availableItems).value
+        return { item, heldItem: { kind: "builtin" as const, item } }
+      })(),
       size: 35 + Math.floor(Math.random() * 55),
     }))
     setEditingRobotId(null)
@@ -272,6 +311,41 @@ export function RobotWorkshop() {
 
   function resetHeadPose() {
     setConfig((current) => ({ ...current, headPose: { ...DEFAULT_ROBOT_HEAD_POSE } }))
+  }
+
+  function chooseBuiltinItem(item: RobotConfig["item"]) {
+    setConfig((current) => ({
+      ...current,
+      item,
+      heldItem: { kind: "builtin", item },
+    }))
+  }
+
+  function chooseCustomItem(customItemId: string) {
+    setPreviewMode("2d")
+    setConfig((current) => ({
+      ...current,
+      item: "none",
+      heldItem: {
+        kind: "custom",
+        customItemId,
+        adjustment: { ...DEFAULT_CUSTOM_HELD_ITEM_ADJUSTMENT },
+      },
+    }))
+  }
+
+  function updateCustomHeldAdjustment(key: "offsetX" | "offsetY" | "rotationDeg" | "scale", value: number) {
+    setConfig((current) => {
+      const held = normalizeRobotHeldItem(current.heldItem, current.item)
+      if (held.kind !== "custom") return current
+      return {
+        ...current,
+        heldItem: {
+          ...held,
+          adjustment: { ...held.adjustment, [key]: value },
+        },
+      }
+    })
   }
 
   function loadRobot(robot: SavedRobot) {
@@ -386,11 +460,13 @@ export function RobotWorkshop() {
                     config={config}
                     enabled={config.poseState?.mode === "custom"}
                     onPoseStateChange={updateCustomPoseState}
+                    customItemDocument={equippedCustomItem?.document}
                     className="h-full w-full transition-all"
                   />
                 ) : (
                   <RobotCharacter
                     config={config}
+                    customItemDocument={equippedCustomItem?.document}
                     interactive
                     mode="3d"
                     on3DUnavailable={() => {
@@ -409,7 +485,7 @@ export function RobotWorkshop() {
               {desktop3D ? (
                 <div className="flex items-center gap-2 rounded-full border bg-muted/40 p-1">
                   <Button size="sm" variant={previewMode === "2d" ? "default" : "ghost"} className="rounded-full" onClick={() => setPreviewMode("2d")}>2D</Button>
-                  <Button size="sm" variant={previewMode === "3d" ? "default" : "ghost"} className="rounded-full" onClick={() => setPreviewMode("3d")} disabled={config.poseState?.mode === "custom"}>3D</Button>
+                  <Button size="sm" variant={previewMode === "3d" ? "default" : "ghost"} className="rounded-full" onClick={() => setPreviewMode("3d")} disabled={config.poseState?.mode === "custom" || customHeld}>3D</Button>
                 </div>
               ) : (
                 <Badge variant="secondary" className="rounded-full">スマホ・タブレットは2D表示</Badge>
@@ -611,8 +687,85 @@ export function RobotWorkshop() {
                 )}
               </div>
               <div className="flex flex-col gap-3">
-                <Label>持たせるモノ</Label>
-                <OptionPicker options={availableItems} value={config.item} onChange={(value) => update("item", value)} />
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Label>持たせるモノ</Label>
+                  <Button type="button" size="sm" variant="outline" className="rounded-full" onClick={() => dispatchNavigate("workbench")}>
+                    アイテム工作へ
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {availableItems.map((entry) => (
+                    <Button
+                      key={entry.value}
+                      type="button"
+                      size="sm"
+                      variant={heldItem.kind === "builtin" && heldItem.item === entry.value ? "default" : "outline"}
+                      onClick={() => chooseBuiltinItem(entry.value)}
+                      className="rounded-full"
+                    >
+                      {entry.label}
+                    </Button>
+                  ))}
+                </div>
+
+                <div className="border-t pt-3">
+                  <div className="mb-2 text-sm font-bold">マイアイテム</div>
+                  {account.savedCustomItems.length > 0 ? (
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                      {account.savedCustomItems.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => chooseCustomItem(item.id)}
+                          className={cn(
+                            "overflow-hidden rounded-xl border-2 text-left transition-colors",
+                            heldItem.kind === "custom" && heldItem.customItemId === item.id
+                              ? "border-primary bg-primary/5"
+                              : "border-border hover:border-primary/40",
+                          )}
+                        >
+                          <CustomItemPreview document={item.document} className="aspect-[4/3] w-full rounded-none" />
+                          <div className="truncate px-2 py-2 text-xs font-bold">{item.name}</div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+                      まだ自作アイテムがありません。アイテム工作で作成・保存するとここに追加されます。
+                    </div>
+                  )}
+                </div>
+
+                {heldItem.kind === "custom" && (
+                  <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+                    {equippedCustomItem ? (
+                      <>
+                        <div className="mb-3 font-display font-black">{equippedCustomItem.name} の持ち方</div>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="flex flex-col gap-2">
+                            <div className="flex justify-between text-sm"><span>大きさ</span><span>{Math.round(heldItem.adjustment.scale * 100)}%</span></div>
+                            <Slider value={[heldItem.adjustment.scale]} min={0.3} max={2.5} step={0.05} onValueChange={(value) => updateCustomHeldAdjustment("scale", Array.isArray(value) ? value[0] : (value as number))} />
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            <div className="flex justify-between text-sm"><span>回転</span><span>{Math.round(heldItem.adjustment.rotationDeg)}°</span></div>
+                            <Slider value={[heldItem.adjustment.rotationDeg]} min={-180} max={180} step={1} onValueChange={(value) => updateCustomHeldAdjustment("rotationDeg", Array.isArray(value) ? value[0] : (value as number))} />
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            <div className="flex justify-between text-sm"><span>左右位置</span><span>{Math.round(heldItem.adjustment.offsetX)}</span></div>
+                            <Slider value={[heldItem.adjustment.offsetX]} min={-60} max={60} step={1} onValueChange={(value) => updateCustomHeldAdjustment("offsetX", Array.isArray(value) ? value[0] : (value as number))} />
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            <div className="flex justify-between text-sm"><span>上下位置</span><span>{Math.round(heldItem.adjustment.offsetY)}</span></div>
+                            <Slider value={[heldItem.adjustment.offsetY]} min={-60} max={60} step={1} onValueChange={(value) => updateCustomHeldAdjustment("offsetY", Array.isArray(value) ? value[0] : (value as number))} />
+                          </div>
+                        </div>
+                        <p className="mt-3 text-xs text-muted-foreground">自作アイテムは現在2D表示用です。装備中は3D切り替えを停止しています。</p>
+                      </>
+                    ) : (
+                      <div className="text-sm text-amber-800">保存元の自作アイテムが見つかりません。別のアイテムを選んでください。</div>
+                    )}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -725,7 +878,7 @@ export function RobotWorkshop() {
                     )}
                   >
                     <div className="flex items-center gap-3">
-                      <RobotAvatar config={robot.config} className="size-16" />
+                      <RobotAvatar config={robot.config} customItemDocument={customItemDocumentFor(robot.config)} className="size-16" />
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="font-display truncate font-black">{robot.name}</h3>
