@@ -195,27 +195,29 @@ function SideHead({ config, metalId }: { config: RobotConfig; metalId: string })
   const headShiftX = head.yaw * 0.18
   const headShiftY = head.pitch * 0.14
   const headTilt = head.pitch * 0.28
-  const eyeShiftX = head.eyeYaw * 0.24 + head.yaw * 0.08
-  const eyeShiftY = head.eyePitch * 0.25
+  const eyeShiftX = head.eyeYaw * 0.18 + head.yaw * 0.06
+  const eyeShiftY = head.eyePitch * 0.18
 
   return (
     <g transform={`translate(145 81) translate(${headShiftX} ${headShiftY}) rotate(${headTilt}) translate(-145 -81)`}>
-      {/* 奥側の目ねじ。近側より少し上・薄くして奥行きを出します。 */}
-      <g opacity=".48" transform={`translate(${eyeShiftX - 2} ${eyeShiftY - 7})`}>
-        <rect x="113" y="75" width="13" height="10" rx="3" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="2.5" />
-        <path d="M91 61 L113 67 V93 L91 99 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="3" strokeLinejoin="round" />
-      </g>
+      {/* 側面の頭部は、共有いただいた図に合わせて
+          左の台形 = ボルト頭
+          右の横長丸み矩形 = 目の役割をするねじの側面
+          として分離表現します。 */}
 
-      {/* ボルト頭本体。目ねじとは別SVG部品として輪郭を明確に分けます。 */}
-      <path d="M128 63 H181 Q194 63 194 76 V85 Q194 98 181 98 H128 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
-      <path d="M133 68 H179" stroke="#fff" strokeOpacity=".34" strokeWidth="3" strokeLinecap="round" />
-      <path d="M128 63 V98" stroke="#263943" strokeOpacity=".45" strokeWidth="3" />
+      {/* 目ねじ（側面から見た円柱） */}
+      <path d="M116 63 H181 Q193 63 193 75 V87 Q193 99 181 99 H116 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
+      <path d="M123 68 H178" stroke="#fff" strokeOpacity=".34" strokeWidth="3" strokeLinecap="round" />
+      <path d="M116 63 V99" stroke="#263943" strokeOpacity=".42" strokeWidth="3" />
 
-      {/* 手前側の目ねじ：頭部本体から短い軸を介して独立した部品として見せます。 */}
+      {/* 2本の目ねじの重なりを、根元の短い線で控えめに示す */}
+      <path d={`M116 ${75 + eyeShiftY} H122`} stroke="#263943" strokeOpacity=".48" strokeWidth="2.4" strokeLinecap="round" />
+      <path d={`M116 ${87 + eyeShiftY} H122`} stroke="#263943" strokeOpacity=".34" strokeWidth="2.2" strokeLinecap="round" />
+
+      {/* ボルト頭本体（先端の台形） */}
       <g transform={`translate(${eyeShiftX} ${eyeShiftY})`}>
-        <rect x="114" y="76" width="13" height="10" rx="3" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="2.5" />
-        <path d="M91 59 L114 66 V96 L91 103 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="3.5" strokeLinejoin="round" />
-        <path d="M96 65 L108 69 M96 97 L108 93" stroke="#fff" strokeOpacity=".28" strokeWidth="2" strokeLinecap="round" />
+        <path d="M90 61 L116 67 V95 L90 101 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="3.5" strokeLinejoin="round" />
+        <path d="M95 66 L108 70 M95 96 L108 92" stroke="#fff" strokeOpacity=".26" strokeWidth="2" strokeLinecap="round" />
       </g>
     </g>
   )
