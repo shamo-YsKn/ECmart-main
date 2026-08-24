@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils"
 import { ROBOT_BASE_OPTIONS, ROBOT_ITEM_OPTIONS, ROBOT_POSE_OPTIONS, ROBOT_VIEW_OPTIONS } from "@/lib/robot-parts"
 import { GACHA_COST, inventoryRewardIds } from "@/lib/gacha"
 import { DEFAULT_ROBOT_CONFIG, ROBOT_DRAFT_KEY, normalizeRobotConfig } from "@/lib/robot-config"
+import { clearCustomPose, normalizePoseState } from "@/lib/robot-pose-2d"
 import {
   ROBOT_ACCENT_COLORS,
   ROBOT_BODY_COLORS,
@@ -195,7 +196,7 @@ export function RobotWorkshop() {
       bodyColor: pick(availableBodyColors).value,
       accentColor: pick(availableAccentColors).value,
       pose: nextPose,
-      poseState: { mode: "preset", preset: nextPose, joints: {} },
+      poseState: { mode: "preset", preset: nextPose, joints: {}, axes: { front: {}, side: {} } },
       item: pick(availableItems).value,
       size: 35 + Math.floor(Math.random() * 55),
     }))
@@ -210,34 +211,30 @@ export function RobotWorkshop() {
   }
 
   function updatePosePreset(pose: RobotConfig["pose"]) {
-    setConfig((current) => ({
-      ...current,
-      pose,
-      poseState: {
-        mode: current.poseState?.mode === "custom" ? "custom" : "preset",
-        preset: pose,
-        joints: current.poseState?.mode === "custom" ? {} : {},
-      },
-    }))
+    setConfig((current) => {
+      const previous = normalizePoseState(current.pose, current.poseState)
+      return {
+        ...current,
+        pose,
+        poseState: {
+          ...previous,
+          preset: pose,
+          joints: {},
+          axes: { front: {}, side: {} },
+        },
+      }
+    })
   }
 
   function setPoseMode(mode: RobotPoseState["mode"]) {
     if (mode === "custom") setPreviewMode("2d")
-    setConfig((current) => ({
-      ...current,
-      poseState:
-        mode === "custom"
-          ? {
-              mode: "custom",
-              preset: current.poseState?.preset ?? current.pose,
-              joints: current.poseState?.mode === "custom" ? current.poseState.joints : {},
-            }
-          : {
-              mode: "preset",
-              preset: current.poseState?.preset ?? current.pose,
-              joints: {},
-            },
-    }))
+    setConfig((current) => {
+      const previous = normalizePoseState(current.pose, current.poseState)
+      return {
+        ...current,
+        poseState: { ...previous, mode },
+      }
+    })
   }
 
   function updateCustomPoseState(poseState: RobotPoseState) {
@@ -246,6 +243,11 @@ export function RobotWorkshop() {
       pose: poseState.preset,
       poseState,
     }))
+  }
+
+  function resetCustomPose() {
+    const preset = config.poseState?.preset ?? config.pose
+    updateCustomPoseState(clearCustomPose(preset))
   }
 
   function loadRobot(robot: SavedRobot) {
@@ -365,8 +367,8 @@ export function RobotWorkshop() {
                 ) : (
                   <RobotCharacter
                     config={config}
-                    interactive={previewMode === "3d"}
-                    mode={previewMode}
+                    interactive
+                    mode="3d"
                     on3DUnavailable={() => {
                       setPreviewMode("2d")
                       setNotice({ type: "error", text: "このPCでは3D表示を開始できなかったため、2D表示に戻しました。" })
@@ -404,14 +406,14 @@ export function RobotWorkshop() {
             </div>
             <p className="mt-3 text-center text-sm text-muted-foreground">
               {previewMode === "3d"
-                ? config.poseState?.mode === "custom"
-                  ? "3D表示はプリセットポーズ時に利用できます。自由ポーズ編集中は2Dで編集してください"
-                  : "PC限定3D：ドラッグで回転、ホイールで拡大縮小できます"
+                ? "PC限定3D：ドラッグで回転、ホイールで拡大縮小できます"
                 : config.poseState?.mode === "custom"
-                  ? config.view === "front"
-                    ? "自由ポーズ編集中：白い丸をドラッグして腕と脚の角度を調整できます"
-                    : "自由ポーズの編集ハンドルは2Dの正面表示で使えます。見た目確認だけなら側面・背面にも切り替えられます"
-                  : "2Dはアイコンと同じ正式表示。正面・側面・背面を切り替えられます"}
+                  ? config.view === "side"
+                    ? "側面の自由ポーズ：奥側・手前側の腕と脚をそれぞれドラッグできます"
+                    : config.view === "back"
+                      ? "背面の自由ポーズ：正面と同じ身体を後ろ側から編集しています"
+                      : "正面の自由ポーズ：白い丸をドラッグして腕と脚を調整できます"
+                  : "2Dは正面・側面・背面を切り替えられます。自由ポーズなら3方向すべてで編集できます"}
             </p>
           </CardContent>
         </Card>
@@ -501,7 +503,7 @@ export function RobotWorkshop() {
             </CardHeader>
             <CardContent className="flex flex-col gap-6">
               <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <Label>ポーズ</Label>
                   <div className="flex items-center gap-2 rounded-full border bg-muted/40 p-1">
                     <Button
@@ -524,15 +526,18 @@ export function RobotWorkshop() {
                     </Button>
                   </div>
                 </div>
-                <OptionPicker options={POSES} value={config.poseState?.preset ?? config.pose} onChange={updatePosePreset} />
+                <OptionPicker
+                  options={POSES}
+                  value={config.poseState?.preset ?? config.pose}
+                  onChange={updatePosePreset}
+                />
                 {config.poseState?.mode === "custom" && (
-                  <div className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-muted-foreground">
-                    正面表示にして白い丸をドラッグすると、肩・ひじ・股関節・ひざを自由に動かせます。
-                    <div className="mt-2">
-                      <Button type="button" size="sm" variant="outline" className="rounded-full" onClick={() => updateCustomPoseState({ mode: "custom", preset: config.poseState?.preset ?? config.pose, joints: {} })}>
-                        プリセット位置に戻す
-                      </Button>
-                    </div>
+                  <div className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-3 text-sm text-muted-foreground">
+                    <p>正面では左右方向、側面では前後方向を編集します。背面は正面と同じポーズを後ろから編集するため、向きを切り替えても一体のポーズとしてつながります。</p>
+                    <p className="mt-2">足先の高さ固定はなくし、片足上げ・大股・深いひざ曲げも作りやすくしました。</p>
+                    <Button type="button" size="sm" variant="outline" className="mt-3 rounded-full" onClick={resetCustomPose}>
+                      3方向をプリセット位置に戻す
+                    </Button>
                   </div>
                 )}
               </div>

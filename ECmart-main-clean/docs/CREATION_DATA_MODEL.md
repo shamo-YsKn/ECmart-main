@@ -19,11 +19,12 @@
   pose,
   item,
   view,
-  name
+  name,
+  poseState?
 }
 ```
 
-これは現在の画面・既存ユーザーデータとの互換性のため、今回変更しません。
+旧データには `poseState` がありませんが、読み込み時に自動補完します。既存キーは変更していません。
 
 `robotConfigToCreationDocument()` と `creationDocumentToRobotConfig()` を移行アダプタとして用意しています。
 
@@ -33,6 +34,8 @@
 mode = preset
 preset = 既存の pose
 joints = {}
+axes.front = {}
+axes.side = {}
 ```
 
 として読み込めます。
@@ -65,7 +68,12 @@ interface SceneTransform {
 interface RobotPoseState {
   mode: "preset" | "custom"
   preset: RobotPose
+  // Phase 1-2 v1互換。front軸のエイリアス
   joints: Partial<Record<RobotJointId, number>>
+  axes?: {
+    front?: Partial<Record<RobotJointId, number>>
+    side?: Partial<Record<RobotJointId, number>>
+  }
 }
 ```
 
@@ -82,7 +90,11 @@ interface RobotPoseState {
 
 関節角もdegreeで保存します。
 
-自由ポーズ実装時は、固定ポーズを初期角度として展開し、変更された関節だけ `joints` に保存する方式を基本とします。
+- `front`: 正面の左右方向。背面でも同じ物理ポーズを共有する
+- `side`: 側面から見た前後方向
+- `joints`: 旧Phase 1-2データとの互換用で、`front` として読み込む
+
+固定ポーズを初期角度として展開し、変更された関節だけ保存します。背面は別データを持たずfront軸を鏡像表示するため、正面と背面でポーズが食い違いません。
 
 ## 自作アイテム
 
@@ -129,10 +141,8 @@ schemaVersion = 1
 
 ## 現段階で未実装のもの
 
-このファイルは設計基盤であり、以下のUI/DB保存はまだ実装していません。
+2D自由ポーズ編集と `saved_robots.config.poseState` 保存は実装済みです。以下は今後のPhaseです。
 
-- 自由ポーズ編集UI
-- custom pose のSupabase保存
 - 自作アイテム編集UI
 - custom item テーブル
 - ジオラマ編集UI

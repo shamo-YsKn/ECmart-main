@@ -61,10 +61,19 @@ export type RobotJointId =
 
 export type RobotJointAngles = Partial<Record<RobotJointId, number>>
 
+/**
+ * 2D自由ポーズの2.5D保存形式。
+ * front は正面/背面で共有する左右方向、side は側面で編集する前後方向。
+ * joints はPhase 1-2 v1互換のfront軸エイリアスとして残します。
+ */
 export interface RobotPoseState {
   mode: "preset" | "custom"
   preset: RobotPose
   joints: RobotJointAngles
+  axes?: {
+    front?: RobotJointAngles
+    side?: RobotJointAngles
+  }
 }
 
 export interface RobotConfig {
@@ -76,6 +85,7 @@ export interface RobotConfig {
   item: RobotItem
   view: RobotView
   name: string
+  /** 旧保存データには存在しないためoptional。読み込み時に補完します。 */
   poseState?: RobotPoseState
 }
 

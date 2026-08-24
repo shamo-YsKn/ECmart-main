@@ -3,15 +3,16 @@
 import { useId } from "react"
 import type { RobotConfig, RobotItem } from "@/lib/types"
 import {
+  ROBOT_2D_VIEWBOX,
   buildRobot2DLayout,
   displayHardwareAngle,
   linePath,
   scaledGroupTransform,
   segmentAngleDeg,
+  type Point,
 } from "@/lib/robot-pose-2d"
 
 type HandSpec = { x: number; y: number; angle: number }
-
 type ItemAnchor = { x: number; y: number; rotation: number }
 
 function ItemShape({ item, accentColor, anchor }: { item: RobotItem; accentColor: string; anchor: ItemAnchor }) {
@@ -85,41 +86,168 @@ function CounterSunkFoot({ x, y, angle, fill }: { x: number; y: number; angle: n
   )
 }
 
+function SideFoot({ x, y, angle, fill }: { x: number; y: number; angle: number; fill: string }) {
+  return (
+    <g transform={`translate(${x} ${y}) rotate(${angle})`}>
+      <rect x="-16" y="-7" width="32" height="14" rx="3" fill={fill} stroke="#263943" strokeWidth="3" />
+      <path d="M-11 -2 H11" stroke="#fff" strokeOpacity=".35" strokeWidth="2" strokeLinecap="round" />
+    </g>
+  )
+}
+
+function Limb({ path, bodyColor, opacity = 1 }: { path: string; bodyColor: string; opacity?: number }) {
+  return (
+    <g opacity={opacity}>
+      <path d={path} fill="none" stroke="#263943" strokeWidth="13" strokeLinecap="round" strokeLinejoin="round" />
+      <path d={path} fill="none" stroke={bodyColor} strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
+    </g>
+  )
+}
+
+function handSpec(elbow: Point, hand: Point): HandSpec {
+  return {
+    x: hand.x,
+    y: hand.y,
+    angle: displayHardwareAngle(segmentAngleDeg(elbow, hand)),
+  }
+}
+
+function itemAnchor(elbow: Point, hand: Point): ItemAnchor {
+  const angle = displayHardwareAngle(segmentAngleDeg(elbow, hand))
+  const rad = (angle * Math.PI) / 180
+  return {
+    x: hand.x + Math.cos(rad) * 24,
+    y: hand.y + Math.sin(rad) * 24,
+    rotation: angle,
+  }
+}
+
+function FrontOrBackRobot({ config, metalId }: { config: RobotConfig; metalId: string }) {
+  const layout = buildRobot2DLayout(config)
+  const isBack = config.view === "back"
+  const leftArmPath = linePath(layout.shoulders.left, layout.elbows.left, layout.hands.left)
+  const rightArmPath = linePath(layout.shoulders.right, layout.elbows.right, layout.hands.right)
+  const leftLegPath = linePath(layout.hips.left, layout.knees.left, layout.feet.left)
+  const rightLegPath = linePath(layout.hips.right, layout.knees.right, layout.feet.right)
+  const leftHand = handSpec(layout.elbows.left, layout.hands.left)
+  const rightHand = handSpec(layout.elbows.right, layout.hands.right)
+  const leftFootAngle = displayHardwareAngle(segmentAngleDeg(layout.knees.left, layout.feet.left)) * 0.18
+  const rightFootAngle = displayHardwareAngle(segmentAngleDeg(layout.knees.right, layout.feet.right)) * 0.18
+
+  return (
+    <>
+      <Limb path={leftArmPath} bodyColor={config.bodyColor} />
+      <Limb path={rightArmPath} bodyColor={config.bodyColor} />
+      <CounterSunkHand spec={leftHand} fill={`url(#${metalId})`} />
+      <CounterSunkHand spec={rightHand} fill={`url(#${metalId})`} />
+
+      <circle cx={layout.shoulders.left.x} cy={layout.shoulders.left.y} r="10" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
+      <circle cx={layout.shoulders.right.x} cy={layout.shoulders.right.y} r="10" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
+
+      <Limb path={leftLegPath} bodyColor={config.bodyColor} />
+      <Limb path={rightLegPath} bodyColor={config.bodyColor} />
+      <CounterSunkFoot x={layout.feet.left.x} y={layout.feet.left.y} angle={leftFootAngle} fill={`url(#${metalId})`} />
+      <CounterSunkFoot x={layout.feet.right.x} y={layout.feet.right.y} angle={rightFootAngle} fill={`url(#${metalId})`} />
+
+      <rect x="128" y={layout.bodyTopY} width="44" height={layout.bodyHeight} rx="20" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
+      {Array.from({ length: layout.isNatty ? 10 : 12 }, (_, index) => {
+        const y = layout.bodyTopY + 10 + index * 8
+        if (y >= layout.bodyBottomY - 3) return null
+        return <line key={index} x1="125" x2="175" y1={y} y2={y} stroke="#263943" strokeOpacity=".72" strokeWidth="4" strokeLinecap="round" />
+      })}
+
+      {layout.isNatty && (
+        <path d="M129 153 H171 L197 182 H103 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" strokeLinejoin="round" />
+      )}
+
+      <path d="M112 74 L121 66 H179 L188 74 V96 L179 104 H121 L112 96 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" strokeLinejoin="round" />
+      <path d="M121 70 H179" stroke="#fff" strokeOpacity=".34" strokeWidth="3" strokeLinecap="round" />
+
+      {!isBack ? (
+        <>
+          <circle cx="132" cy="67" r="19" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
+          <circle cx="168" cy="67" r="19" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
+          <path d="M122 67 H142 M132 57 V77 M158 67 H178 M168 57 V77" stroke={config.accentColor} strokeWidth="5" strokeLinecap="round" />
+        </>
+      ) : (
+        <>
+          <path d="M123 74 H177" stroke="#263943" strokeOpacity=".6" strokeWidth="4" strokeLinecap="round" />
+          <circle cx="150" cy="87" r="7" fill={config.bodyColor} stroke="#263943" strokeWidth="3" />
+          <path d="M145 87 H155" stroke="#263943" strokeWidth="2.5" strokeLinecap="round" />
+        </>
+      )}
+
+      <ItemShape item={config.item} accentColor={config.accentColor} anchor={itemAnchor(layout.elbows.right, layout.hands.right)} />
+    </>
+  )
+}
+
+function SideRobot({ config, metalId }: { config: RobotConfig; metalId: string }) {
+  const layout = buildRobot2DLayout(config)
+  const farArmPath = linePath(layout.shoulders.left, layout.elbows.left, layout.hands.left)
+  const nearArmPath = linePath(layout.shoulders.right, layout.elbows.right, layout.hands.right)
+  const farLegPath = linePath(layout.hips.left, layout.knees.left, layout.feet.left)
+  const nearLegPath = linePath(layout.hips.right, layout.knees.right, layout.feet.right)
+  const farHand = handSpec(layout.elbows.left, layout.hands.left)
+  const nearHand = handSpec(layout.elbows.right, layout.hands.right)
+  const farFootAngle = displayHardwareAngle(segmentAngleDeg(layout.knees.left, layout.feet.left)) * 0.12
+  const nearFootAngle = displayHardwareAngle(segmentAngleDeg(layout.knees.right, layout.feet.right)) * 0.12
+
+  return (
+    <>
+      {/* 奥側の腕・脚を先に描き、PowerPoint案のように2本の奥行きを見せます。 */}
+      <Limb path={farArmPath} bodyColor={config.bodyColor} opacity={0.58} />
+      <g opacity="0.62"><CounterSunkHand spec={farHand} fill={`url(#${metalId})`} /></g>
+      <Limb path={farLegPath} bodyColor={config.bodyColor} opacity={0.58} />
+      <g opacity="0.62"><SideFoot x={layout.feet.left.x} y={layout.feet.left.y} angle={farFootAngle} fill={`url(#${metalId})`} /></g>
+
+      <rect
+        x="126"
+        y={layout.bodyTopY}
+        width="52"
+        height={layout.bodyHeight}
+        rx={layout.isNatty ? 4 : 18}
+        fill={`url(#${metalId})`}
+        stroke="#263943"
+        strokeWidth="4"
+      />
+      {Array.from({ length: 13 }, (_, index) => {
+        const y = layout.bodyTopY + 10 + index * 8
+        if (y >= layout.bodyBottomY - 4) return null
+        return <line key={index} x1="124" x2="180" y1={y} y2={y} stroke="#263943" strokeOpacity=".72" strokeWidth="4" strokeLinecap="round" />
+      })}
+
+      {layout.isNatty && (
+        <path d="M124 188 H180 L204 218 H100 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" strokeLinejoin="round" />
+      )}
+
+      {/* 側面頭部：共有図の台形＋横長の丸みを持つボルト頭プロファイル。 */}
+      <path d="M96 58 L123 65 V94 L96 101 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" strokeLinejoin="round" />
+      <path d="M123 65 H181 Q193 65 193 77 V84 Q193 96 181 96 H123 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
+      <path d="M128 69 H179" stroke="#fff" strokeOpacity=".32" strokeWidth="3" strokeLinecap="round" />
+      <path d="M123 65 V96" stroke="#263943" strokeOpacity=".5" strokeWidth="3" />
+
+      <circle cx={layout.shoulders.right.x} cy={layout.shoulders.right.y} r="9" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
+
+      {/* 手前側を胴体の前に描画。 */}
+      <Limb path={nearArmPath} bodyColor={config.bodyColor} />
+      <CounterSunkHand spec={nearHand} fill={`url(#${metalId})`} />
+      <Limb path={nearLegPath} bodyColor={config.bodyColor} />
+      <SideFoot x={layout.feet.right.x} y={layout.feet.right.y} angle={nearFootAngle} fill={`url(#${metalId})`} />
+
+      <ItemShape item={config.item} accentColor={config.accentColor} anchor={itemAnchor(layout.elbows.right, layout.hands.right)} />
+    </>
+  )
+}
+
 export function RobotFallback({ config }: { config: RobotConfig }) {
   const id = useId().replace(/:/g, "")
   const metalId = `fallback-metal-${id}`
   const shadowId = `fallback-shadow-${id}`
   const layout = buildRobot2DLayout(config)
-  const isSide = config.view === "side"
-  const isBack = config.view === "back"
-  const bodyBottomY = layout.bodyBottomY
-  const bodyHeight = layout.bodyHeight
-
-  const leftArmPath = linePath(layout.shoulders.left, layout.elbows.left, layout.hands.left)
-  const rightArmPath = linePath(layout.shoulders.right, layout.elbows.right, layout.hands.right)
-  const leftLegPath = linePath(layout.hips.left, layout.knees.left, layout.feet.left)
-  const rightLegPath = linePath(layout.hips.right, layout.knees.right, layout.feet.right)
-
-  const leftHand = {
-    x: layout.hands.left.x,
-    y: layout.hands.left.y,
-    angle: displayHardwareAngle(segmentAngleDeg(layout.elbows.left, layout.hands.left)),
-  }
-  const rightHand = {
-    x: layout.hands.right.x,
-    y: layout.hands.right.y,
-    angle: displayHardwareAngle(segmentAngleDeg(layout.elbows.right, layout.hands.right)),
-  }
-  const leftFootAngle = displayHardwareAngle(segmentAngleDeg(layout.knees.left, layout.feet.left)) * 0.18
-  const rightFootAngle = displayHardwareAngle(segmentAngleDeg(layout.knees.right, layout.feet.right)) * 0.18
-  const itemAnchor = {
-    x: layout.hands.right.x + 22,
-    y: layout.hands.right.y + 8,
-    rotation: rightHand.angle,
-  }
 
   return (
-    <svg viewBox="0 0 300 260" className="h-full w-full" aria-hidden="true" focusable="false" preserveAspectRatio="xMidYMid meet">
+    <svg viewBox={ROBOT_2D_VIEWBOX} className="h-full w-full" aria-hidden="true" focusable="false" preserveAspectRatio="xMidYMid meet">
       <defs>
         <linearGradient id={metalId} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor="#ffffff" stopOpacity="0.72" />
@@ -127,69 +255,19 @@ export function RobotFallback({ config }: { config: RobotConfig }) {
           <stop offset="0.68" stopColor={config.bodyColor} />
           <stop offset="1" stopColor="#172d36" stopOpacity="0.42" />
         </linearGradient>
-        <filter id={shadowId} x="-25%" y="-25%" width="150%" height="160%">
+        <filter id={shadowId} x="-35%" y="-30%" width="170%" height="180%">
           <feDropShadow dx="0" dy="8" stdDeviation="7" floodOpacity="0.2" />
         </filter>
       </defs>
 
-      <ellipse cx="150" cy="237" rx="72" ry="10" fill="#173744" opacity="0.12" />
+      <ellipse cx="150" cy="302" rx="82" ry="10" fill="#173744" opacity="0.11" />
 
       <g transform={scaledGroupTransform(layout.scale)} filter={`url(#${shadowId})`}>
-        {!isSide && (
-          <>
-            <path d={leftArmPath} fill="none" stroke="#263943" strokeWidth="13" strokeLinecap="round" strokeLinejoin="round" />
-            <path d={leftArmPath} fill="none" stroke={config.bodyColor} strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
-            <CounterSunkHand spec={leftHand} fill={`url(#${metalId})`} />
-          </>
+        {config.view === "side" ? (
+          <SideRobot config={config} metalId={metalId} />
+        ) : (
+          <FrontOrBackRobot config={config} metalId={metalId} />
         )}
-        <path d={rightArmPath} fill="none" stroke="#263943" strokeWidth="13" strokeLinecap="round" strokeLinejoin="round" />
-        <path d={rightArmPath} fill="none" stroke={config.bodyColor} strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
-        <CounterSunkHand spec={rightHand} fill={`url(#${metalId})`} />
-
-        {!isSide && <circle cx={layout.shoulders.left.x} cy={layout.shoulders.left.y} r="10" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />}
-        <circle cx={layout.shoulders.right.x} cy={layout.shoulders.right.y} r="10" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
-
-        <path d={leftLegPath} fill="none" stroke="#263943" strokeWidth="13" strokeLinecap="round" />
-        <path d={leftLegPath} fill="none" stroke={config.bodyColor} strokeWidth="8" strokeLinecap="round" />
-        {!isSide && (
-          <>
-            <path d={rightLegPath} fill="none" stroke="#263943" strokeWidth="13" strokeLinecap="round" />
-            <path d={rightLegPath} fill="none" stroke={config.bodyColor} strokeWidth="8" strokeLinecap="round" />
-          </>
-        )}
-        <CounterSunkFoot x={layout.feet.left.x} y={layout.feet.left.y} angle={leftFootAngle} fill={`url(#${metalId})`} />
-        {!isSide && <CounterSunkFoot x={layout.feet.right.x} y={layout.feet.right.y} angle={rightFootAngle} fill={`url(#${metalId})`} />}
-
-        <rect x="128" y="84" width="44" height={bodyHeight} rx="20" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
-        {Array.from({ length: layout.isNatty ? 10 : 12 }, (_, index) => (
-          <line key={index} x1="125" x2="175" y1={94 + index * 8} y2={94 + index * 8} stroke="#263943" strokeOpacity=".72" strokeWidth="4" strokeLinecap="round" />
-        ))}
-
-        {layout.isNatty && (
-          <path d="M129 153 H171 L197 182 H103 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" strokeLinejoin="round" />
-        )}
-
-        <path d="M112 74 L121 66 H179 L188 74 V96 L179 104 H121 L112 96 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" strokeLinejoin="round" />
-        <path d="M121 70 H179" stroke="#fff" strokeOpacity=".34" strokeWidth="3" strokeLinecap="round" />
-
-        {!isBack && (
-          <>
-            <g opacity={isSide ? 0 : 1}>
-              <circle cx="132" cy="67" r="19" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
-              <circle cx="168" cy="67" r="19" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
-              <path d="M122 67 H142 M132 57 V77 M158 67 H178 M168 57 V77" stroke={config.accentColor} strokeWidth="5" strokeLinecap="round" />
-            </g>
-            {isSide && (
-              <>
-                <circle cx="153" cy="67" r="18" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
-                <path d="M144 67 H162 M153 58 V76" stroke={config.accentColor} strokeWidth="5" strokeLinecap="round" />
-              </>
-            )}
-          </>
-        )}
-        {isBack && <rect x="129" y="61" width="42" height="9" rx="4.5" fill={config.accentColor} opacity=".72" />}
-
-        <ItemShape item={config.item} accentColor={config.accentColor} anchor={itemAnchor} />
       </g>
     </svg>
   )

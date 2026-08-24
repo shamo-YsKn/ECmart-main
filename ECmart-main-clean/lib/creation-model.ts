@@ -1,4 +1,4 @@
-import type { RobotConfig, RobotItem, RobotPose, RobotJointAngles, RobotPoseState } from "@/lib/types"
+import type { RobotConfig, RobotItem, RobotPoseState } from "@/lib/types"
 import { normalizeRobotConfig } from "@/lib/robot-config"
 
 /**
@@ -25,8 +25,6 @@ export const IDENTITY_SCENE_TRANSFORM: Readonly<SceneTransform> = Object.freeze(
   rotationDeg: [0, 0, 0] as Vec3,
   scale: [1, 1, 1] as Vec3,
 })
-
-export interface RobotPoseStateCompat extends RobotPoseState {}
 
 export type HeldItemReference =
   | { kind: "builtin"; item: RobotItem }
@@ -110,7 +108,7 @@ export function robotConfigToCreationDocument(config: RobotConfig): RobotCreatio
     schemaVersion: CREATION_DOCUMENT_VERSION,
     kind: "robot",
     config: normalized,
-    poseState: normalized.poseState ?? { mode: "preset", preset: normalized.pose, joints: {} },
+    poseState: normalized.poseState ?? { mode: "preset", preset: normalized.pose, joints: {}, axes: { front: {}, side: {} } },
     heldItem: { kind: "builtin", item: normalized.item },
   }
 }

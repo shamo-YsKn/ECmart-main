@@ -5,37 +5,52 @@ import type { PointerEvent as ReactPointerEvent } from "react"
 import type { RobotConfig, RobotJointId, RobotPoseState } from "@/lib/types"
 import { RobotFallback } from "./robot-fallback"
 import {
+  ROBOT_2D_VIEWBOX,
   buildRobot2DLayout,
   clampJointAngle,
   inverseScalePoint,
+  limbRoleLabel,
   normalizeAngle,
+  pointFromViewToAxis,
   resolvePoseState,
   scaledGroupTransform,
   segmentAngleDeg,
+  updatePoseAxis,
   type Point,
 } from "@/lib/robot-pose-2d"
 import { cn } from "@/lib/utils"
 
-type HandleId = "leftElbow" | "leftHand" | "rightElbow" | "rightHand" | "leftKnee" | "leftFoot" | "rightKnee" | "rightFoot"
+type HandleId =
+  | "leftElbow"
+  | "leftHand"
+  | "rightElbow"
+  | "rightHand"
+  | "leftKnee"
+  | "leftFoot"
+  | "rightKnee"
+  | "rightFoot"
 
 type DragState = {
   pointerId: number
   handle: HandleId
 }
 
-const HANDLE_STYLES: Record<HandleId, { label: string; joint: RobotJointId }> = {
-  leftElbow: { label: "左肩", joint: "leftShoulder" },
-  leftHand: { label: "左ひじ", joint: "leftElbow" },
-  rightElbow: { label: "右肩", joint: "rightShoulder" },
-  rightHand: { label: "右ひじ", joint: "rightElbow" },
-  leftKnee: { label: "左股関節", joint: "leftHip" },
-  leftFoot: { label: "左ひざ", joint: "leftKnee" },
-  rightKnee: { label: "右股関節", joint: "rightHip" },
-  rightFoot: { label: "右ひざ", joint: "rightKnee" },
+const JOINT_BY_HANDLE: Record<HandleId, RobotJointId> = {
+  leftElbow: "leftShoulder",
+  leftHand: "leftElbow",
+  rightElbow: "rightShoulder",
+  rightHand: "rightElbow",
+  leftKnee: "leftHip",
+  leftFoot: "leftKnee",
+  rightKnee: "rightHip",
+  rightFoot: "rightKnee",
 }
 
-function labelForHandle(handle: HandleId) {
-  return HANDLE_STYLES[handle].label
+function jointPartLabel(handle: HandleId) {
+  if (handle.endsWith("Elbow")) return "肩"
+  if (handle.endsWith("Hand")) return "ひじ"
+  if (handle.endsWith("Knee")) return "股関節"
+  return "ひざ"
 }
 
 export function RobotPoseEditor({
@@ -53,7 +68,6 @@ export function RobotPoseEditor({
   const [dragState, setDragState] = useState<DragState | null>(null)
   const layout = useMemo(() => buildRobot2DLayout(config), [config])
   const poseState = resolvePoseState(config)
-  const showHandles = enabled && config.view === "front"
 
   const handlePoints = {
     leftElbow: layout.elbows.left,
@@ -71,6 +85,7 @@ export function RobotPoseEditor({
     if (!svg) return null
     const ctm = svg.getScreenCTM()
     if (!ctm) return null
+
     const point = svg.createSVGPoint()
     point.x = event.clientX
     point.y = event.clientY
@@ -78,52 +93,70 @@ export function RobotPoseEditor({
     return inverseScalePoint({ x: svgPoint.x, y: svgPoint.y }, layout.scale)
   }
 
-  function updateFromHandle(handle: HandleId, point: Point) {
-    const nextJoints = { ...poseState.joints }
+  function axisPoint(point: Point) {
+    return pointFromViewToAxis(point, config.view)
+  }
+
+  function updateFromHandle(handle: HandleId, visiblePoint: Point) {
+    const point = axisPoint(visiblePoint)
+    const shoulders = {
+      left: axisPoint(layout.shoulders.left),
+      right: axisPoint(layout.shoulders.right),
+    }
+    const elbows = {
+      left: axisPoint(layout.elbows.left),
+      right: axisPoint(layout.elbows.right),
+    }
+    const hips = {
+      left: axisPoint(layout.hips.left),
+      right: axisPoint(layout.hips.right),
+    }
+    const knees = {
+      left: axisPoint(layout.knees.left),
+      right: axisPoint(layout.knees.right),
+    }
+
+    const patch: Partial<Record<RobotJointId, number>> = {}
     switch (handle) {
       case "leftElbow":
-        nextJoints.leftShoulder = clampJointAngle("leftShoulder", segmentAngleDeg(layout.shoulders.left, point))
+        patch.leftShoulder = clampJointAngle("leftShoulder", segmentAngleDeg(shoulders.left, point))
         break
       case "leftHand": {
-        const upper = nextJoints.leftShoulder ?? segmentAngleDeg(layout.shoulders.left, layout.elbows.left)
-        nextJoints.leftElbow = clampJointAngle("leftElbow", normalizeAngle(segmentAngleDeg(layout.elbows.left, point) - upper))
+        const upper = segmentAngleDeg(shoulders.left, elbows.left)
+        patch.leftElbow = clampJointAngle("leftElbow", normalizeAngle(segmentAngleDeg(elbows.left, point) - upper))
         break
       }
       case "rightElbow":
-        nextJoints.rightShoulder = clampJointAngle("rightShoulder", segmentAngleDeg(layout.shoulders.right, point))
+        patch.rightShoulder = clampJointAngle("rightShoulder", segmentAngleDeg(shoulders.right, point))
         break
       case "rightHand": {
-        const upper = nextJoints.rightShoulder ?? segmentAngleDeg(layout.shoulders.right, layout.elbows.right)
-        nextJoints.rightElbow = clampJointAngle("rightElbow", normalizeAngle(segmentAngleDeg(layout.elbows.right, point) - upper))
+        const upper = segmentAngleDeg(shoulders.right, elbows.right)
+        patch.rightElbow = clampJointAngle("rightElbow", normalizeAngle(segmentAngleDeg(elbows.right, point) - upper))
         break
       }
       case "leftKnee":
-        nextJoints.leftHip = clampJointAngle("leftHip", segmentAngleDeg(layout.hips.left, point))
+        patch.leftHip = clampJointAngle("leftHip", segmentAngleDeg(hips.left, point))
         break
       case "leftFoot": {
-        const upper = nextJoints.leftHip ?? segmentAngleDeg(layout.hips.left, layout.knees.left)
-        nextJoints.leftKnee = clampJointAngle("leftKnee", normalizeAngle(segmentAngleDeg(layout.knees.left, point) - upper))
+        const upper = segmentAngleDeg(hips.left, knees.left)
+        patch.leftKnee = clampJointAngle("leftKnee", normalizeAngle(segmentAngleDeg(knees.left, point) - upper))
         break
       }
       case "rightKnee":
-        nextJoints.rightHip = clampJointAngle("rightHip", segmentAngleDeg(layout.hips.right, point))
+        patch.rightHip = clampJointAngle("rightHip", segmentAngleDeg(hips.right, point))
         break
       case "rightFoot": {
-        const upper = nextJoints.rightHip ?? segmentAngleDeg(layout.hips.right, layout.knees.right)
-        nextJoints.rightKnee = clampJointAngle("rightKnee", normalizeAngle(segmentAngleDeg(layout.knees.right, point) - upper))
+        const upper = segmentAngleDeg(hips.right, knees.right)
+        patch.rightKnee = clampJointAngle("rightKnee", normalizeAngle(segmentAngleDeg(knees.right, point) - upper))
         break
       }
     }
 
-    onPoseStateChange({
-      mode: "custom",
-      preset: poseState.preset,
-      joints: nextJoints,
-    })
+    onPoseStateChange(updatePoseAxis(poseState, layout.axis, patch))
   }
 
   function startDrag(handle: HandleId, event: ReactPointerEvent<SVGCircleElement>) {
-    if (!showHandles) return
+    if (!enabled) return
     const point = toModelPoint(event)
     if (!point) return
     event.preventDefault()
@@ -145,31 +178,58 @@ export function RobotPoseEditor({
     if (!dragState || dragState.pointerId !== event.pointerId) return
     event.preventDefault()
     setDragState(null)
-    event.currentTarget.releasePointerCapture(event.pointerId)
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+  }
+
+  function handleLabel(handle: HandleId) {
+    const side = handle.startsWith("left") ? "left" : "right"
+    return `${limbRoleLabel(config.view, side)}の${jointPartLabel(handle)}`
   }
 
   return (
     <div className={cn("relative h-full w-full", className)}>
       <RobotFallback config={config} />
-      {showHandles && (
-        <svg ref={svgRef} viewBox="0 0 300 260" className="pointer-events-auto absolute inset-0 h-full w-full touch-none" aria-hidden="true">
+      {enabled && (
+        <svg
+          ref={svgRef}
+          viewBox={ROBOT_2D_VIEWBOX}
+          className="pointer-events-auto absolute inset-0 h-full w-full touch-none select-none"
+          aria-hidden="true"
+        >
           <g transform={scaledGroupTransform(layout.scale)}>
-            <path d={`M${layout.shoulders.left.x} ${layout.shoulders.left.y} L${layout.elbows.left.x} ${layout.elbows.left.y} L${layout.hands.left.x} ${layout.hands.left.y}`} fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="2" strokeDasharray="6 4" />
-            <path d={`M${layout.shoulders.right.x} ${layout.shoulders.right.y} L${layout.elbows.right.x} ${layout.elbows.right.y} L${layout.hands.right.x} ${layout.hands.right.y}`} fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="2" strokeDasharray="6 4" />
-            <path d={`M${layout.hips.left.x} ${layout.hips.left.y} L${layout.knees.left.x} ${layout.knees.left.y} L${layout.feet.left.x} ${layout.feet.left.y}`} fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="2" strokeDasharray="6 4" />
-            <path d={`M${layout.hips.right.x} ${layout.hips.right.y} L${layout.knees.right.x} ${layout.knees.right.y} L${layout.feet.right.x} ${layout.feet.right.y}`} fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="2" strokeDasharray="6 4" />
+            <path d={`M${layout.shoulders.left.x} ${layout.shoulders.left.y} L${layout.elbows.left.x} ${layout.elbows.left.y} L${layout.hands.left.x} ${layout.hands.left.y}`} fill="none" stroke="rgba(255,255,255,0.58)" strokeWidth="2" strokeDasharray="6 4" />
+            <path d={`M${layout.shoulders.right.x} ${layout.shoulders.right.y} L${layout.elbows.right.x} ${layout.elbows.right.y} L${layout.hands.right.x} ${layout.hands.right.y}`} fill="none" stroke="rgba(255,255,255,0.58)" strokeWidth="2" strokeDasharray="6 4" />
+            <path d={`M${layout.hips.left.x} ${layout.hips.left.y} L${layout.knees.left.x} ${layout.knees.left.y} L${layout.feet.left.x} ${layout.feet.left.y}`} fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2" strokeDasharray="6 4" />
+            <path d={`M${layout.hips.right.x} ${layout.hips.right.y} L${layout.knees.right.x} ${layout.knees.right.y} L${layout.feet.right.x} ${layout.feet.right.y}`} fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2" strokeDasharray="6 4" />
+
             {(Object.keys(handlePoints) as HandleId[]).map((handle) => {
               const point = handlePoints[handle]
               const active = dragState?.handle === handle
               return (
                 <g key={handle}>
-                  <circle cx={point.x} cy={point.y} r={active ? 9 : 7} fill={active ? "#f97316" : "#fff"} stroke="#334155" strokeWidth="3"
+                  <circle
+                    cx={point.x}
+                    cy={point.y}
+                    r="16"
+                    fill="transparent"
+                    className="cursor-grab active:cursor-grabbing"
                     onPointerDown={(event) => startDrag(handle, event)}
                     onPointerMove={moveDrag}
                     onPointerUp={endDrag}
                     onPointerCancel={endDrag}
                   />
-                  <title>{labelForHandle(handle)}</title>
+                  <circle
+                    cx={point.x}
+                    cy={point.y}
+                    r={active ? 9 : 7}
+                    fill={active ? "#f97316" : "#ffffff"}
+                    stroke="#334155"
+                    strokeWidth="3"
+                    pointerEvents="none"
+                  />
+                  <title>{handleLabel(handle)}</title>
                 </g>
               )
             })}

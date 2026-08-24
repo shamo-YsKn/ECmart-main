@@ -31,7 +31,7 @@ export const DEFAULT_ROBOT_CONFIG: Readonly<RobotConfig> = Object.freeze({
   item: "none",
   view: "front",
   name: "ボルタ",
-  poseState: { mode: "preset" as const, preset: "cheer" as const, joints: {} },
+  poseState: { mode: "preset" as const, preset: "cheer" as const, joints: {}, axes: { front: {}, side: {} } },
 })
 
 function isRecord(value: unknown): value is Record<string, unknown> {
