@@ -24,13 +24,21 @@ import { getGachaReward } from "@/lib/gacha"
 import { normalizeRobotConfig, parseSavedRobotRow, sanitizeRobotName } from "@/lib/robot-config"
 import { normalizeRobotHeldItem } from "@/lib/robot-held-item"
 import { getWorkbenchVariant } from "@/lib/workbench-variants"
-import type { CustomItemDocument } from "@/lib/creation-model"
+import type { CustomItemDocument, DioramaDocument } from "@/lib/creation-model"
 import {
   normalizeCustomItemDocument,
   parseSavedCustomItemRow,
   sanitizeCustomItemName,
   type SavedCustomItem,
 } from "@/lib/custom-item-model"
+import {
+  normalizeDioramaDocument,
+  parseSavedDioramaRow,
+  sanitizeDioramaName,
+  stageIdFromReference,
+  type SavedDiorama,
+} from "@/lib/diorama-model"
+import { getDioramaStage } from "@/lib/diorama-stages"
 
 export interface Profile {
   user_id: string
@@ -54,6 +62,10 @@ type CustomItemAccountResult = AccountResult & {
   item?: SavedCustomItem
 }
 
+type DioramaAccountResult = AccountResult & {
+  diorama?: SavedDiorama
+}
+
 type PurchaseAccountResult = AccountResult & {
   purchase?: PurchaseResult
 }
@@ -73,10 +85,13 @@ interface AccountContextValue {
   avatarRobot: SavedRobot | null
   gachaInventory: GachaInventoryItem[]
   savedCustomItems: SavedCustomItem[]
+  savedDioramas: SavedDiorama[]
   robotStorageReady: boolean
   robotStorageError: string | null
   customItemStorageReady: boolean
   customItemStorageError: string | null
+  dioramaStorageReady: boolean
+  dioramaStorageError: string | null
   signUp: (email: string, password: string, displayName: string) => Promise<AccountResult>
   signIn: (email: string, password: string) => Promise<AccountResult>
   signOut: () => Promise<AccountResult>
@@ -86,6 +101,8 @@ interface AccountContextValue {
   deleteRobot: (robotId: string) => Promise<AccountResult>
   saveCustomItem: (document: CustomItemDocument, itemId?: string) => Promise<CustomItemAccountResult>
   deleteCustomItem: (itemId: string) => Promise<AccountResult>
+  saveDiorama: (document: DioramaDocument, dioramaId?: string) => Promise<DioramaAccountResult>
+  deleteDiorama: (dioramaId: string) => Promise<AccountResult>
   setAvatarRobot: (robotId: string | null) => Promise<AccountResult>
   purchaseCart: (items: CartItem[], idempotencyKey: string) => Promise<PurchaseAccountResult>
   spinGacha: (rollId: string) => Promise<GachaAccountResult>
@@ -178,6 +195,15 @@ function customItemStorageMessage(error?: { message?: string } | null) {
   return `自作アイテム保存用のSupabase設定を確認してください：${error.message}`
 }
 
+function isMissingDioramaStorage(error: { code?: string; message: string }) {
+  return error.code === "42P01" || error.message.toLowerCase().includes("dioramas")
+}
+
+function dioramaStorageMessage(error?: { message?: string } | null) {
+  if (!error?.message) return "ジオラマ保存用のSupabase設定がまだ完了していません。"
+  return `ジオラマ保存用のSupabase設定を確認してください：${error.message}`
+}
+
 
 function withTimeout<T>(promiseLike: PromiseLike<T>, timeoutMs: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -235,10 +261,13 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const [savedRobots, setSavedRobots] = useState<SavedRobot[]>([])
   const [gachaInventory, setGachaInventory] = useState<GachaInventoryItem[]>([])
   const [savedCustomItems, setSavedCustomItems] = useState<SavedCustomItem[]>([])
+  const [savedDioramas, setSavedDioramas] = useState<SavedDiorama[]>([])
   const [robotStorageReady, setRobotStorageReady] = useState(true)
   const [robotStorageError, setRobotStorageError] = useState<string | null>(null)
   const [customItemStorageReady, setCustomItemStorageReady] = useState(true)
   const [customItemStorageError, setCustomItemStorageError] = useState<string | null>(null)
+  const [dioramaStorageReady, setDioramaStorageReady] = useState(true)
+  const [dioramaStorageError, setDioramaStorageError] = useState<string | null>(null)
 
   const getSupabase = useCallback(async () => {
     if (supabaseRef.current) return supabaseRef.current
@@ -262,10 +291,13 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     setSavedRobots([])
     setGachaInventory([])
     setSavedCustomItems([])
+    setSavedDioramas([])
     setRobotStorageReady(true)
     setRobotStorageError(null)
     setCustomItemStorageReady(true)
     setCustomItemStorageError(null)
+    setDioramaStorageReady(true)
+    setDioramaStorageError(null)
   }, [])
 
   const loadUserData = useCallback(
@@ -283,7 +315,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      const [profileResult, favoritesResult, robotsResult, inventoryResult, customItemsResult] = await Promise.allSettled([
+      const [profileResult, favoritesResult, robotsResult, inventoryResult, customItemsResult, dioramasResult] = await Promise.allSettled([
         retryRequest(
           () =>
             supabase
@@ -328,6 +360,15 @@ export function AccountProvider({ children }: { children: ReactNode }) {
               .order("updated_at", { ascending: false }),
           "custom items",
         ),
+        retryRequest(
+          () =>
+            supabase
+              .from("dioramas")
+              .select("id, user_id, name, document, created_at, updated_at")
+              .eq("user_id", nextUser.id)
+              .order("updated_at", { ascending: false }),
+          "dioramas",
+        ),
       ])
 
       const profileResponse = profileResult.status === "fulfilled" ? profileResult.value : null
@@ -335,6 +376,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       const robotsResponse = robotsResult.status === "fulfilled" ? robotsResult.value : null
       const inventoryResponse = inventoryResult.status === "fulfilled" ? inventoryResult.value : null
       const customItemsResponse = customItemsResult.status === "fulfilled" ? customItemsResult.value : null
+      const dioramasResponse = dioramasResult.status === "fulfilled" ? dioramasResult.value : null
 
       if (profileResponse && !profileResponse.error) {
         setProfile(
@@ -428,6 +470,21 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         setSavedCustomItems(items)
         setCustomItemStorageReady(true)
         setCustomItemStorageError(null)
+      }
+
+      if (!dioramasResponse) {
+        setDioramaStorageReady(true)
+        setDioramaStorageError("ジオラマ情報の取得に時間がかかっています。再度アカウント画面を開くと再取得します。")
+      } else if (dioramasResponse.error) {
+        setDioramaStorageReady(!isMissingDioramaStorage(dioramasResponse.error))
+        setDioramaStorageError(dioramaStorageMessage(dioramasResponse.error))
+      } else {
+        const dioramas = (dioramasResponse.data ?? [])
+          .map((row: unknown) => parseSavedDioramaRow(row))
+          .filter((diorama: SavedDiorama | null): diorama is SavedDiorama => Boolean(diorama))
+        setSavedDioramas(dioramas)
+        setDioramaStorageReady(true)
+        setDioramaStorageError(null)
       }
     },
     [clearLocalAccount, getSupabase],
@@ -674,6 +731,12 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       const supabase = await getSupabase()
       if (!supabase || !user) return { error: "ログインが必要です。" }
       if (!robotStorageReady) return { error: robotStorageError ?? robotStorageMessage() }
+      const usedByDiorama = savedDioramas.some((diorama) =>
+        diorama.document.robots.some((placement) => placement.savedRobotId === robotId),
+      )
+      if (usedByDiorama) {
+        return { error: "このロボットは保存済みジオラマに配置されています。先にジオラマ側から外してください。" }
+      }
 
       const { error } = await supabase
         .from("saved_robots")
@@ -686,7 +749,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       setSavedRobots((current) => current.filter((robot) => robot.id !== robotId))
       return { error: null }
     },
-    [getSupabase, robotStorageError, robotStorageReady, user],
+    [getSupabase, robotStorageError, robotStorageReady, savedDioramas, user],
   )
 
   const saveCustomItem = useCallback(
@@ -748,12 +811,86 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       if (usedByRobot) {
         return { error: "この自作アイテムは保存済みロボットが装備しています。先にロボット側で別の持ちものへ変更してください。" }
       }
+      const usedByDiorama = savedDioramas.some((diorama) =>
+        diorama.document.items.some((placement) => placement.customItemId === itemId),
+      )
+      if (usedByDiorama) {
+        return { error: "この自作アイテムは保存済みジオラマに配置されています。先にジオラマ側から外してください。" }
+      }
       const { error } = await supabase.from("custom_items").delete().eq("id", itemId).eq("user_id", user.id)
       if (error) return { error: customItemStorageMessage(error) }
       setSavedCustomItems((current) => current.filter((item) => item.id !== itemId))
       return { error: null }
     },
-    [customItemStorageError, customItemStorageReady, getSupabase, savedRobots, user],
+    [customItemStorageError, customItemStorageReady, getSupabase, savedDioramas, savedRobots, user],
+  )
+
+  const saveDiorama = useCallback(
+    async (document: DioramaDocument, dioramaId?: string): Promise<DioramaAccountResult> => {
+      const supabase = await getSupabase()
+      if (!supabase || !user) return { error: "ジオラマの保存にはログインが必要です。" }
+      if (!dioramaStorageReady) return { error: dioramaStorageError ?? dioramaStorageMessage() }
+
+      const cleanName = sanitizeDioramaName(document.name)
+      const cleanDocument = normalizeDioramaDocument({ ...document, name: cleanName }, cleanName)
+      if (cleanDocument.robots.length === 0 && cleanDocument.items.length === 0) {
+        return { error: "ロボットまたは自作アイテムを1つ以上配置してください。" }
+      }
+
+      const stage = getDioramaStage(stageIdFromReference(cleanDocument.stage))
+      const ownedRewardIds = new Set(gachaInventory.map((entry) => entry.rewardId))
+      if (!stage || (stage.rewardId && !ownedRewardIds.has(stage.rewardId))) {
+        return { error: "未獲得のジオラマ背景は保存できません。ガチャで獲得した背景を選んでください。" }
+      }
+
+      const ownedRobotIds = new Set(savedRobots.map((robot) => robot.id))
+      if (cleanDocument.robots.some((placement) => !ownedRobotIds.has(placement.savedRobotId))) {
+        return { error: "アカウントに存在しないロボットが配置されています。読み込み直してから保存してください。" }
+      }
+      const ownedItemIds = new Set(savedCustomItems.map((item) => item.id))
+      if (cleanDocument.items.some((placement) => !ownedItemIds.has(placement.customItemId))) {
+        return { error: "アカウントに存在しない自作アイテムが配置されています。読み込み直してから保存してください。" }
+      }
+
+      const payload = {
+        user_id: user.id,
+        name: cleanName,
+        document: cleanDocument,
+        updated_at: new Date().toISOString(),
+      }
+      const query = dioramaId
+        ? supabase.from("dioramas").update(payload).eq("id", dioramaId).eq("user_id", user.id)
+        : supabase.from("dioramas").insert(payload)
+      const { data, error } = await query
+        .select("id, user_id, name, document, created_at, updated_at")
+        .single()
+
+      if (error) {
+        if (isMissingDioramaStorage(error)) {
+          setDioramaStorageReady(false)
+          setDioramaStorageError(dioramaStorageMessage(error))
+        }
+        return { error: dioramaStorageMessage(error) }
+      }
+      const diorama = parseSavedDioramaRow(data)
+      if (!diorama) return { error: "保存したジオラマデータを読み取れませんでした。" }
+      setSavedDioramas((current) => [diorama, ...current.filter((entry) => entry.id !== diorama.id)])
+      return { error: null, diorama }
+    },
+    [dioramaStorageError, dioramaStorageReady, gachaInventory, getSupabase, savedCustomItems, savedRobots, user],
+  )
+
+  const deleteDiorama = useCallback(
+    async (dioramaId: string): Promise<AccountResult> => {
+      const supabase = await getSupabase()
+      if (!supabase || !user) return { error: "ログインが必要です。" }
+      if (!dioramaStorageReady) return { error: dioramaStorageError ?? dioramaStorageMessage() }
+      const { error } = await supabase.from("dioramas").delete().eq("id", dioramaId).eq("user_id", user.id)
+      if (error) return { error: dioramaStorageMessage(error) }
+      setSavedDioramas((current) => current.filter((entry) => entry.id !== dioramaId))
+      return { error: null }
+    },
+    [dioramaStorageError, dioramaStorageReady, getSupabase, user],
   )
 
   const setAvatarRobot = useCallback(
@@ -975,10 +1112,13 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       avatarRobot,
       gachaInventory,
       savedCustomItems,
+      savedDioramas,
       robotStorageReady,
       robotStorageError,
       customItemStorageReady,
       customItemStorageError,
+      dioramaStorageReady,
+      dioramaStorageError,
       signUp,
       signIn,
       signOut,
@@ -988,6 +1128,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       deleteRobot,
       saveCustomItem,
       deleteCustomItem,
+      saveDiorama,
+      deleteDiorama,
       setAvatarRobot,
       purchaseCart,
       spinGacha,
@@ -998,11 +1140,15 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       avatarRobot,
       deleteRobot,
       deleteCustomItem,
+      deleteDiorama,
       favoriteProductIds,
       gachaInventory,
       savedCustomItems,
+      savedDioramas,
       customItemStorageError,
       customItemStorageReady,
+      dioramaStorageError,
+      dioramaStorageReady,
       loading,
       profile,
       purchaseCart,
@@ -1013,6 +1159,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       saveProfile,
       saveRobot,
       saveCustomItem,
+      saveDiorama,
       savedRobots,
       setAvatarRobot,
       signIn,

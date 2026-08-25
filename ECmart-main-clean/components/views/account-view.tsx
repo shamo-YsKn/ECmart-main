@@ -11,6 +11,7 @@ import { RobotAvatar } from "@/components/robot/robot-avatar"
 import { RobotCharacter } from "@/components/robot/robot-character"
 import { CustomItemPreview } from "@/components/workbench/custom-item-preview"
 import { DioramaStagePreview } from "@/components/diorama/diorama-stage-preview"
+import { DioramaScenePreview } from "@/components/diorama/diorama-scene"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -27,6 +28,7 @@ import {
   Hammer,
   LoaderCircle,
   MapPin,
+  Layers3,
   LogIn,
   LogOut,
   Pencil,
@@ -42,6 +44,7 @@ import { cn } from "@/lib/utils"
 import { CUSTOM_ITEM_DRAFT_KEY, type SavedCustomItem } from "@/lib/custom-item-model"
 import { normalizeRobotHeldItem } from "@/lib/robot-held-item"
 import { getDioramaStageByRewardId } from "@/lib/diorama-stages"
+import { DIORAMA_DRAFT_KEY, type SavedDiorama } from "@/lib/diorama-model"
 
 type AuthMode = "signIn" | "signUp"
 
@@ -70,7 +73,7 @@ function NoticeBox({ notice }: { notice: Notice }) {
   )
 }
 
-function navigateTo(tab: "robot" | "shops" | "gacha" | "workbench") {
+function navigateTo(tab: "robot" | "shops" | "gacha" | "workbench" | "diorama") {
   window.dispatchEvent(new CustomEvent("machinowa:navigate", { detail: { tab } }))
 }
 
@@ -85,6 +88,7 @@ export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; i
   const [submitting, setSubmitting] = useState(false)
   const [robotActionId, setRobotActionId] = useState<string | null>(null)
   const [itemActionId, setItemActionId] = useState<string | null>(null)
+  const [dioramaActionId, setDioramaActionId] = useState<string | null>(null)
   const [notice, setNotice] = useState<Notice>(null)
 
   useEffect(() => {
@@ -269,6 +273,26 @@ export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; i
         ? { type: "error", text: result.error }
         : { type: "success", text: `${item.name}を削除しました。` },
     )
+  }
+
+  function openDiorama(diorama?: SavedDiorama, stageId?: string) {
+    if (diorama) {
+      window.sessionStorage.setItem(DIORAMA_DRAFT_KEY, JSON.stringify({ id: diorama.id, document: diorama.document }))
+    } else if (stageId) {
+      window.sessionStorage.setItem(DIORAMA_DRAFT_KEY, JSON.stringify({ stageId }))
+    } else {
+      window.sessionStorage.removeItem(DIORAMA_DRAFT_KEY)
+    }
+    navigateTo("diorama")
+  }
+
+  async function deleteDiorama(diorama: SavedDiorama) {
+    if (!window.confirm(`${diorama.name}を削除しますか？`)) return
+    setDioramaActionId(diorama.id)
+    setNotice(null)
+    const result = await account.deleteDiorama(diorama.id)
+    setDioramaActionId(null)
+    setNotice(result.error ? { type: "error", text: result.error } : { type: "success", text: `${diorama.name}を削除しました。` })
   }
 
   if (!account.configured) {
@@ -574,10 +598,10 @@ export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; i
             <div>
               <h2 className="font-display text-xl font-black">アカウント保存が有効です</h2>
               <p className="mt-2 leading-relaxed text-muted-foreground">
-                お気に入り・自作ロボット・工作アイテムはSupabaseに保存されるため、同じアカウントなら別の端末からも確認できます。
+                お気に入り・自作ロボット・工作アイテム・マイジオラマはSupabaseに保存されるため、同じアカウントなら別の端末からも確認できます。
               </p>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               <div className="rounded-xl border bg-background/80 p-4 text-sm">
                 <div className="text-muted-foreground">保有ポイント</div>
                 <div className="font-display mt-1 flex items-center gap-2 text-3xl font-black text-primary">
@@ -611,6 +635,13 @@ export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; i
                   {account.savedCustomItems.length}<span className="ml-1 text-sm text-foreground">個</span>
                 </div>
                 <button type="button" className="mt-2 text-xs font-bold text-primary underline-offset-4 hover:underline" onClick={() => openCustomItem()}>工作する</button>
+              </div>
+              <div className="rounded-xl border bg-background/80 p-4 text-sm">
+                <div className="text-muted-foreground">マイジオラマ</div>
+                <div className="font-display mt-1 text-3xl font-black text-primary">
+                  {account.savedDioramas.length}<span className="ml-1 text-sm text-foreground">作品</span>
+                </div>
+                <button type="button" className="mt-2 text-xs font-bold text-primary underline-offset-4 hover:underline" onClick={() => openDiorama()}>ジオラマを作る</button>
               </div>
             </div>
           </CardContent>
@@ -683,10 +714,10 @@ export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; i
               マイジオラマ背景
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              ガチャで獲得した室蘭のステージです。Phase 4のジオラマエディタで使用できるようになります。
+              ガチャで獲得した室蘭のステージです。獲得済みの背景を選んで、そのままジオラマ制作を始められます。
             </p>
           </div>
-          <Badge variant="secondary" className="w-fit rounded-full">{dioramaStageItems.length}ステージ</Badge>
+          <div className="flex flex-wrap gap-2"><Badge variant="secondary" className="w-fit rounded-full">{dioramaStageItems.length}ステージ</Badge><Button size="sm" className="rounded-full" onClick={() => openDiorama()}><Layers3 data-icon="inline-start" />ジオラマを作る</Button></div>
         </div>
         {dioramaStageItems.length > 0 ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -697,6 +728,7 @@ export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; i
                   <div className="flex flex-wrap gap-1"><Badge className="rounded-full">{GACHA_RARITY_LABELS[reward.rarity]}</Badge><Badge variant="secondary" className="rounded-full">×{entry.quantity}</Badge></div>
                   <h3 className="font-display mt-2 text-lg font-black">{stage.label}</h3>
                   <p className="mt-1 text-sm text-muted-foreground">{stage.description}</p>
+                  <Button size="sm" variant="outline" className="mt-3 rounded-full" onClick={() => openDiorama(undefined, stage.id)}><Layers3 data-icon="inline-start" />この背景で作る</Button>
                 </CardContent>
               </Card>
             ))}
@@ -706,6 +738,37 @@ export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; i
         )}
         {workbenchRewardCount > 0 && (
           <div className="flex items-center gap-2 rounded-xl border bg-primary/5 px-4 py-3 text-sm"><Hammer className="size-4 text-primary" /><span><strong>{workbenchRewardCount}種類</strong>のガチャ限定工作素材を獲得済みです。アイテム工作のパレットから使用できます。</span></div>
+        )}
+      </section>
+
+      <section className="flex flex-col gap-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="font-display flex items-center gap-2 text-2xl font-black"><Layers3 className="size-6 text-primary" />マイジオラマ</h2>
+            <p className="mt-1 text-sm text-muted-foreground">背景にロボットや自作アイテムを配置して保存した作品です。</p>
+          </div>
+          <Button className="rounded-full" onClick={() => openDiorama()}><Plus data-icon="inline-start" />新しいジオラマ</Button>
+        </div>
+
+        {!account.dioramaStorageReady ? (
+          <Card className="border-2 border-amber-300 bg-amber-50"><CardContent className="p-5 text-sm text-amber-900"><p className="font-bold">ジオラマ保存用のSupabase設定が必要です。</p><p className="mt-1"><code>supabase/dioramas-migration.sql</code> をSQL Editorで実行してください。</p></CardContent></Card>
+        ) : account.savedDioramas.length > 0 ? (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {account.savedDioramas.map((diorama) => (
+              <Card key={diorama.id} className="overflow-hidden border-2">
+                <DioramaScenePreview document={diorama.document} robots={account.savedRobots} customItems={account.savedCustomItems} className="rounded-none border-0 shadow-none" />
+                <CardContent className="flex flex-col gap-3 p-4">
+                  <div><h3 className="font-display text-lg font-black">{diorama.name}</h3><p className="mt-1 text-xs text-muted-foreground">{diorama.document.robots.length}体・{diorama.document.items.length}アイテム</p></div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" className="rounded-full" onClick={() => openDiorama(diorama)}><Pencil data-icon="inline-start" />編集</Button>
+                    <Button size="sm" variant="ghost" className="rounded-full text-destructive hover:text-destructive" onClick={() => void deleteDiorama(diorama)} disabled={dioramaActionId === diorama.id}>{dioramaActionId === diorama.id ? <LoaderCircle className="animate-spin" data-icon="inline-start" /> : <Trash2 data-icon="inline-start" />}削除</Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Card className="border-2 border-dashed"><CardContent className="flex flex-col items-center gap-3 py-12 text-center text-muted-foreground"><Layers3 className="size-9" /><div><p className="font-display font-bold text-foreground">まだジオラマ作品はありません</p><p className="mt-1 text-sm">室蘭の背景に、自作したボルタ・ナッティを飾ってみましょう。</p></div><Button className="mt-2 rounded-full" onClick={() => openDiorama()}>ジオラマエディタを開く</Button></CardContent></Card>
         )}
       </section>
 

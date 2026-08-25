@@ -12,10 +12,11 @@ import {
 import type { GachaSpinResult } from "@/lib/types"
 import { getDioramaStage } from "@/lib/diorama-stages"
 import { DioramaStagePreview } from "@/components/diorama/diorama-stage-preview"
+import { DIORAMA_DRAFT_KEY } from "@/lib/diorama-model"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Coins, Gift, Hammer, LoaderCircle, LockKeyhole, RotateCcw, Sparkles, UserRound, Wrench } from "lucide-react"
+import { Coins, Gift, Hammer, Layers3, LoaderCircle, LockKeyhole, RotateCcw, Sparkles, Wrench } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 function createRollId() {
@@ -235,9 +236,9 @@ export function GachaView({ onNavigate }: { onNavigate: (tab: string) => void })
                   工作台で使う
                 </Button>
               ) : reward.category === "diorama_stage" ? (
-                <Button className="rounded-full" onClick={() => onNavigate("account")}>
-                  <UserRound data-icon="inline-start" />
-                  マイページで確認
+                <Button className="rounded-full" onClick={() => { window.sessionStorage.setItem(DIORAMA_DRAFT_KEY, JSON.stringify({ stageId: reward.value })); onNavigate("diorama") }}>
+                  <Layers3 data-icon="inline-start" />
+                  この背景で作る
                 </Button>
               ) : (
                 <Button className="rounded-full" onClick={() => onNavigate("robot")}>

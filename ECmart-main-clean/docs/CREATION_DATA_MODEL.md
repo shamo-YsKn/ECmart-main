@@ -171,12 +171,9 @@ heldItem:
 
 旧保存データに `heldItem` が無い場合は従来の `item` をbuiltin装備として自動補完します。
 
-以下は今後のPhaseです。
+Phase 3の特殊工作素材・背景と、Phase 4のジオラマ編集UI / `dioramas` テーブルまで実装済みです。
 
-- ガチャの特殊工作素材
-- ジオラマ編集UI
-- diorama テーブル
-- 壁画共有テーブル
+今後は、公開作品用のスナップショット、壁画共有テーブル、3D変換を追加します。
 
 次のPhaseで、この共通形式を使って順番に実装します。
 
@@ -205,3 +202,26 @@ headPose: {
 例: `partType: "hex_nut"` + `variantId: "gold-nut"`。
 
 ジオラマ背景は `DioramaStageReference` の `reward` 参照へつなげられるよう、`lib/diorama-stages.ts` で `stageId` と `rewardId` を対応付けます。Phase 3では所持判定まで、Phase 4で `DioramaDocument.stage` に実際の選択結果を保存します。
+
+
+## Phase 4: DioramaDocument の実運用
+
+ジオラマエディタは `coordinateSpace: "diorama-stage-v1"` の640×360相当ローカル座標を使用します。ブラウザの実pxは保存しません。
+
+```ts
+DioramaDocument {
+  stage,
+  robots: [{ placementId, savedRobotId, transform }],
+  items: [{ placementId, customItemId, transform }]
+}
+```
+
+- `placementId`: ジオラマ内の個体。ひとつのsavedRobotを複数回置くために必要
+- `savedRobotId`: アカウントに保存したロボットへの参照
+- `customItemId`: アカウントに保存した工作作品への参照
+- `position[0/1]`: ステージ中心を原点とするX/Y
+- `position[2]`: 2Dの重なり順
+- `rotationDeg[2]`: 2D回転
+- `scale`: 均一スケール
+
+保存時には、選択背景がガチャで獲得済みか、参照ロボット/アイテムが本人のアカウントに存在するかをクライアント保存層で再検証します。

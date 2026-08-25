@@ -14,10 +14,12 @@ import { AccountView } from "@/components/views/account-view"
 import { GachaView } from "@/components/views/gacha-view"
 import { RobotWorkshop } from "@/components/robot/robot-workshop"
 import { CustomItemWorkshop } from "@/components/workbench/custom-item-workshop"
+import { DioramaWorkshop } from "@/components/diorama/diorama-workshop"
 import { RobotAvatar } from "@/components/robot/robot-avatar"
 import { normalizeRobotHeldItem } from "@/lib/robot-held-item"
 import {
   Hammer,
+  Layers3,
   Home,
   ShoppingBag,
   Store,
@@ -35,8 +37,8 @@ const TABS = [
 ] as const
 
 type NavigationTabKey = (typeof TABS)[number]["key"]
-type TabKey = NavigationTabKey | "gacha" | "workbench"
-const VALID_PAGE_TABS = new Set<TabKey>([...TABS.map((item) => item.key), "gacha", "workbench"])
+type TabKey = NavigationTabKey | "gacha" | "workbench" | "diorama"
+const VALID_PAGE_TABS = new Set<TabKey>([...TABS.map((item) => item.key), "gacha", "workbench", "diorama"])
 
 function hrefForTab(tab: TabKey) {
   return tab === "home" ? "?tab=home" : `?tab=${tab}`
@@ -221,10 +223,16 @@ function Site({ initialTab, initialAuthMode }: { initialTab: TabKey; initialAuth
                   てつ工房ボルタ監修。ボルタ＆ナッティ風の、あなただけの鉄の仲間をデザインしよう。
                 </p>
               </div>
-              <button type="button" className={cn(buttonVariants({ variant: "outline" }), "rounded-full")} onClick={() => navigate("workbench")}>
-                <Hammer data-icon="inline-start" />
-                アイテム工作へ
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className={cn(buttonVariants({ variant: "outline" }), "rounded-full")} onClick={() => navigate("workbench")}>
+                  <Hammer data-icon="inline-start" />
+                  アイテム工作へ
+                </button>
+                <button type="button" className={cn(buttonVariants({ variant: "outline" }), "rounded-full")} onClick={() => navigate("diorama")}>
+                  <Layers3 data-icon="inline-start" />
+                  マイジオラマへ
+                </button>
+              </div>
             </div>
             <RobotWorkshop />
           </div>
@@ -237,9 +245,25 @@ function Site({ initialTab, initialAuthMode }: { initialTab: TabKey; initialAuth
                 <h1 className="font-display mt-1 text-3xl font-black">2Dアイテム工作</h1>
                 <p className="mt-2 text-muted-foreground">ネジ・ナット・LEDをつなげて工作し、完成品をボルタ・ナッティに持たせよう。</p>
               </div>
-              <button type="button" className={cn(buttonVariants({ variant: "outline" }), "rounded-full")} onClick={() => navigate("robot")}>ロボット工房へ戻る</button>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className={cn(buttonVariants({ variant: "outline" }), "rounded-full")} onClick={() => navigate("robot")}>ロボット工房へ戻る</button>
+                <button type="button" className={cn(buttonVariants({ variant: "outline" }), "rounded-full")} onClick={() => navigate("diorama")}><Layers3 data-icon="inline-start" />ジオラマへ</button>
+              </div>
             </div>
             <CustomItemWorkshop />
+          </div>
+        )}
+        {tab === "diorama" && (
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <div className="text-sm font-bold text-primary">Phase 4</div>
+                <h1 className="font-display mt-1 text-3xl font-black">マイジオラマ</h1>
+                <p className="mt-2 text-muted-foreground">室蘭の背景に、自作したボルタ・ナッティや工作アイテムを自由に配置しよう。</p>
+              </div>
+              <button type="button" className={cn(buttonVariants({ variant: "outline" }), "rounded-full")} onClick={() => navigate("account")}>マイページへ</button>
+            </div>
+            <DioramaWorkshop />
           </div>
         )}
         {tab === "gacha" && <GachaView onNavigate={navigate} />}

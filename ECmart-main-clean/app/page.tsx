@@ -2,8 +2,8 @@ import { headers } from "next/headers"
 import { SiteClient } from "@/components/site-client"
 import { MobileSite } from "@/components/mobile/mobile-site"
 
-const VALID_TABS = new Set(["home", "shops", "ranking", "robot", "gacha", "workbench", "account", "cart"])
-type TabKey = "home" | "shops" | "ranking" | "robot" | "gacha" | "workbench" | "account" | "cart"
+const VALID_TABS = new Set(["home", "shops", "ranking", "robot", "gacha", "workbench", "diorama", "account", "cart"])
+type TabKey = "home" | "shops" | "ranking" | "robot" | "gacha" | "workbench" | "diorama" | "account" | "cart"
 type SearchParams = Record<string, string | string[] | undefined>
 
 function isMobileUserAgent(userAgent: string) {

@@ -87,7 +87,7 @@ function StageArtwork({ atmosphere }: { atmosphere: string }) {
   )
 }
 
-export function DioramaStagePreview({ stageId, className }: { stageId: string; className?: string }) {
+export function DioramaStagePreview({ stageId, className, showLabel = true }: { stageId: string; className?: string; showLabel?: boolean }) {
   const stage = getDioramaStage(stageId)
   if (!stage) return null
   return (
@@ -95,7 +95,7 @@ export function DioramaStagePreview({ stageId, className }: { stageId: string; c
       <svg viewBox="0 0 640 360" className="h-full w-full" preserveAspectRatio="xMidYMid slice" role="img" aria-label={`${stage.label}のジオラマ背景プレビュー`}>
         <StageArtwork atmosphere={stage.atmosphere} />
       </svg>
-      <div className="absolute inset-x-0 bottom-0 bg-black/45 px-3 py-2 text-sm font-black text-white backdrop-blur-[2px]">{stage.emoji} {stage.label}</div>
+      {showLabel && <div className="absolute inset-x-0 bottom-0 bg-black/45 px-3 py-2 text-sm font-black text-white backdrop-blur-[2px]">{stage.emoji} {stage.label}</div>}
     </div>
   )
 }
