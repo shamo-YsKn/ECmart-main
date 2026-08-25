@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { buttonVariants } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { RobotCharacter } from "@/components/robot/robot-character"
-import { ArrowRight, MapPin, Sparkles, Hammer } from "lucide-react"
+import { ArrowRight, MapPin, MapPinned, Sparkles, Hammer } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export function HomeView({
@@ -50,6 +50,18 @@ export function HomeView({
               >
                 お店をのぞく
                 <ArrowRight data-icon="inline-end" />
+              </a>
+              <a
+                href="?tab=mural"
+                className={cn(buttonVariants({ size: "lg", variant: "outline" }), "rounded-full")}
+                onClick={(event) => {
+                  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+                  event.preventDefault()
+                  onNavigate("mural")
+                }}
+              >
+                <MapPinned data-icon="inline-start" />
+                室蘭マップへ
               </a>
               <a
                 href="?tab=robot"

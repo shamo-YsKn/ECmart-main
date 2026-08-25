@@ -173,9 +173,7 @@ heldItem:
 
 Phase 3の特殊工作素材・背景と、Phase 4のジオラマ編集UI / `dioramas` テーブルまで実装済みです。
 
-今後は、公開作品用のスナップショット、壁画共有テーブル、3D変換を追加します。
-
-次のPhaseで、この共通形式を使って順番に実装します。
+Phase 5では公開壁画用のスナップショット方式も実装しました。ジオラマは参照型、壁画投稿は「投稿時点の見た目を残す」ためスナップショット型という役割分担です。今後はジオラマ公開と3D変換を追加します。
 
 ## 頭部姿勢（Phase 1-2 v3）
 
@@ -225,3 +223,27 @@ DioramaDocument {
 - `scale`: 均一スケール
 
 保存時には、選択背景がガチャで獲得済みか、参照ロボット/アイテムが本人のアカウントに存在するかをクライアント保存層で再検証します。
+
+
+## Phase 5: スポット別壁画の公開スナップショット
+
+壁画レビューは、投稿後に元の保存ロボットを編集・削除してもレビュー当時の見た目を保てるよう、`savedRobotId` だけでなく投稿時の `RobotConfig` を `mural_posts.robot_config` にスナップショット保存します。
+
+自作アイテムを装備している場合は、その `CustomItemDocument` も `custom_item_document` にスナップショット保存します。メールアドレスなどの認証情報は保存しません。
+
+```text
+mural_posts
+  spot_id
+  saved_robot_id
+  author_name
+  robot_name
+  robot_config        # 投稿時スナップショット
+  custom_item_document?
+  review
+  position_x / position_y
+  scale / rotation_deg
+```
+
+壁画座標は0〜100の割合ベースで保存し、ブラウザの実pxには依存しません。NPCはDBへ保存せず `spotId + ローカル日付` をseedにクライアント/サーバーで再現可能に生成します。
+
+実ユーザー投稿とNPCはデータ上も完全に分離し、NPCにはレビュー・作者・いいねを持たせません。

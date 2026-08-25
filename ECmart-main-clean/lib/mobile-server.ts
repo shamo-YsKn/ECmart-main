@@ -3,6 +3,7 @@ import "server-only"
 import { cookies } from "next/headers"
 import type { CartItem, GachaInventoryItem, PurchaseOrder, RobotConfig, SavedRobot } from "@/lib/types"
 import { normalizeRobotConfig, parseSavedRobotRow, sanitizeRobotName } from "@/lib/robot-config"
+import { parseMuralPostRow, type MuralPost } from "@/lib/mural-model"
 
 const ACCESS_COOKIE = "machinowa_mobile_access"
 const CART_COOKIE = "machinowa_mobile_cart"
@@ -88,6 +89,30 @@ async function restGet<T>(path: string, token: string): Promise<T | null> {
   } catch {
     return null
   }
+}
+
+
+async function restPublicGet<T>(path: string): Promise<T | null> {
+  const { url, key } = supabaseConfig()
+  if (!url || !key) return null
+  try {
+    const response = await safeFetch(`${url}/rest/v1/${path}`, {
+      headers: authHeaders(),
+    }, 5000)
+    if (!response.ok) return null
+    return await response.json() as T
+  } catch {
+    return null
+  }
+}
+
+export async function getMobileMuralPosts(spotId: string): Promise<MuralPost[]> {
+  const rows = await restPublicGet<unknown[]>(
+    `mural_posts?select=id,user_id,spot_id,saved_robot_id,author_name,robot_name,robot_config,custom_item_document,review,position_x,position_y,scale,rotation_deg,created_at,updated_at&spot_id=eq.${encodeURIComponent(spotId)}&order=created_at.desc&limit=60`,
+  )
+  return (rows ?? [])
+    .map((row) => parseMuralPostRow(row))
+    .filter((post): post is MuralPost => post !== null)
 }
 
 export async function getMobileAccountData() {

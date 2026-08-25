@@ -1,12 +1,14 @@
 import { randomUUID } from "node:crypto"
 import { formatYen, getProduct, getShop, products, shops, townEvents } from "@/lib/data"
-import { getMobileAccountData, getMobileOrder, readMobileCart } from "@/lib/mobile-server"
+import { getMobileAccountData, getMobileMuralPosts, getMobileOrder, readMobileCart } from "@/lib/mobile-server"
 import type { RobotConfig, ShopCategory } from "@/lib/types"
 import { ROBOT_BASE_OPTIONS, ROBOT_ITEM_OPTIONS, ROBOT_POSE_OPTIONS, ROBOT_VIEW_OPTIONS } from "@/lib/robot-parts"
 import { RobotFallback } from "@/components/robot/robot-fallback"
 import { calculateCartTotals } from "@/lib/purchase"
 import { GACHA_CATEGORY_LABELS, GACHA_COST, GACHA_RARITY_LABELS, getGachaReward, rewardPreview } from "@/lib/gacha"
 import { normalizeRobotConfig } from "@/lib/robot-config"
+import { MURORAN_SPOTS, getMuroranSpot, getSpotProducts } from "@/lib/mural-spots"
+import { generateAmbientMuralRobots, localMuralDateKey } from "@/lib/mural-npc"
 import {
   ROBOT_ACCENT_COLORS,
   ROBOT_BODY_COLORS,
@@ -17,6 +19,7 @@ import {
 const TABS = [
   ["home", "ホーム"],
   ["shops", "ショップ"],
+  ["mural", "まち歩き"],
   ["ranking", "ランキング"],
   ["robot", "工房"],
   ["account", "アカウント"],
@@ -120,6 +123,24 @@ export async function MobileSite({ params }: { params: Params }) {
         {filtered.map((shop) => <Card key={shop.id}><div className="flex items-start gap-3"><div className="text-4xl">{shop.emoji}</div><div className="flex-1"><h2 className="font-display text-lg font-bold">{shop.name}</h2><p className="text-sm font-bold text-primary">{shop.tagline}</p><p className="mt-1 text-sm text-muted-foreground">{shop.town}</p></div></div><a className={`${pill()} mt-4 w-full`} href={q({ tab: "shops", category, shop: shop.id })}>お店を見る</a></Card>)}
       </div>
     }
+  } else if (tab === "mural") {
+    const spot = getMuroranSpot(one(params.spot)) ?? MURORAN_SPOTS[0]
+    const muralPosts = await getMobileMuralPosts(spot.id)
+    const ambientRobots = generateAmbientMuralRobots(
+      spot,
+      muralPosts.length,
+      muralPosts.map((post) => ({ x: post.positionX, y: post.positionY })),
+      localMuralDateKey(),
+    )
+    const spotProducts = getSpotProducts(spot)
+    content = <div className="flex flex-col gap-5">
+      <div><div className="text-sm font-bold text-primary">Phase 5 / まち歩き</div><h1 className="font-display text-3xl font-black">室蘭マップと壁画</h1><p className="mt-2 text-muted-foreground">スポットごとの壁画とレビューをスマホでも閲覧できます。投稿位置の編集はPC版が中心です。</p></div>
+      <Card><div className="grid grid-cols-2 gap-2">{MURORAN_SPOTS.map((entry)=><a key={entry.id} href={q({tab:"mural",spot:entry.id})} className={`${pill(entry.id===spot.id)} justify-start`}><span className="mr-1">{entry.emoji}</span>{entry.shortName}</a>)}</div></Card>
+      <Card><div className="text-4xl">{spot.emoji}</div><h2 className="font-display mt-2 text-2xl font-black">{spot.name}</h2><div className="mt-1 text-sm font-bold text-primary">{spot.muralTitle}</div><p className="mt-2 text-sm text-muted-foreground">{spot.description}</p><div className="mt-3 flex gap-2 text-xs"><span className="rounded-full bg-muted px-2 py-1">ユーザー投稿 {muralPosts.length}</span><span className="rounded-full bg-muted px-2 py-1">街のロボット {ambientRobots.length}</span></div></Card>
+      <Card><h2 className="font-display font-bold">この場所の壁画</h2><p className="mt-1 text-xs text-muted-foreground">「街のロボット」は自動生成で、実ユーザーのレビューではありません。</p><div className="mt-4 grid grid-cols-2 gap-3">{ambientRobots.slice(0,6).map((robot)=><div key={robot.id} className="rounded-xl bg-muted p-2"><div className="aspect-square"><RobotFallback config={robot.config}/></div><div className="text-center text-xs font-bold">{robot.label}</div><div className="text-center text-[10px] text-muted-foreground">自動生成</div></div>)}{muralPosts.map((post)=><details key={post.id} className="rounded-xl border bg-background p-2"><summary className="cursor-pointer list-none"><div className="aspect-square"><RobotFallback config={{...post.robotConfig,view:"front"}} customItemDocument={post.customItemDocument}/></div><div className="text-center text-xs font-bold">{post.authorName}さん</div><div className="text-center text-[10px] text-primary">レビューあり</div></summary><p className="mt-2 rounded-lg bg-muted p-2 text-xs leading-relaxed">「{post.review}」</p></details>)}</div></Card>
+      {spotProducts.length>0&&<div className="flex flex-col gap-3"><h2 className="font-display text-xl font-black">この場所の商品</h2>{spotProducts.slice(0,3).map(product=><ProductRow key={product.id} productId={product.id} favorites={account.favorites} loggedIn={!!account.user} returnTo={returnTo} quantity={quantityOf(product.id)}/>)}</div>}
+      <Card><p className="text-sm text-muted-foreground">壁画への投稿、位置調整、いいね、作者プロフィールはPC版の「まち歩き」で利用できます。</p></Card>
+    </div>
   } else if (tab === "ranking") {
     const kind = one(params.rank) || "monthly"
     const ranked = [...products].sort((a,b) => kind === "all" ? b.soldCount-a.soldCount : b.last30DaysSold-a.last30DaysSold)
@@ -195,5 +216,5 @@ export async function MobileSite({ params }: { params: Params }) {
     content = <div className="flex flex-col gap-8"><section className="rounded-3xl border-2 bg-card p-6"><div className="text-sm font-bold text-primary">北の大地・室蘭のセレクトマーケット</div><h1 className="mt-3 font-display text-4xl font-black">鉄のまちの、おいしさと<br/>手仕事を。</h1><p className="mt-3 text-muted-foreground">室蘭やきとり、うずらプリン、カレーラーメンとロボット工房を楽しめます。</p><div className="mt-5 grid grid-cols-2 gap-2"><a className={pill(true)} href="/?tab=shops">お店をのぞく</a><a className={pill()} href="/?tab=robot">ロボット工房へ</a></div></section><section><h2 className="font-display text-2xl font-black">人気の商品</h2><div className="mt-4 flex flex-col gap-3">{featured.map(p=><ProductRow key={p.id} productId={p.id} favorites={account.favorites} loggedIn={!!account.user} returnTo={returnTo} quantity={quantityOf(p.id)}/>)}</div></section><section><h2 className="font-display text-2xl font-black">室蘭の見どころ</h2><div className="mt-4 flex flex-col gap-3">{townEvents.slice(0,3).map(ev=><Card key={ev.id}><div className="font-bold">{ev.title}</div><p className="mt-1 text-sm text-muted-foreground">{ev.description}</p><a className={`${pill()} mt-3`} href={ev.url}>くわしく見る</a></Card>)}</div></section></div>
   }
 
-  return <><div data-mobile-shell className="min-h-svh bg-background text-foreground"><header className="sticky top-0 z-40 border-b bg-background/95"><div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-4"><a href="/?tab=home" className="font-display text-xl font-black">🔩 マチノワ室蘭</a><div className="text-sm">{account.user ? "ログイン中" : "ゲスト"}</div></div></header><main className="mx-auto max-w-3xl px-4 pb-28 pt-6">{one(params.favoriteError)&&<div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm">{one(params.favoriteError)}</div>}{content}</main><nav className="fixed inset-x-0 bottom-0 z-50 border-t bg-background"><div className="mx-auto grid max-w-3xl grid-cols-6">{TABS.map(([key,label])=><a key={key} href={q({tab:key})} className={`flex min-h-16 items-center justify-center px-1 text-center text-[0.68rem] font-bold ${tab===key?"text-primary":"text-muted-foreground"}`}>{label}{key==="cart"&&cartCount>0?` (${cartCount})`:""}</a>)}</div></nav></div><script src="/mobile-enhance.js" defer></script></>
+  return <><div data-mobile-shell className="min-h-svh bg-background text-foreground"><header className="sticky top-0 z-40 border-b bg-background/95"><div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-4"><a href="/?tab=home" className="font-display text-xl font-black">🔩 マチノワ室蘭</a><div className="text-sm">{account.user ? "ログイン中" : "ゲスト"}</div></div></header><main className="mx-auto max-w-3xl px-4 pb-28 pt-6">{one(params.favoriteError)&&<div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm">{one(params.favoriteError)}</div>}{content}</main><nav className="fixed inset-x-0 bottom-0 z-50 border-t bg-background"><div className="mx-auto grid max-w-3xl grid-cols-7">{TABS.map(([key,label])=><a key={key} href={q({tab:key})} className={`flex min-h-16 items-center justify-center px-1 text-center text-[0.68rem] font-bold ${tab===key?"text-primary":"text-muted-foreground"}`}>{label}{key==="cart"&&cartCount>0?` (${cartCount})`:""}</a>)}</div></nav></div><script src="/mobile-enhance.js" defer></script></>
 }

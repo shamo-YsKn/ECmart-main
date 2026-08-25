@@ -15,11 +15,13 @@ import { GachaView } from "@/components/views/gacha-view"
 import { RobotWorkshop } from "@/components/robot/robot-workshop"
 import { CustomItemWorkshop } from "@/components/workbench/custom-item-workshop"
 import { DioramaWorkshop } from "@/components/diorama/diorama-workshop"
+import { MuralView } from "@/components/mural/mural-view"
 import { RobotAvatar } from "@/components/robot/robot-avatar"
 import { normalizeRobotHeldItem } from "@/lib/robot-held-item"
 import {
   Hammer,
   Layers3,
+  MapPinned,
   Home,
   ShoppingBag,
   Store,
@@ -30,6 +32,7 @@ import {
 const TABS = [
   { key: "home", label: "ホーム", icon: Home },
   { key: "shops", label: "ショップ一覧", icon: Store },
+  { key: "mural", label: "まち歩き", icon: MapPinned },
   { key: "ranking", label: "ランキング", icon: TrendingUp },
   { key: "robot", label: "ロボット工房", icon: Hammer },
   { key: "account", label: "アカウント", icon: UserRound },
@@ -213,6 +216,7 @@ function Site({ initialTab, initialAuthMode }: { initialTab: TabKey; initialAuth
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-28 pt-8 md:pb-16">
         {tab === "home" && <HomeView cart={cart} onNavigate={navigate} />}
         {tab === "shops" && <ShopsView cart={cart} />}
+        {tab === "mural" && <MuralView cart={cart} />}
         {tab === "ranking" && <RankingView cart={cart} />}
         {tab === "robot" && (
           <div className="flex flex-col gap-6">
@@ -282,7 +286,7 @@ function Site({ initialTab, initialAuthMode }: { initialTab: TabKey; initialAuth
       </footer>
 
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur md:hidden">
-        <div className="mx-auto grid max-w-6xl grid-cols-6">
+        <div className="mx-auto grid max-w-6xl grid-cols-7">
           {TABS.map((item) => {
             const active = tab === item.key
             return (

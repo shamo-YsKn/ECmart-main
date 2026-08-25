@@ -33,3 +33,15 @@ there is no automatic account fetch spinner at startup. A manually requested ses
 is still available for the current browser tab.
 
 For deployment beyond LAN testing, HTTPS remains recommended.
+
+## Phase 5: まち歩き / 壁画
+
+スマホのサーバー互換モードでも `?tab=mural` を表示できます。
+
+- スポット選択
+- 場所情報
+- 日替わり「街のボルタ / ナッティ」
+- 公開済みユーザーレビュー
+- 店舗スポットの商品表示・カート追加
+
+壁画上の自由配置投稿、いいね、作者の公開投稿一覧は、現段階ではPC React版を中心に提供します。公開レビュー自体は同じ `mural_posts` を参照します。
