@@ -21,7 +21,7 @@ import {
 } from "@/lib/robot-pose-2d"
 import { cn } from "@/lib/utils"
 
-type HandleId =
+export type PoseHandleId =
   | "leftElbow"
   | "leftHand"
   | "rightElbow"
@@ -33,10 +33,10 @@ type HandleId =
 
 type DragState = {
   pointerId: number
-  handle: HandleId
+  handle: PoseHandleId
 }
 
-const JOINT_BY_HANDLE: Record<HandleId, RobotJointId> = {
+const JOINT_BY_HANDLE: Record<PoseHandleId, RobotJointId> = {
   leftElbow: "leftShoulder",
   leftHand: "leftElbow",
   rightElbow: "rightShoulder",
@@ -47,7 +47,7 @@ const JOINT_BY_HANDLE: Record<HandleId, RobotJointId> = {
   rightFoot: "rightKnee",
 }
 
-function jointPartLabel(handle: HandleId) {
+function jointPartLabel(handle: PoseHandleId) {
   if (handle.endsWith("Elbow")) return "肩"
   if (handle.endsWith("Hand")) return "ひじ"
   if (handle.endsWith("Knee")) return "股関節"
@@ -60,12 +60,16 @@ export function RobotPoseEditor({
   onPoseStateChange,
   className,
   customItemDocument,
+  linkedGuide,
+  onInteractionChange,
 }: {
   config: RobotConfig
   enabled: boolean
   onPoseStateChange: (poseState: RobotPoseState) => void
   className?: string
   customItemDocument?: CustomItemDocument | null
+  linkedGuide?: { config: RobotConfig; handle: PoseHandleId } | null
+  onInteractionChange?: (handle: PoseHandleId | null) => void
 }) {
   const svgRef = useRef<SVGSVGElement | null>(null)
   const [dragState, setDragState] = useState<DragState | null>(null)
@@ -81,7 +85,9 @@ export function RobotPoseEditor({
     leftFoot: layout.feet.left,
     rightKnee: layout.knees.right,
     rightFoot: layout.feet.right,
-  } satisfies Record<HandleId, Point>
+  } satisfies Record<PoseHandleId, Point>
+
+  const linkedLayout = useMemo(() => linkedGuide ? buildRobot2DLayout(linkedGuide.config) : null, [linkedGuide])
 
   function toModelPoint(event: ReactPointerEvent<SVGCircleElement> | PointerEvent): Point | null {
     const svg = svgRef.current
@@ -100,7 +106,7 @@ export function RobotPoseEditor({
     return pointFromViewToAxis(point, config.view)
   }
 
-  function updateFromHandle(handle: HandleId, visiblePoint: Point) {
+  function updateFromHandle(handle: PoseHandleId, visiblePoint: Point) {
     const point = axisPoint(visiblePoint)
     const shoulders = {
       left: axisPoint(layout.shoulders.left),
@@ -158,13 +164,14 @@ export function RobotPoseEditor({
     onPoseStateChange(updatePoseAxis(poseState, layout.axis, patch))
   }
 
-  function startDrag(handle: HandleId, event: ReactPointerEvent<SVGCircleElement>) {
+  function startDrag(handle: PoseHandleId, event: ReactPointerEvent<SVGCircleElement>) {
     if (!enabled) return
     const point = toModelPoint(event)
     if (!point) return
     event.preventDefault()
     event.stopPropagation()
     setDragState({ pointerId: event.pointerId, handle })
+    onInteractionChange?.(handle)
     event.currentTarget.setPointerCapture(event.pointerId)
     updateFromHandle(handle, point)
   }
@@ -181,15 +188,33 @@ export function RobotPoseEditor({
     if (!dragState || dragState.pointerId !== event.pointerId) return
     event.preventDefault()
     setDragState(null)
+    onInteractionChange?.(null)
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId)
     }
   }
 
-  function handleLabel(handle: HandleId) {
+  function handleLabel(handle: PoseHandleId) {
     const side = handle.startsWith("left") ? "left" : "right"
     return `${limbRoleLabel(config.view, side)}の${jointPartLabel(handle)}`
   }
+
+  const linkedGuidePoint = useMemo(() => {
+    if (!linkedGuide || !linkedLayout) return null
+    const sourcePoints = {
+      leftElbow: linkedLayout.elbows.left,
+      leftHand: linkedLayout.hands.left,
+      rightElbow: linkedLayout.elbows.right,
+      rightHand: linkedLayout.hands.right,
+      leftKnee: linkedLayout.knees.left,
+      leftFoot: linkedLayout.feet.left,
+      rightKnee: linkedLayout.knees.right,
+      rightFoot: linkedLayout.feet.right,
+    } satisfies Record<PoseHandleId, Point>
+    const target = handlePoints[linkedGuide.handle]
+    const source = sourcePoints[linkedGuide.handle]
+    return { x: target.x, y: source.y }
+  }, [handlePoints, linkedGuide, linkedLayout])
 
   return (
     <div className={cn("relative h-full w-full", className)}>
@@ -207,7 +232,14 @@ export function RobotPoseEditor({
             <path d={`M${layout.hips.left.x} ${layout.hips.left.y} L${layout.knees.left.x} ${layout.knees.left.y} L${layout.feet.left.x} ${layout.feet.left.y}`} fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2" strokeDasharray="6 4" />
             <path d={`M${layout.hips.right.x} ${layout.hips.right.y} L${layout.knees.right.x} ${layout.knees.right.y} L${layout.feet.right.x} ${layout.feet.right.y}`} fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2" strokeDasharray="6 4" />
 
-            {(Object.keys(handlePoints) as HandleId[]).map((handle) => {
+            {linkedGuidePoint && (
+              <g pointerEvents="none">
+                <circle cx={linkedGuidePoint.x} cy={linkedGuidePoint.y} r="11" fill="rgba(249,115,22,0.16)" stroke="#f97316" strokeWidth="2" strokeDasharray="4 3" />
+                <circle cx={linkedGuidePoint.x} cy={linkedGuidePoint.y} r="4.5" fill="#f97316" stroke="#ffffff" strokeWidth="2" />
+              </g>
+            )}
+
+            {(Object.keys(handlePoints) as PoseHandleId[]).map((handle) => {
               const point = handlePoints[handle]
               const active = dragState?.handle === handle
               return (

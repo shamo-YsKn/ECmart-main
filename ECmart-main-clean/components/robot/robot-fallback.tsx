@@ -11,6 +11,7 @@ import {
   buildRobot2DLayout,
   displayHardwareAngle,
   linePath,
+  normalizeAngle,
   scaledGroupTransform,
   segmentAngleDeg,
   type Point,
@@ -146,10 +147,12 @@ function Limb({ path, bodyColor, opacity = 1 }: { path: string; bodyColor: strin
 }
 
 function handSpec(elbow: Point, hand: Point): HandSpec {
+  // 皿ねじの頭は腕の軸に沿わせるのではなく、実物のように腕先へ
+  // ほぼ直交する向きで取り付く。これで腕を曲げても先端が自然に追従する。
   return {
     x: hand.x,
     y: hand.y,
-    angle: displayHardwareAngle(segmentAngleDeg(elbow, hand)),
+    angle: normalizeAngle(displayHardwareAngle(segmentAngleDeg(elbow, hand)) + 90),
   }
 }
 
@@ -186,10 +189,11 @@ function EyeScrewFront({
 
 function EyeScrewBack({ x, y, metalId, scale = 1 }: { x: number; y: number; metalId: string; scale?: number }) {
   return (
-    <g transform={`translate(${x} ${y}) scale(${scale}) translate(${-x} ${-y})`}>
-      <rect x={x - 5} y={y + 14} width="10" height="12" rx="3" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="2.5" />
-      <circle cx={x} cy={y} r="16" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="3.5" />
-      <circle cx={x} cy={y} r="5" fill="none" stroke="#263943" strokeOpacity=".45" strokeWidth="2" />
+    <g transform={`translate(${x} ${y}) scale(${scale})`}>
+      {/* 目ねじは頭部の前面へ差し込まれているため、背面からは大きなねじ頭ではなく
+          軸と小さなカラーだけが頭の上端からわずかに見える。 */}
+      <rect x="-4" y="-10" width="8" height="18" rx="3" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="2.2" />
+      <ellipse cx="0" cy="-8" rx="8" ry="4.5" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="2.2" />
     </g>
   )
 }
@@ -212,11 +216,12 @@ function FrontOrBackHead({ config, metalId }: { config: RobotConfig; metalId: st
     <g transform={`translate(150 85) translate(${headShiftX} ${headShiftY}) rotate(${headTilt}) translate(-150 -85)`}>
       {isBack ? (
         <>
-          {/* 背面でも、ボルト頭本体と目ねじの裏側を別部品として描画します。 */}
-          <path d="M112 82 L121 74 H179 L188 82 V102 L179 110 H121 L112 102 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" strokeLinejoin="round" />
-          <path d="M121 78 H179" stroke="#fff" strokeOpacity=".28" strokeWidth="3" strokeLinecap="round" />
-          <EyeScrewBack x={132 + eyeShiftX} y={56 + eyeShiftY} metalId={metalId} scale={leftScale} />
-          <EyeScrewBack x={168 + eyeShiftX} y={56 + eyeShiftY} metalId={metalId} scale={rightScale} />
+          {/* 奥にある目ねじの軸を先に描き、六角ボルト頭で大部分を隠す。 */}
+          <EyeScrewBack x={132 + eyeShiftX} y={72 + eyeShiftY} metalId={metalId} scale={leftScale} />
+          <EyeScrewBack x={168 + eyeShiftX} y={72 + eyeShiftY} metalId={metalId} scale={rightScale} />
+          <path d="M112 74 L121 66 H179 L188 74 V96 L179 104 H121 L112 96 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" strokeLinejoin="round" />
+          <path d="M121 70 H179" stroke="#fff" strokeOpacity=".24" strokeWidth="3" strokeLinecap="round" />
+          <path d="M124 98 H176" stroke="#263943" strokeOpacity=".28" strokeWidth="2.5" strokeLinecap="round" />
         </>
       ) : (
         <>
@@ -235,29 +240,30 @@ function SideHead({ config, metalId }: { config: RobotConfig; metalId: string })
   const headShiftX = head.yaw * 0.18
   const headShiftY = head.pitch * 0.14
   const headTilt = head.pitch * 0.28
-  const eyeShiftX = head.eyeYaw * 0.18 + head.yaw * 0.06
-  const eyeShiftY = head.eyePitch * 0.18
+  const eyeShiftX = head.eyeYaw * 0.12 + head.yaw * 0.05
+  const eyeShiftY = head.eyePitch * 0.16
 
   return (
     <g transform={`translate(145 81) translate(${headShiftX} ${headShiftY}) rotate(${headTilt}) translate(-145 -81)`}>
-      {/* 側面の頭部は、共有いただいた図に合わせて
-          左の台形 = ボルト頭
-          右の横長丸み矩形 = 目の役割をするねじの側面
-          として分離表現します。 */}
+      {/* 実物の横姿に合わせ、右側の厚い金属ブロックを六角ボルト頭の側面、
+          左側の薄い台形を「目の＋ねじ頭」の側面として分離する。 */}
 
-      {/* 目ねじ（側面から見た円柱） */}
-      <path d="M116 63 H181 Q193 63 193 75 V87 Q193 99 181 99 H116 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
-      <path d="M123 68 H178" stroke="#fff" strokeOpacity=".34" strokeWidth="3" strokeLinecap="round" />
-      <path d="M116 63 V99" stroke="#263943" strokeOpacity=".42" strokeWidth="3" />
+      {/* 奥側の目ねじ。真横ではほぼ重なるので、少しだけ上・後ろにずらす。 */}
+      <g opacity=".48" transform={`translate(${eyeShiftX + 3} ${eyeShiftY - 6})`}>
+        <rect x="108" y="77" width="15" height="8" rx="2.5" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="2" />
+        <path d="M91 67 L108 72 V90 L91 95 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="2.6" strokeLinejoin="round" />
+      </g>
 
-      {/* 2本の目ねじの重なりを、根元の短い線で控えめに示す */}
-      <path d={`M116 ${75 + eyeShiftY} H122`} stroke="#263943" strokeOpacity=".48" strokeWidth="2.4" strokeLinecap="round" />
-      <path d={`M116 ${87 + eyeShiftY} H122`} stroke="#263943" strokeOpacity=".34" strokeWidth="2.2" strokeLinecap="round" />
+      {/* 六角ボルト頭本体の側面。目ねじとは別部品。 */}
+      <path d="M121 63 H181 Q193 63 193 75 V87 Q193 99 181 99 H121 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
+      <path d="M127 68 H178" stroke="#fff" strokeOpacity=".34" strokeWidth="3" strokeLinecap="round" />
+      <path d="M121 63 V99" stroke="#263943" strokeOpacity=".42" strokeWidth="3" />
 
-      {/* ボルト頭本体（先端の台形） */}
+      {/* 手前側の目ねじ。短い軸を介してボルト頭の前面から突き出す。 */}
       <g transform={`translate(${eyeShiftX} ${eyeShiftY})`}>
-        <path d="M90 61 L116 67 V95 L90 101 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="3.5" strokeLinejoin="round" />
-        <path d="M95 66 L108 70 M95 96 L108 92" stroke="#fff" strokeOpacity=".26" strokeWidth="2" strokeLinecap="round" />
+        <rect x="107" y="76" width="15" height="10" rx="3" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="2.4" />
+        <path d="M87 64 L107 70 V92 L87 98 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="3.2" strokeLinejoin="round" />
+        <path d="M92 70 L102 73 M92 92 L102 89" stroke="#fff" strokeOpacity=".28" strokeWidth="2" strokeLinecap="round" />
       </g>
     </g>
   )

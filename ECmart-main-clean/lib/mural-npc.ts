@@ -1,5 +1,5 @@
 import type { RobotConfig, RobotItem, RobotPose } from "@/lib/types"
-import type { MuroranSpot } from "@/lib/mural-spots"
+import { snapMuralRobotY, type MuroranSpot } from "@/lib/mural-spots"
 import { normalizeRobotConfig } from "@/lib/robot-config"
 
 export interface AmbientMuralRobot {
@@ -78,9 +78,11 @@ export function generateAmbientMuralRobots(
   const result: AmbientMuralRobot[] = []
 
   for (let index = 0; index < count; index += 1) {
-    let position = { x: 12 + random() * 76, y: 43 + random() * 39 }
+    let position = { x: 12 + random() * 76, y: 79.5 }
+    position.y = snapMuralRobotY(spot, position.x, 72 + random() * 14)
     for (let attempt = 0; attempt < 24 && tooClose(position, occupied); attempt += 1) {
-      position = { x: 10 + random() * 80, y: 42 + random() * 41 }
+      position = { x: 10 + random() * 80, y: 79.5 }
+      position.y = snapMuralRobotY(spot, position.x, 72 + random() * 14)
     }
     occupied.push(position)
 

@@ -13,6 +13,7 @@ import { CartView } from "@/components/views/cart-view"
 import { AccountView } from "@/components/views/account-view"
 import { GachaView } from "@/components/views/gacha-view"
 import { RobotWorkshop } from "@/components/robot/robot-workshop"
+import { RobotPoseStudio } from "@/components/robot/robot-pose-studio"
 import { CustomItemWorkshop } from "@/components/workbench/custom-item-workshop"
 import { DioramaWorkshop } from "@/components/diorama/diorama-workshop"
 import { MuralView } from "@/components/mural/mural-view"
@@ -40,8 +41,8 @@ const TABS = [
 ] as const
 
 type NavigationTabKey = (typeof TABS)[number]["key"]
-type TabKey = NavigationTabKey | "gacha" | "workbench" | "diorama"
-const VALID_PAGE_TABS = new Set<TabKey>([...TABS.map((item) => item.key), "gacha", "workbench", "diorama"])
+type TabKey = NavigationTabKey | "gacha" | "workbench" | "diorama" | "pose"
+const VALID_PAGE_TABS = new Set<TabKey>([...TABS.map((item) => item.key), "gacha", "workbench", "diorama", "pose"])
 
 function hrefForTab(tab: TabKey) {
   return tab === "home" ? "?tab=home" : `?tab=${tab}`
@@ -257,6 +258,7 @@ function Site({ initialTab, initialAuthMode }: { initialTab: TabKey; initialAuth
             <CustomItemWorkshop />
           </div>
         )}
+        {tab === "pose" && <RobotPoseStudio />}
         {tab === "diorama" && (
           <div className="flex flex-col gap-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">

@@ -86,3 +86,46 @@ export function unlockedDioramaStages(inventory: GachaInventoryItem[]) {
   const rewardIds = new Set(inventory.map((entry) => entry.rewardId))
   return DIORAMA_STAGES.filter((stage) => !stage.rewardId || rewardIds.has(stage.rewardId))
 }
+
+export interface DioramaPlacementSurface {
+  id: string
+  label: string
+  /** stage SVG pixel coordinates (640 x 360) */
+  xMin: number
+  xMax: number
+  yPx: number
+  kind: "ground" | "platform"
+}
+
+const DIORAMA_PLACEMENT_SURFACES: Record<string, DioramaPlacementSurface[]> = {
+  "starter-workshop": [
+    { id: "ground", label: "工房の床", xMin: 0, xMax: 640, yPx: 326, kind: "ground" },
+  ],
+  "muroran-port": [
+    { id: "ground", label: "港の岸壁", xMin: 0, xMax: 640, yPx: 324, kind: "ground" },
+    { id: "dock", label: "岸壁デッキ", xMin: 0, xMax: 640, yPx: 273, kind: "platform" },
+  ],
+  "muroran-it": [
+    { id: "ground", label: "キャンパスの地面", xMin: 0, xMax: 640, yPx: 324, kind: "ground" },
+    { id: "roof", label: "校舎の屋上", xMin: 130, xMax: 510, yPx: 128, kind: "platform" },
+  ],
+  "chikyu-misaki": [
+    { id: "ground", label: "岬の地面", xMin: 0, xMax: 640, yPx: 330, kind: "ground" },
+    { id: "cliff", label: "岬の高台", xMin: 0, xMax: 230, yPx: 278, kind: "platform" },
+  ],
+  "sokuryozan": [
+    { id: "ground", label: "展望スペース", xMin: 0, xMax: 640, yPx: 330, kind: "ground" },
+  ],
+  "hakucho-bridge": [
+    { id: "ground", label: "手前の地面", xMin: 0, xMax: 640, yPx: 330, kind: "ground" },
+    { id: "bridge-deck", label: "白鳥大橋のデッキ", xMin: 70, xMax: 580, yPx: 238, kind: "platform" },
+  ],
+  "factory-night": [
+    { id: "ground", label: "工場前の地面", xMin: 0, xMax: 640, yPx: 326, kind: "ground" },
+    { id: "low-roof", label: "工場の屋上", xMin: 390, xMax: 560, yPx: 196, kind: "platform" },
+  ],
+}
+
+export function getDioramaPlacementSurfaces(stageId: string) {
+  return DIORAMA_PLACEMENT_SURFACES[stageId] ?? DIORAMA_PLACEMENT_SURFACES[STARTER_DIORAMA_STAGE_ID]
+}

@@ -3,8 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { RobotCharacter, type RobotRenderMode } from "./robot-character"
 import { RobotAvatar } from "./robot-avatar"
-import { RobotPoseEditor } from "./robot-pose-editor"
-import type { RobotBase, RobotConfig, RobotHeadPose, RobotPoseState, SavedRobot } from "@/lib/types"
+import type { RobotBase, RobotConfig, RobotHeadPose, SavedRobot } from "@/lib/types"
 import { useAccount } from "@/lib/account-context"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -16,7 +15,7 @@ import { cn } from "@/lib/utils"
 import { ROBOT_BASE_OPTIONS, ROBOT_ITEM_OPTIONS, ROBOT_POSE_OPTIONS, ROBOT_VIEW_OPTIONS } from "@/lib/robot-parts"
 import { GACHA_COST, inventoryRewardIds } from "@/lib/gacha"
 import { DEFAULT_ROBOT_CONFIG, ROBOT_DRAFT_KEY, normalizeRobotConfig } from "@/lib/robot-config"
-import { clearCustomPose, normalizePoseState } from "@/lib/robot-pose-2d"
+import { normalizePoseState } from "@/lib/robot-pose-2d"
 import {
   DEFAULT_ROBOT_HEAD_POSE,
   EYE_PITCH_LIMIT,
@@ -28,6 +27,7 @@ import {
 import { DEFAULT_CUSTOM_HELD_ITEM_ADJUSTMENT, normalizeRobotHeldItem } from "@/lib/robot-held-item"
 import { CustomItemPreview } from "@/components/workbench/custom-item-preview"
 import { CUSTOM_ITEM_EQUIP_DRAFT_KEY } from "@/lib/custom-item-model"
+import { ROBOT_POSE_STUDIO_DRAFT_KEY } from "@/lib/robot-pose-studio"
 import {
   ROBOT_ACCENT_COLORS,
   ROBOT_BODY_COLORS,
@@ -116,7 +116,7 @@ function Swatches({
   )
 }
 
-function dispatchNavigate(tab: "account" | "robot" | "gacha" | "workbench") {
+function dispatchNavigate(tab: "account" | "robot" | "gacha" | "workbench" | "pose") {
   window.dispatchEvent(new CustomEvent("machinowa:navigate", { detail: { tab } }))
 }
 
@@ -188,11 +188,18 @@ export function RobotWorkshop() {
 
     window.sessionStorage.removeItem(ROBOT_DRAFT_KEY)
     try {
-      const draft = JSON.parse(rawDraft) as { id?: string; config?: unknown }
+      const draft = JSON.parse(rawDraft) as { id?: string; config?: unknown; source?: string }
       if (draft.config) {
         setConfig(normalizeRobotConfig(draft.config))
         setEditingRobotId(draft.id ?? null)
-        setNotice({ type: "success", text: "保存したロボットを工房に読み込みました。" })
+        setNotice({
+          type: "success",
+          text: draft.source === "pose-studio"
+            ? "自由ポーズをロボット工房へ反映しました。"
+            : draft.source === "pose-studio-cancel"
+              ? "自由ポーズ編集をキャンセルして工房へ戻りました。"
+              : "保存したロボットを工房に読み込みました。",
+        })
       }
     } catch {
       setNotice({ type: "error", text: "保存したロボットの読み込みに失敗しました。" })
@@ -275,28 +282,21 @@ export function RobotWorkshop() {
     })
   }
 
-  function setPoseMode(mode: RobotPoseState["mode"]) {
-    if (mode === "custom") setPreviewMode("2d")
+  function setPresetMode() {
     setConfig((current) => {
       const previous = normalizePoseState(current.pose, current.poseState)
-      return {
-        ...current,
-        poseState: { ...previous, mode },
-      }
+      return { ...current, poseState: { ...previous, mode: "preset" } }
     })
   }
 
-  function updateCustomPoseState(poseState: RobotPoseState) {
-    setConfig((current) => ({
-      ...current,
-      pose: poseState.preset,
-      poseState,
-    }))
-  }
-
-  function resetCustomPose() {
-    const preset = config.poseState?.preset ?? config.pose
-    updateCustomPoseState(clearCustomPose(preset))
+  function openPoseStudio() {
+    const poseState = { ...normalizePoseState(config.pose, config.poseState), mode: "custom" as const }
+    const nextConfig = { ...config, pose: poseState.preset, poseState, view: "front" as const }
+    window.sessionStorage.setItem(
+      ROBOT_POSE_STUDIO_DRAFT_KEY,
+      JSON.stringify({ config: nextConfig, originalConfig: config, editingRobotId }),
+    )
+    dispatchNavigate("pose")
   }
 
   function updateHeadPose<K extends keyof RobotHeadPose>(key: K, value: RobotHeadPose[K]) {
@@ -456,11 +456,10 @@ export function RobotWorkshop() {
             <div className="rounded-2xl bg-[radial-gradient(circle_at_50%_35%,var(--color-secondary),var(--color-muted))] p-4">
               <div className="mx-auto flex aspect-square max-w-sm items-center justify-center">
                 {previewMode === "2d" ? (
-                  <RobotPoseEditor
+                  <RobotCharacter
                     config={config}
-                    enabled={config.poseState?.mode === "custom"}
-                    onPoseStateChange={updateCustomPoseState}
                     customItemDocument={equippedCustomItem?.document}
+                    mode="2d"
                     className="h-full w-full transition-all"
                   />
                 ) : (
@@ -508,12 +507,8 @@ export function RobotWorkshop() {
               {previewMode === "3d"
                 ? "PC限定3D：ドラッグで回転、ホイールで拡大縮小できます"
                 : config.poseState?.mode === "custom"
-                  ? config.view === "side"
-                    ? "側面の自由ポーズ：奥側・手前側の腕と脚をそれぞれドラッグできます"
-                    : config.view === "back"
-                      ? "背面の自由ポーズ：正面と同じ身体を後ろ側から編集しています"
-                      : "正面の自由ポーズ：白い丸をドラッグして腕と脚を調整できます"
-                  : "2Dは正面・側面・背面を切り替えられます。自由ポーズなら3方向すべてで編集できます"}
+                  ? "自由ポーズ編集済み。専用画面では正面と側面を同時に見ながら調整できます。"
+                  : "2Dは正面・側面・背面を切り替えられます。自由ポーズは専用画面で編集します。"}
             </p>
           </CardContent>
         </Card>
@@ -656,7 +651,7 @@ export function RobotWorkshop() {
                       size="sm"
                       variant={config.poseState?.mode !== "custom" ? "default" : "ghost"}
                       className="rounded-full"
-                      onClick={() => setPoseMode("preset")}
+                      onClick={setPresetMode}
                     >
                       プリセット
                     </Button>
@@ -665,9 +660,9 @@ export function RobotWorkshop() {
                       size="sm"
                       variant={config.poseState?.mode === "custom" ? "default" : "ghost"}
                       className="rounded-full"
-                      onClick={() => setPoseMode("custom")}
+                      onClick={openPoseStudio}
                     >
-                      自由ポーズ
+                      {config.poseState?.mode === "custom" ? "自由ポーズを再編集" : "自由ポーズを編集"}
                     </Button>
                   </div>
                 </div>
@@ -676,15 +671,13 @@ export function RobotWorkshop() {
                   value={config.poseState?.preset ?? config.pose}
                   onChange={updatePosePreset}
                 />
-                {config.poseState?.mode === "custom" && (
-                  <div className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-3 text-sm text-muted-foreground">
-                    <p>正面では左右方向、側面では前後方向を編集します。背面は正面と同じポーズを後ろから編集するため、向きを切り替えても一体のポーズとしてつながります。</p>
-                    <p className="mt-2">足先の高さ固定はなくし、片足上げ・大股・深いひざ曲げも作りやすくしました。</p>
-                    <Button type="button" size="sm" variant="outline" className="mt-3 rounded-full" onClick={resetCustomPose}>
-                      3方向をプリセット位置に戻す
-                    </Button>
-                  </div>
-                )}
+                <div className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-3 text-sm text-muted-foreground">
+                  <p>自由ポーズは専用画面で、正面と側面を同時に表示して編集します。正面＝左右、側面＝前後の2.5Dポーズとして保存されます。</p>
+                  {config.poseState?.mode === "custom" && <p className="mt-2 font-bold text-primary">現在は自由ポーズが反映されています。</p>}
+                  <Button type="button" size="sm" variant="outline" className="mt-3 rounded-full" onClick={openPoseStudio}>
+                    自由ポーズ専用画面を開く
+                  </Button>
+                </div>
               </div>
               <div className="flex flex-col gap-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">

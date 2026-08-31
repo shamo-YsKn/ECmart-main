@@ -6,7 +6,7 @@ import type { SavedRobot } from "@/lib/types"
 import { useAccount } from "@/lib/account-context"
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client"
 import { normalizeRobotHeldItem } from "@/lib/robot-held-item"
-import { MURORAN_SPOTS, getMuroranSpot, getSpotProducts, getSpotShop, type MuroranSpot } from "@/lib/mural-spots"
+import { MURAL_WALL_ROBOT_LIMIT, MURORAN_SPOTS, getMuroranSpot, getSpotProducts, getSpotShop, snapMuralRobotY, type MuroranSpot } from "@/lib/mural-spots"
 import { generateAmbientMuralRobots, localMuralDateKey, type AmbientMuralRobot } from "@/lib/mural-npc"
 import {
   clampMuralPositionX,
@@ -283,14 +283,19 @@ export function MuralView({ cart }: { cart: CartApi }) {
     void loadSpotPosts(selectedSpotId)
   }, [loadSpotPosts, selectedSpotId])
 
+  const wallPosts = useMemo(
+    () => [...posts].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, MURAL_WALL_ROBOT_LIMIT),
+    [posts],
+  )
+
   const ambientRobots = useMemo(
     () => generateAmbientMuralRobots(
       selectedSpot,
-      posts.length,
-      posts.map((post) => ({ x: post.positionX, y: post.positionY })),
+      wallPosts.length,
+      wallPosts.map((post) => ({ x: post.positionX, y: snapMuralRobotY(selectedSpot, post.positionX, post.positionY) })),
       localMuralDateKey(),
     ),
-    [posts, selectedSpot],
+    [selectedSpot, wallPosts],
   )
 
   const sortedReviews = useMemo(() => {
@@ -326,7 +331,8 @@ export function MuralView({ cart }: { cart: CartApi }) {
     if (!selectedRobot || event.defaultPrevented) return
     const rect = event.currentTarget.getBoundingClientRect()
     const x = clampMuralPositionX(((event.clientX - rect.left) / rect.width) * 100)
-    const y = clampMuralPositionY(((event.clientY - rect.top) / rect.height) * 100)
+    const requestedY = clampMuralPositionY(((event.clientY - rect.top) / rect.height) * 100)
+    const y = snapMuralRobotY(selectedSpot, x, requestedY)
     setPlacement({ x, y })
     setNotice(null)
   }
@@ -510,8 +516,8 @@ export function MuralView({ cart }: { cart: CartApi }) {
             </div>
           </div>
           <div className="flex shrink-0 gap-2 text-xs">
-            <Badge variant="outline" className="rounded-full">投稿 {posts.length}</Badge>
-            <Badge variant="outline" className="rounded-full">街のロボット {ambientRobots.length}</Badge>
+            <Badge variant="outline" className="rounded-full">壁画表示 {wallPosts.length + ambientRobots.length}/{MURAL_WALL_ROBOT_LIMIT}体</Badge>
+            <Badge variant="outline" className="rounded-full">レビュー {posts.length}件</Badge>
           </div>
         </div>
 
@@ -551,13 +557,13 @@ export function MuralView({ cart }: { cart: CartApi }) {
                 />
               ))}
 
-              {posts.map((post) => (
+              {wallPosts.map((post) => (
                 <MuralRobotMarker
                   key={post.id}
                   config={post.robotConfig}
                   customItemDocument={post.customItemDocument}
                   x={post.positionX}
-                  y={post.positionY}
+                  y={snapMuralRobotY(selectedSpot, post.positionX, post.positionY)}
                   scale={post.scale}
                   rotationDeg={post.rotationDeg}
                   generated={false}
@@ -582,7 +588,7 @@ export function MuralView({ cart }: { cart: CartApi }) {
                 </div>
               )}
             </div>
-            <p className="text-xs text-muted-foreground">街のロボットは実ユーザーのレビューではありません。日付とスポットから同じ日の配置を固定生成し、実投稿が増えるほど人数が減ります。</p>
+            <p className="text-xs text-muted-foreground">壁画は見やすさを優先して約5体を表示します。ロボットは地面または対応する建物・橋の足場へ接地し、レビューが増えるほど街のロボットが減ります。全レビューは下の一覧で読めます。</p>
           </div>
 
           <Card className="h-fit border-2">

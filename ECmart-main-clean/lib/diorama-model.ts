@@ -12,10 +12,13 @@ import {
   getDioramaStage,
   getDioramaStageByRewardId,
   type DioramaStageDefinition,
+  getDioramaPlacementSurfaces,
 } from "@/lib/diorama-stages"
 
 export const DIORAMA_DRAFT_KEY = "machinowa:diorama-draft"
 export const DIORAMA_MAX_ROBOTS = 24
+export const DIORAMA_EDITOR_ROBOT_LIMIT = 5
+export const DIORAMA_ROBOT_FOOT_OFFSET = 61
 export const DIORAMA_MAX_ITEMS = 32
 
 export interface SavedDiorama {
@@ -60,6 +63,35 @@ export function normalizeDioramaTransform(value: unknown): SceneTransform {
     position: [clamp(position[0], -305, 305), clamp(position[1], -165, 165), clamp(position[2], 0, 100)],
     rotationDeg: [0, 0, clamp(rotation[2], -180, 180)],
     scale: [uniformScale, uniformScale, uniformScale],
+  }
+}
+
+
+export function snapDioramaRobotTransform(stageId: string, value: SceneTransform): SceneTransform {
+  const transform = normalizeDioramaTransform(value)
+  const scale = transform.scale[0]
+  const xPx = transform.position[0] + 320
+  const requestedFootY = transform.position[1] + 180 + DIORAMA_ROBOT_FOOT_OFFSET * scale
+  const candidates = getDioramaPlacementSurfaces(stageId).filter((surface) => xPx >= surface.xMin && xPx <= surface.xMax)
+  const surfaces = candidates.length > 0 ? candidates : getDioramaPlacementSurfaces(stageId).filter((surface) => surface.kind === "ground")
+  const chosen = surfaces.reduce((best, surface) =>
+    Math.abs(surface.yPx - requestedFootY) < Math.abs(best.yPx - requestedFootY) ? surface : best,
+  surfaces[0])
+  const centerY = chosen.yPx - 180 - DIORAMA_ROBOT_FOOT_OFFSET * scale
+  return {
+    ...transform,
+    position: [transform.position[0], clamp(centerY, -165, 165), transform.position[2]],
+  }
+}
+
+export function groundDioramaDocumentRobots(document: DioramaDocument): DioramaDocument {
+  const stageId = stageIdFromReference(document.stage)
+  return {
+    ...document,
+    robots: document.robots.map((placement) => ({
+      ...placement,
+      transform: snapDioramaRobotTransform(stageId, placement.transform),
+    })),
   }
 }
 

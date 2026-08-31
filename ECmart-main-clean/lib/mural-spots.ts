@@ -1,6 +1,8 @@
 import { products, shops } from "@/lib/data"
 
 export type MuralSpotType = "shop" | "restaurant" | "tourism" | "university" | "workshop" | "port"
+export const MURAL_WALL_ROBOT_LIMIT = 5
+
 export type MuralTheme = "university" | "cape" | "bridge" | "mountain" | "port" | "industrial" | "yakitori" | "ramen" | "farm" | "workshop" | "diner"
 
 export interface MuralAmbientConfig {
@@ -43,8 +45,8 @@ function ambient(
   baseWeights = { volta: 0.55, natty: 0.45 },
 ): MuralAmbientConfig {
   return {
-    targetPopulation,
-    minimumAmbient: 2,
+    targetPopulation: Math.min(MURAL_WALL_ROBOT_LIMIT, targetPopulation),
+    minimumAmbient: 0,
     baseWeights,
     bodyColors,
     accentColors: ACCENTS,
@@ -242,4 +244,38 @@ export function getSpotShop(spot: MuroranSpot) {
 export function getSpotProducts(spot: MuroranSpot) {
   if (!spot.relatedShopId) return []
   return products.filter((product) => product.shopId === spot.relatedShopId)
+}
+
+
+interface MuralPlacementSurface {
+  xMin: number
+  xMax: number
+  centerY: number
+}
+
+const MURAL_PLATFORM_SURFACES: Partial<Record<MuralTheme, MuralPlacementSurface[]>> = {
+  university: [{ xMin: 8, xMax: 43, centerY: 31 }],
+  bridge: [{ xMin: 12, xMax: 88, centerY: 49 }],
+  cape: [{ xMin: 4, xMax: 40, centerY: 65 }],
+  port: [{ xMin: 57, xMax: 86, centerY: 65 }],
+  industrial: [
+    { xMin: 8, xMax: 29, centerY: 41 },
+    { xMin: 34, xMax: 58, centerY: 33 },
+    { xMin: 65, xMax: 92, centerY: 45 },
+  ],
+}
+
+/**
+ * 壁画上のロボットは「空中に自由配置」せず、基本は画面下部の地面へ接地する。
+ * 建物・橋など明確な足場があるテーマでは、クリック位置が近い場合だけその足場へ吸着する。
+ * centerY は MuralRobotMarker の足元（transform-origin: 82%）を考慮した中心座標。
+ */
+export function snapMuralRobotY(spot: MuroranSpot, x: number, requestedY = 79.5) {
+  const groundY = 79.5
+  const candidates = (MURAL_PLATFORM_SURFACES[spot.theme] ?? []).filter((surface) => x >= surface.xMin && x <= surface.xMax)
+  let best = groundY
+  for (const surface of candidates) {
+    if (Math.abs(surface.centerY - requestedY) < Math.abs(best - requestedY)) best = surface.centerY
+  }
+  return best
 }

@@ -6,12 +6,14 @@ import { useAccount } from "@/lib/account-context"
 import {
   DIORAMA_DRAFT_KEY,
   DIORAMA_MAX_ITEMS,
-  DIORAMA_MAX_ROBOTS,
+  DIORAMA_EDITOR_ROBOT_LIMIT,
   createEmptyDioramaDocument,
+  groundDioramaDocumentRobots,
   dioramaStageReferenceFor,
   newDioramaPlacementId,
   normalizeDioramaDocument,
   sanitizeDioramaName,
+  snapDioramaRobotTransform,
   stageIdFromReference,
 } from "@/lib/diorama-model"
 import { getDioramaStage, unlockedDioramaStages } from "@/lib/diorama-stages"
@@ -65,15 +67,16 @@ function copyTransform(transform: SceneTransform): SceneTransform {
   }
 }
 
-function defaultTransform(index: number, kind: "robot" | "item"): SceneTransform {
+function defaultTransform(index: number, kind: "robot" | "item", stageId: string): SceneTransform {
   const x = ((index % 5) - 2) * 70
   const y = kind === "robot" ? 65 + (Math.floor(index / 5) % 2) * 35 : 95 + (Math.floor(index / 5) % 2) * 30
   const scale = kind === "robot" ? 0.78 : 0.72
-  return {
+  const transform: SceneTransform = {
     position: [x, y, 10 + index],
     rotationDeg: [0, 0, 0],
     scale: [scale, scale, scale],
   }
+  return kind === "robot" ? snapDioramaRobotTransform(stageId, transform) : transform
 }
 
 export function DioramaWorkshop() {
@@ -114,7 +117,7 @@ export function DioramaWorkshop() {
       const parsed = JSON.parse(raw) as { id?: string; document?: unknown; stageId?: string }
       if (parsed.document) {
         window.sessionStorage.removeItem(DIORAMA_DRAFT_KEY)
-        setDocument(normalizeDioramaDocument(parsed.document))
+        setDocument(groundDioramaDocumentRobots(normalizeDioramaDocument(parsed.document)))
         setEditingDioramaId(parsed.id ?? null)
         setNotice({ type: "success", text: "保存したジオラマを読み込みました。" })
         return
@@ -123,7 +126,7 @@ export function DioramaWorkshop() {
         const stage = unlockedStages.find((candidate) => candidate.id === parsed.stageId)
         if (!stage) return
         window.sessionStorage.removeItem(DIORAMA_DRAFT_KEY)
-        setDocument((current) => ({ ...current, stage: dioramaStageReferenceFor(stage) }))
+        setDocument((current) => groundDioramaDocumentRobots({ ...current, stage: dioramaStageReferenceFor(stage) }))
         return
       }
       window.sessionStorage.removeItem(DIORAMA_DRAFT_KEY)
@@ -158,7 +161,7 @@ export function DioramaWorkshop() {
 
   function updatePlacementTransform(selection: DioramaSelection, updater: (transform: SceneTransform) => SceneTransform) {
     setDocument((current) => selection.kind === "robot"
-      ? { ...current, robots: current.robots.map((entry) => entry.placementId === selection.placementId ? { ...entry, transform: updater(entry.transform) } : entry) }
+      ? { ...current, robots: current.robots.map((entry) => entry.placementId === selection.placementId ? { ...entry, transform: snapDioramaRobotTransform(stageIdFromReference(current.stage), updater(entry.transform)) } : entry) }
       : { ...current, items: current.items.map((entry) => entry.placementId === selection.placementId ? { ...entry, transform: updater(entry.transform) } : entry) })
   }
 
@@ -178,14 +181,14 @@ export function DioramaWorkshop() {
   }
 
   function addRobot(savedRobotId: string) {
-    if (document.robots.length >= DIORAMA_MAX_ROBOTS) {
-      setNotice({ type: "error", text: `ロボットは1つのジオラマに最大${DIORAMA_MAX_ROBOTS}体まで配置できます。` })
+    if (document.robots.length >= DIORAMA_EDITOR_ROBOT_LIMIT) {
+      setNotice({ type: "error", text: `見やすさを保つため、ロボットは1つのジオラマに${DIORAMA_EDITOR_ROBOT_LIMIT}体まで配置できます。` })
       return
     }
     const placementId = newDioramaPlacementId("robot")
     setDocument((current) => ({
       ...current,
-      robots: [...current.robots, { placementId, savedRobotId, transform: defaultTransform(current.robots.length + current.items.length, "robot") }],
+      robots: [...current.robots, { placementId, savedRobotId, transform: defaultTransform(current.robots.length + current.items.length, "robot", stageIdFromReference(current.stage)) }],
     }))
     setSelected({ kind: "robot", placementId })
   }
@@ -198,7 +201,7 @@ export function DioramaWorkshop() {
     const placementId = newDioramaPlacementId("item")
     setDocument((current) => ({
       ...current,
-      items: [...current.items, { placementId, customItemId, transform: defaultTransform(current.robots.length + current.items.length, "item") }],
+      items: [...current.items, { placementId, customItemId, transform: defaultTransform(current.robots.length + current.items.length, "item", stageIdFromReference(current.stage)) }],
     }))
     setSelected({ kind: "item", placementId })
   }
@@ -215,11 +218,12 @@ export function DioramaWorkshop() {
     if (!selected || !selectedPlacement) return
     if (selected.kind === "robot") {
       const source = document.robots.find((entry) => entry.placementId === selected.placementId)
-      if (!source || document.robots.length >= DIORAMA_MAX_ROBOTS) return
+      if (!source || document.robots.length >= DIORAMA_EDITOR_ROBOT_LIMIT) return
       const placementId = newDioramaPlacementId("robot")
       const transform = copyTransform(source.transform)
-      transform.position = [Math.min(305, transform.position[0] + 28), Math.min(165, transform.position[1] + 20), Math.min(100, transform.position[2] + 1)]
-      setDocument((current) => ({ ...current, robots: [...current.robots, { ...source, placementId, transform }] }))
+      transform.position = [Math.min(305, transform.position[0] + 28), transform.position[1], Math.min(100, transform.position[2] + 1)]
+      const grounded = snapDioramaRobotTransform(currentStageId, transform)
+      setDocument((current) => ({ ...current, robots: [...current.robots, { ...source, placementId, transform: grounded }] }))
       setSelected({ kind: "robot", placementId })
     } else {
       const source = document.items.find((entry) => entry.placementId === selected.placementId)
@@ -243,7 +247,7 @@ export function DioramaWorkshop() {
   function chooseStage(stageId: string) {
     const stage = unlockedStages.find((entry) => entry.id === stageId)
     if (!stage) return
-    setDocument((current) => ({ ...current, stage: dioramaStageReferenceFor(stage) }))
+    setDocument((current) => groundDioramaDocumentRobots({ ...current, stage: dioramaStageReferenceFor(stage) }))
   }
 
   function resetScene() {
@@ -332,7 +336,7 @@ export function DioramaWorkshop() {
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <div ref={canvasRef}><DioramaScenePreview document={document} robots={account.savedRobots} customItems={account.savedCustomItems} selected={selected} onSelect={setSelected} onPointerDown={startDrag} /></div>
-            <div className="rounded-xl border bg-muted/35 p-3 text-xs text-muted-foreground">ロボットやアイテムは何度でも配置できます。選択したものは右側で回転・大きさ・前後関係を調整できます。</div>
+            <div className="rounded-xl border bg-muted/35 p-3 text-xs text-muted-foreground">ロボットは見やすさを優先して最大5体。移動すると地面や対応する建物・橋の上へ自動で接地します。アイテムは自由配置できます。</div>
           </CardContent>
         </Card>
 
