@@ -146,13 +146,14 @@ function Limb({ path, bodyColor, opacity = 1 }: { path: string; bodyColor: strin
   )
 }
 
-function handSpec(elbow: Point, hand: Point): HandSpec {
-  // 皿ねじの頭は腕の軸に沿わせるのではなく、実物のように腕先へ
-  // ほぼ直交する向きで取り付く。これで腕を曲げても先端が自然に追従する。
+function handSpec(elbow: Point, hand: Point, side: "left" | "right"): HandSpec {
+  // 左右の皿ねじは鏡対称。どちらも腕軸へ直交するが、右手は
+  // 左手と同じ +90° ではなく反対側の -90° を使う。
+  const perpendicular = side === "left" ? 90 : -90
   return {
     x: hand.x,
     y: hand.y,
-    angle: normalizeAngle(displayHardwareAngle(segmentAngleDeg(elbow, hand)) + 90),
+    angle: normalizeAngle(displayHardwareAngle(segmentAngleDeg(elbow, hand)) + perpendicular),
   }
 }
 
@@ -275,8 +276,8 @@ function FrontOrBackRobot({ config, metalId, customItemDocument }: { config: Rob
   const rightArmPath = linePath(layout.shoulders.right, layout.elbows.right, layout.hands.right)
   const leftLegPath = linePath(layout.hips.left, layout.knees.left, layout.feet.left)
   const rightLegPath = linePath(layout.hips.right, layout.knees.right, layout.feet.right)
-  const leftHand = handSpec(layout.elbows.left, layout.hands.left)
-  const rightHand = handSpec(layout.elbows.right, layout.hands.right)
+  const leftHand = handSpec(layout.elbows.left, layout.hands.left, "left")
+  const rightHand = handSpec(layout.elbows.right, layout.hands.right, "right")
   const leftFootAngle = displayHardwareAngle(segmentAngleDeg(layout.knees.left, layout.feet.left)) * 0.18
   const rightFootAngle = displayHardwareAngle(segmentAngleDeg(layout.knees.right, layout.feet.right)) * 0.18
 
@@ -319,8 +320,8 @@ function SideRobot({ config, metalId, customItemDocument }: { config: RobotConfi
   const nearArmPath = linePath(layout.shoulders.right, layout.elbows.right, layout.hands.right)
   const farLegPath = linePath(layout.hips.left, layout.knees.left, layout.feet.left)
   const nearLegPath = linePath(layout.hips.right, layout.knees.right, layout.feet.right)
-  const farHand = handSpec(layout.elbows.left, layout.hands.left)
-  const nearHand = handSpec(layout.elbows.right, layout.hands.right)
+  const farHand = handSpec(layout.elbows.left, layout.hands.left, "left")
+  const nearHand = handSpec(layout.elbows.right, layout.hands.right, "right")
   const farFootAngle = displayHardwareAngle(segmentAngleDeg(layout.knees.left, layout.feet.left)) * 0.12
   const nearFootAngle = displayHardwareAngle(segmentAngleDeg(layout.knees.right, layout.feet.right)) * 0.12
 

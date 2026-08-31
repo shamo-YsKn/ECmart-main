@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import type { RobotConfig, RobotPose } from "@/lib/types"
 import { useAccount } from "@/lib/account-context"
 import { ROBOT_DRAFT_KEY, normalizeRobotConfig } from "@/lib/robot-config"
-import { ROBOT_POSE_STUDIO_DRAFT_KEY, type RobotPoseStudioDraft } from "@/lib/robot-pose-studio"
+import { clearRobotPoseStudioDraft, loadRobotPoseStudioDraft, type RobotPoseStudioDraft } from "@/lib/robot-pose-studio"
 import { clearCustomPose, normalizePoseState } from "@/lib/robot-pose-2d"
 import { ROBOT_POSE_OPTIONS } from "@/lib/robot-parts"
 import { normalizeRobotHeldItem } from "@/lib/robot-held-item"
@@ -16,7 +16,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, Check, RotateCcw, Sparkles } from "lucide-react"
 
 function navigateRobot() {
-  window.dispatchEvent(new CustomEvent("machinowa:navigate", { detail: { tab: "robot" } }))
+  const url = new URL(window.location.href)
+  url.searchParams.set("tab", "robot")
+  window.location.assign(url.toString())
 }
 
 function poseLabel(pose: RobotPose) {
@@ -31,7 +33,7 @@ export function RobotPoseStudio() {
   const [active, setActive] = useState<{ view: "front" | "side"; handle: PoseHandleId } | null>(null)
 
   useEffect(() => {
-    const raw = window.sessionStorage.getItem(ROBOT_POSE_STUDIO_DRAFT_KEY)
+    const raw = loadRobotPoseStudioDraft()
     if (!raw) {
       navigateRobot()
       return
@@ -92,7 +94,7 @@ export function RobotPoseStudio() {
       ROBOT_DRAFT_KEY,
       JSON.stringify({ id: editingRobotId, config: nextConfig, source }),
     )
-    window.sessionStorage.removeItem(ROBOT_POSE_STUDIO_DRAFT_KEY)
+    clearRobotPoseStudioDraft()
     navigateRobot()
   }
 

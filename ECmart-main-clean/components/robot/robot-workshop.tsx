@@ -27,7 +27,7 @@ import {
 import { DEFAULT_CUSTOM_HELD_ITEM_ADJUSTMENT, normalizeRobotHeldItem } from "@/lib/robot-held-item"
 import { CustomItemPreview } from "@/components/workbench/custom-item-preview"
 import { CUSTOM_ITEM_EQUIP_DRAFT_KEY } from "@/lib/custom-item-model"
-import { ROBOT_POSE_STUDIO_DRAFT_KEY } from "@/lib/robot-pose-studio"
+import { saveRobotPoseStudioDraft } from "@/lib/robot-pose-studio"
 import {
   ROBOT_ACCENT_COLORS,
   ROBOT_BODY_COLORS,
@@ -292,11 +292,18 @@ export function RobotWorkshop() {
   function openPoseStudio() {
     const poseState = { ...normalizePoseState(config.pose, config.poseState), mode: "custom" as const }
     const nextConfig = { ...config, pose: poseState.preset, poseState, view: "front" as const }
-    window.sessionStorage.setItem(
-      ROBOT_POSE_STUDIO_DRAFT_KEY,
-      JSON.stringify({ config: nextConfig, originalConfig: config, editingRobotId }),
-    )
-    dispatchNavigate("pose")
+    const saved = saveRobotPoseStudioDraft({ config: nextConfig, originalConfig: config, editingRobotId })
+
+    if (!saved) {
+      setNotice({ type: "error", text: "自由ポーズ編集データを一時保存できませんでした。ブラウザのストレージ設定を確認してください。" })
+      return
+    }
+
+    // カスタムイベントだけに依存せず、実URLへ遷移する。
+    // これによりイベントを取りこぼす環境でも専用画面を確実に開ける。
+    const url = new URL(window.location.href)
+    url.searchParams.set("tab", "pose")
+    window.location.assign(url.toString())
   }
 
   function updateHeadPose<K extends keyof RobotHeadPose>(key: K, value: RobotHeadPose[K]) {
