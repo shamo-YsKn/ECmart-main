@@ -11,7 +11,7 @@ requireText("components/robot/robot-pose-studio.tsx", 'view: "front"', "front po
 requireText("components/robot/robot-pose-studio.tsx", 'view: "side"', "side pose editor exists")
 requireText("components/robot/robot-pose-studio.tsx", '背面確認', "back preview exists")
 requireText("components/robot/robot-pose-editor.tsx", 'linkedGuidePoint', "linked projection point exists")
-requireText("components/robot/robot-fallback.tsx", 'const perpendicular = side === "left" ? 90 : -90', "left/right hand heads use mirrored perpendicular directions")
+requireText("components/robot/robot-fallback.tsx", 'const perpendicular = side === "left" ? -90 : 90', "left/right hand heads use mirrored perpendicular directions")
 requireText("components/robot/robot-fallback.tsx", '六角ボルト頭本体の側面', "side head parts are separated")
 requireText("components/robot/robot-fallback.tsx", '背面からは大きなねじ頭ではなく', "rear eye screw placement is revised")
 requireText("lib/diorama-model.ts", 'DIORAMA_EDITOR_ROBOT_LIMIT = 5', "diorama visible robot limit")

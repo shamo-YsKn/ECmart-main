@@ -12,14 +12,15 @@
     "start:network": "next start -H 0.0.0.0 -p 3000",
     "dev:network:webpack": "next dev --webpack -H 0.0.0.0 -p 3000",
     "validate:foundation": "node scripts/validate-foundation.mjs",
-    "check": "npm run typecheck && npm run validate:foundation && npm run validate:phase2-1 && npm run validate:phase2 && npm run validate:phase3 && npm run validate:phase4 && npm run validate:phase5 && npm run validate:phase5-refinement && npm run validate:pose-hotfix",
+    "check": "npm run typecheck && npm run validate:foundation && npm run validate:phase2-1 && npm run validate:phase2 && npm run validate:phase3 && npm run validate:phase4 && npm run validate:phase5 && npm run validate:phase5-refinement && npm run validate:pose-hotfix && npm run validate:pose-sync-fix",
     "validate:phase2-1": "node scripts/validate-phase2-1.mjs",
     "validate:phase2": "node scripts/validate-phase2.mjs",
     "validate:phase3": "node scripts/validate-phase3.mjs",
     "validate:phase4": "node scripts/validate-phase4.mjs",
     "validate:phase5": "node scripts/validate-phase5.mjs",
     "validate:phase5-refinement": "node scripts/validate-phase5-refinement.mjs",
-    "validate:pose-hotfix": "node scripts/validate-pose-hotfix.mjs"
+    "validate:pose-hotfix": "node scripts/validate-pose-hotfix.mjs",
+    "validate:pose-sync-fix": "node scripts/validate-pose-sync-fix.mjs"
   },
   "dependencies": {
     "@vercel/analytics": "1.6.1",

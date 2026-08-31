@@ -253,6 +253,83 @@ export function updatePoseAxis(
   }
 }
 
+
+function linkedAxis(axis: PoseAxis): PoseAxis {
+  return axis === "front" ? "side" : "front"
+}
+
+function parentJointFor(joint: RobotJointId): RobotJointId | null {
+  switch (joint) {
+    case "leftElbow": return "leftShoulder"
+    case "rightElbow": return "rightShoulder"
+    case "leftKnee": return "leftHip"
+    case "rightKnee": return "rightHip"
+    default: return null
+  }
+}
+
+function absoluteSegmentAngle(angles: Required<RobotJointAngles>, joint: RobotJointId) {
+  const parent = parentJointFor(joint)
+  return parent ? normalizeAngle(angles[parent] + angles[joint]) : angles[joint]
+}
+
+function angleWithVerticalDelta(currentTargetAngle: number, sourceBeforeAngle: number, sourceAfterAngle: number) {
+  // 正面と側面は基準角度が異なるため、角度そのものはコピーしません。
+  // 動かした線分の「上下方向成分」の変化量だけを反対ビューへ渡し、
+  // 反対ビューが元々持っていた左右/前後方向（cos の符号）は維持します。
+  const beforeSin = Math.sin(degToRad(sourceBeforeAngle))
+  const afterSin = Math.sin(degToRad(sourceAfterAngle))
+  const targetSin = clamp(Math.sin(degToRad(currentTargetAngle)) + (afterSin - beforeSin), -0.985, 0.985)
+  const targetCosSign = Math.cos(degToRad(currentTargetAngle)) < 0 ? -1 : 1
+  const targetCos = targetCosSign * Math.sqrt(Math.max(0, 1 - targetSin * targetSin))
+  return normalizeAngle((Math.atan2(targetSin, targetCos) * 180) / Math.PI)
+}
+
+/**
+ * 片方のビューを編集したとき、同じ関節チェーンを反対ビューにも連動させます。
+ * front/side の横方向成分は独立のまま保ち、上下方向だけ共有する 2.5D 編集です。
+ */
+export function updatePoseAxisLinked(
+  state: RobotPoseState,
+  axis: PoseAxis,
+  nextAngles: RobotJointAngles,
+): RobotPoseState {
+  const normalized = normalizePoseState(state.preset, state)
+  const beforeSource = resolveJointAngles({ pose: normalized.preset, poseState: normalized }, axis)
+  const targetAxis = linkedAxis(axis)
+  const beforeTarget = resolveJointAngles({ pose: normalized.preset, poseState: normalized }, targetAxis)
+  let updated = updatePoseAxis(normalized, axis, nextAngles)
+  const afterSource = resolveJointAngles({ pose: updated.preset, poseState: updated }, axis)
+  const targetPatch: RobotJointAngles = {}
+
+  for (const joint of ROBOT_POSE_JOINT_IDS) {
+    if (nextAngles[joint] === undefined) continue
+
+    const sourceBeforeAbsolute = absoluteSegmentAngle(beforeSource, joint)
+    const sourceAfterAbsolute = absoluteSegmentAngle(afterSource, joint)
+    const targetBeforeAbsolute = absoluteSegmentAngle(beforeTarget, joint)
+    const targetAfterAbsolute = angleWithVerticalDelta(
+      targetBeforeAbsolute,
+      sourceBeforeAbsolute,
+      sourceAfterAbsolute,
+    )
+
+    const parent = parentJointFor(joint)
+    targetPatch[joint] = clampJointAngle(
+      joint,
+      parent
+        ? normalizeAngle(targetAfterAbsolute - beforeTarget[parent])
+        : targetAfterAbsolute,
+    )
+  }
+
+  if (Object.keys(targetPatch).length > 0) {
+    updated = updatePoseAxis(updated, targetAxis, targetPatch)
+  }
+
+  return updated
+}
+
 export function clearCustomPose(preset: RobotPose): RobotPoseState {
   return {
     mode: "custom",

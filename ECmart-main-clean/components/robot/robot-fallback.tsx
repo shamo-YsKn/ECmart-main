@@ -147,9 +147,9 @@ function Limb({ path, bodyColor, opacity = 1 }: { path: string; bodyColor: strin
 }
 
 function handSpec(elbow: Point, hand: Point, side: "left" | "right"): HandSpec {
-  // 左右の皿ねじは鏡対称。どちらも腕軸へ直交するが、右手は
-  // 左手と同じ +90° ではなく反対側の -90° を使う。
-  const perpendicular = side === "left" ? 90 : -90
+  // 画面上で見た「右手」の皿ねじ向きを基準に左右をそろえる。
+  // 前回hotfixとは符号を反転し、左=-90° / 右=+90° とする。
+  const perpendicular = side === "left" ? -90 : 90
   return {
     x: hand.x,
     y: hand.y,

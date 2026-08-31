@@ -10,6 +10,6 @@ requireText("components/robot/robot-workshop.tsx", 'window.location.assign(url.t
 requireText("lib/robot-pose-studio.ts", "saveRobotPoseStudioDraft", "pose draft storage helper")
 requireText("lib/robot-pose-studio.ts", "window.localStorage", "pose draft storage fallback")
 requireText("components/robot/robot-pose-studio.tsx", 'url.searchParams.set("tab", "robot")', "pose studio return navigation")
-requireText("components/robot/robot-fallback.tsx", 'const perpendicular = side === "left" ? 90 : -90', "right hand orientation is mirrored")
+requireText("components/robot/robot-fallback.tsx", 'const perpendicular = side === "left" ? -90 : 90', "right hand orientation is mirrored")
 
 console.log("POSE_HOTFIX_VALIDATE_OK")

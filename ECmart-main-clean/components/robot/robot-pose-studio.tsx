@@ -105,7 +105,7 @@ export function RobotPoseStudio() {
           <div className="text-sm font-bold text-primary">自由ポーズ専用画面</div>
           <h1 className="font-display mt-1 text-3xl font-black">正面と側面を見ながらポーズ編集</h1>
           <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">
-            正面は左右方向、側面は前後方向を編集します。同じポーズデータを2方向から同時に確認でき、操作中の関節は反対側にもオレンジの点で投影されます。
+            正面は左右方向、側面は前後方向を編集します。片方で関節を動かすと、上下方向の動きがもう片方の関節にも同期して反映されます。オレンジの点は操作中の同じ関節を示します。
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -124,7 +124,7 @@ export function RobotPoseStudio() {
         <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-2">
             <Badge className="rounded-full"><Sparkles className="mr-1 size-3" />基準ポーズ：{poseLabel(config.poseState?.preset ?? config.pose)}</Badge>
-            <span className="text-xs text-muted-foreground">白い丸をドラッグして編集します。反対側に出るオレンジ点は、別方向から見た同じ関節の高さの目安です。</span>
+            <span className="text-xs text-muted-foreground">白い丸をドラッグして編集します。反対ビューの関節線も同期して動き、オレンジ点で操作中の同じ関節を確認できます。</span>
           </div>
           <Button type="button" size="sm" variant="outline" className="rounded-full" onClick={resetPose}><RotateCcw data-icon="inline-start" />自由ポーズをリセット</Button>
         </CardContent>

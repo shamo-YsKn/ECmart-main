@@ -16,7 +16,7 @@ import {
   resolvePoseState,
   scaledGroupTransform,
   segmentAngleDeg,
-  updatePoseAxis,
+  updatePoseAxisLinked,
   type Point,
 } from "@/lib/robot-pose-2d"
 import { cn } from "@/lib/utils"
@@ -161,7 +161,7 @@ export function RobotPoseEditor({
       }
     }
 
-    onPoseStateChange(updatePoseAxis(poseState, layout.axis, patch))
+    onPoseStateChange(updatePoseAxisLinked(poseState, layout.axis, patch))
   }
 
   function startDrag(handle: PoseHandleId, event: ReactPointerEvent<SVGCircleElement>) {
