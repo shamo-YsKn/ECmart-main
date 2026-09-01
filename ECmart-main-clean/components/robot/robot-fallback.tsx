@@ -282,25 +282,25 @@ function SideHead({ config, metalId }: { config: RobotConfig; metalId: string })
   return (
     <g transform={`translate(145 91) translate(${headShiftX} ${headShiftY}) rotate(${headTilt}) translate(-145 -91)`}>
       {/*
-        側面の最終位置関係の微修正。
-        - 下段四角に対して上段パーツをさらに上へ移動
-        - 右斜め上へ伸びていた余分な棒を削除
-        - 目ねじは下段四角から1本だけ斜め右上へ出る構造に整理
+        注記に合わせた再調整。
+        - 上段パーツ群をさらに上へ移動
+        - 右上へ余分に飛び出して見える部分を抑える
+        - 側面目ねじは位置を上げ、右側への張り出しを短くする
       */}
 
       <SideEyeBar
-        startX={150 + eyeShiftX}
-        startY={120 + eyeShiftY}
-        endX={196 + eyeShiftX}
-        endY={77 + eyeShiftY}
+        startX={148 + eyeShiftX}
+        startY={112 + eyeShiftY}
+        endX={183 + eyeShiftX}
+        endY={78 + eyeShiftY}
         metalId={metalId}
         opacity={0.88}
       />
 
-      {/* 上段の横長部品: 下段からしっかり離して上へ */}
-      <path d="M84 40 L104 46 V70 L84 76 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="3.2" strokeLinejoin="round" />
-      <path d="M104 43 H168 Q180 43 180 54 V62 Q180 74 168 74 H104 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
-      <path d="M110 48 H166" stroke="#fff" strokeOpacity=".32" strokeWidth="2.8" strokeLinecap="round" />
+      {/* 上段の横長部品: 下段からさらに離して上へ */}
+      <path d="M84 28 L104 34 V58 L84 64 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="3.2" strokeLinejoin="round" />
+      <path d="M104 31 H168 Q180 31 180 42 V50 Q180 62 168 62 H104 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
+      <path d="M110 36 H166" stroke="#fff" strokeOpacity=".32" strokeWidth="2.8" strokeLinecap="round" />
 
       {/* 下段の頭ボルト本体 */}
       <path d="M102 96 H196 V140 H102 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
