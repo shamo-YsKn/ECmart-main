@@ -217,14 +217,15 @@ function FrontOrBackHead({ config, metalId }: { config: RobotConfig; metalId: st
     <g transform={`translate(150 85) translate(${headShiftX} ${headShiftY}) rotate(${headTilt}) translate(-150 -85)`}>
       {isBack ? (
         <>
-          {/* 背面のボルト頭本体。 */}
+          {/* 背面では目ねじの丸い裏面が2つ、頭の上に独立して見える。
+              先に描き、頭ボルトを後から重ねて下端だけ隠す。 */}
+          <EyeScrewBack x={132 + eyeShiftX} y={47 + eyeShiftY} metalId={metalId} scale={leftScale * 1.08} />
+          <EyeScrewBack x={168 + eyeShiftX} y={47 + eyeShiftY} metalId={metalId} scale={rightScale * 1.08} />
+
+          {/* 背面のボルト頭本体。目ねじとは明確に別部品。 */}
           <path d="M112 74 L121 66 H179 L188 74 V96 L179 104 H121 L112 96 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" strokeLinejoin="round" />
           <path d="M121 70 H179" stroke="#fff" strokeOpacity=".24" strokeWidth="3" strokeLinecap="round" />
           <path d="M124 98 H176" stroke="#263943" strokeOpacity=".28" strokeWidth="2.5" strokeLinecap="round" />
-
-          {/* 参考図どおり、背面では目ねじの丸い裏面が2つ頭部上端に重なって見える。 */}
-          <EyeScrewBack x={132 + eyeShiftX} y={64 + eyeShiftY} metalId={metalId} scale={leftScale} />
-          <EyeScrewBack x={168 + eyeShiftX} y={64 + eyeShiftY} metalId={metalId} scale={rightScale} />
         </>
       ) : (
         <>
@@ -253,11 +254,36 @@ function SideEyeScrew({
   metalId: string
   opacity?: number
 }) {
+  const dx = x2 - x1
+  const dy = y2 - y1
+  const length = Math.hypot(dx, dy) || 1
+  const nx = -dy / length
+  const ny = dx / length
+  const threadMarks = [0.24, 0.38, 0.52, 0.66, 0.8]
+
   return (
     <g opacity={opacity}>
-      <path d={`M${x1} ${y1} L${x2} ${y2}`} fill="none" stroke="#263943" strokeWidth="13" strokeLinecap="round" />
-      <path d={`M${x1} ${y1} L${x2} ${y2}`} fill="none" stroke={`url(#${metalId})`} strokeWidth="8" strokeLinecap="round" />
-      <path d={`M${x1 + 3} ${y1 - 3} L${x2 + 3} ${y2 - 3}`} fill="none" stroke="#fff" strokeOpacity=".28" strokeWidth="2" strokeLinecap="round" />
+      {/* 側面から見た目ねじ。腕と見分けやすいよう細く、ねじらしい溝を入れる。 */}
+      <path d={`M${x1} ${y1} L${x2} ${y2}`} fill="none" stroke="#263943" strokeWidth="9" strokeLinecap="round" />
+      <path d={`M${x1} ${y1} L${x2} ${y2}`} fill="none" stroke={`url(#${metalId})`} strokeWidth="5.5" strokeLinecap="round" />
+      <path d={`M${x1 + nx * 1.2} ${y1 + ny * 1.2} L${x2 + nx * 1.2} ${y2 + ny * 1.2}`} fill="none" stroke="#fff" strokeOpacity=".3" strokeWidth="1.4" strokeLinecap="round" />
+      {threadMarks.map((t) => {
+        const x = x1 + dx * t
+        const y = y1 + dy * t
+        return (
+          <line
+            key={t}
+            x1={x - nx * 3.1}
+            y1={y - ny * 3.1}
+            x2={x + nx * 3.1}
+            y2={y + ny * 3.1}
+            stroke="#263943"
+            strokeOpacity=".38"
+            strokeWidth="1.1"
+            strokeLinecap="round"
+          />
+        )
+      })}
     </g>
   )
 }
@@ -267,38 +293,37 @@ function SideHead({ config, metalId }: { config: RobotConfig; metalId: string })
   const headShiftX = head.yaw * 0.18
   const headShiftY = head.pitch * 0.14
   const headTilt = head.pitch * 0.28
-  const eyeShiftX = head.eyeYaw * 0.12 + head.yaw * 0.05
-  const eyeShiftY = head.eyePitch * 0.16
+  const eyeShiftX = head.eyeYaw * 0.1 + head.yaw * 0.04
+  const eyeShiftY = head.eyePitch * 0.14
 
   return (
     <g transform={`translate(145 81) translate(${headShiftX} ${headShiftY}) rotate(${headTilt}) translate(-145 -81)`}>
       {/*
-        参考図の側面構造：
-        - 左の薄い台形 + 横長の丸い胴が「頭のボルト」
-        - 目用ねじ2本はその前側には置かず、ボルトの後方へ斜めに伸びる
-        - 奥側を先に描き、手前側を少し濃くして前後差を出す
+        参考図に合わせた側面構造。
+        目ねじは頭ボルトの「前面」に置かず、頭の上側〜後方へ長く逃がす。
+        ねじの付け根は頭ボルトに隠れ、見えている部分だけが斜め後方へ伸びる。
       */}
 
-      {/* 奥側の目ねじ。頭ボルトより後方へ伸びる。 */}
+      {/* 奥側の目ねじ：手前側より少し上・薄く。 */}
       <SideEyeScrew
-        x1={128 + eyeShiftX}
-        y1={78 + eyeShiftY}
-        x2={170 + eyeShiftX}
-        y2={43 + eyeShiftY}
+        x1={118 + eyeShiftX}
+        y1={84 + eyeShiftY}
+        x2={183 + eyeShiftX}
+        y2={28 + eyeShiftY}
         metalId={metalId}
-        opacity={0.5}
+        opacity={0.48}
       />
 
-      {/* 手前側の目ねじ。2本目は少し下・後ろから伸びる。 */}
+      {/* 手前側の目ねじ：頭の後方から、より長く斜めに伸ばす。 */}
       <SideEyeScrew
-        x1={164 + eyeShiftX}
-        y1={94 + eyeShiftY}
-        x2={204 + eyeShiftX}
-        y2={61 + eyeShiftY}
+        x1={158 + eyeShiftX}
+        y1={106 + eyeShiftY}
+        x2={222 + eyeShiftX}
+        y2={50 + eyeShiftY}
         metalId={metalId}
       />
 
-      {/* 六角ボルト頭本体の側面。目ねじを「前に付ける」描画はしない。 */}
+      {/* 六角ボルト頭本体の側面。頭ボルト本体を後から描画し、目ねじの付け根を物理的に隠す。 */}
       <path d="M88 63 L108 69 V93 L88 99 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="3.5" strokeLinejoin="round" />
       <path d="M108 66 H178 Q190 66 190 77 V86 Q190 97 178 97 H108 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
       <path d="M114 71 H176" stroke="#fff" strokeOpacity=".34" strokeWidth="3" strokeLinecap="round" />
