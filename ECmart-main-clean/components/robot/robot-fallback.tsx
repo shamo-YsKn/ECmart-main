@@ -278,26 +278,34 @@ function SideHead({ config, metalId }: { config: RobotConfig; metalId: string })
   const headTilt = head.pitch * 0.18
   const eyeShiftX = head.eyeYaw * 0.08 + head.yaw * 0.02
   const eyeShiftY = head.eyePitch * 0.1
+  const eyeClipId = `${metalId}-side-eye-clip`
 
   return (
     <g transform={`translate(145 91) translate(${headShiftX} ${headShiftY}) rotate(${headTilt}) translate(-145 -91)`}>
       {/*
-        注記に合わせた再調整。
-        - 上段パーツ群をさらに上へ移動
-        - 右上へ余分に飛び出して見える部分を抑える
-        - 側面目ねじは位置を上げ、右側への張り出しを短くする
+        不要部分は「減らす」のではなく見えないよう完全に消す。
+        目ねじは装飾パーツで腕の運動学とは独立しているため、
+        四角の外へ飛び出す見え方だけをクリップして削除して問題ない。
       */}
+      <defs>
+        <clipPath id={eyeClipId}>
+          <rect x="102" y="96" width="94" height="44" />
+        </clipPath>
+      </defs>
 
-      <SideEyeBar
-        startX={148 + eyeShiftX}
-        startY={112 + eyeShiftY}
-        endX={183 + eyeShiftX}
-        endY={78 + eyeShiftY}
-        metalId={metalId}
-        opacity={0.88}
-      />
+      {/* 残す目ねじ本体。位置は上寄りにするが、四角の外へ出る部分はクリップで完全に消す。 */}
+      <g clipPath={`url(#${eyeClipId})`}>
+        <SideEyeBar
+          startX={148 + eyeShiftX}
+          startY={104 + eyeShiftY}
+          endX={180 + eyeShiftX}
+          endY={83 + eyeShiftY}
+          metalId={metalId}
+          opacity={0.88}
+        />
+      </g>
 
-      {/* 上段の横長部品: 下段からさらに離して上へ */}
+      {/* 上段の横長部品 */}
       <path d="M84 28 L104 34 V58 L84 64 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="3.2" strokeLinejoin="round" />
       <path d="M104 31 H168 Q180 31 180 42 V50 Q180 62 168 62 H104 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
       <path d="M110 36 H166" stroke="#fff" strokeOpacity=".32" strokeWidth="2.8" strokeLinecap="round" />
