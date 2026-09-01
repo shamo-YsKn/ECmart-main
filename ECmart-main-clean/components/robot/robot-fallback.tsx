@@ -282,40 +282,31 @@ function SideHead({ config, metalId }: { config: RobotConfig; metalId: string })
   return (
     <g transform={`translate(145 91) translate(${headShiftX} ${headShiftY}) rotate(${headTilt}) translate(-145 -91)`}>
       {/*
-        側面の頭部を参考図ベースで再構成。
-        上段: 左台形 + 横長丸み矩形
-        下段: 大きい頭ボルト本体
-        目ねじ2本: それぞれ上段/下段から斜め右上へ伸びる
+        側面の最終位置関係の微修正。
+        - 下段四角に対して上段パーツをさらに上へ移動
+        - 右斜め上へ伸びていた余分な棒を削除
+        - 目ねじは下段四角から1本だけ斜め右上へ出る構造に整理
       */}
 
-      {/* 目ねじは先に描き、頭部を後から重ねて起点を頭の中に入れる。 */}
       <SideEyeBar
-        startX={130 + eyeShiftX}
-        startY={95 + eyeShiftY}
-        endX={179 + eyeShiftX}
-        endY={41 + eyeShiftY}
+        startX={150 + eyeShiftX}
+        startY={120 + eyeShiftY}
+        endX={196 + eyeShiftX}
+        endY={77 + eyeShiftY}
         metalId={metalId}
-        opacity={0.9}
-      />
-      <SideEyeBar
-        startX={151 + eyeShiftX}
-        startY={128 + eyeShiftY}
-        endX={197 + eyeShiftX}
-        endY={83 + eyeShiftY}
-        metalId={metalId}
-        opacity={0.82}
+        opacity={0.88}
       />
 
-      {/* 上段の横長部品 */}
-      <path d="M84 63 L104 69 V93 L84 99 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="3.2" strokeLinejoin="round" />
-      <path d="M104 66 H168 Q180 66 180 77 V85 Q180 97 168 97 H104 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
-      <path d="M110 71 H166" stroke="#fff" strokeOpacity=".32" strokeWidth="2.8" strokeLinecap="round" />
+      {/* 上段の横長部品: 下段からしっかり離して上へ */}
+      <path d="M84 40 L104 46 V70 L84 76 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="3.2" strokeLinejoin="round" />
+      <path d="M104 43 H168 Q180 43 180 54 V62 Q180 74 168 74 H104 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
+      <path d="M110 48 H166" stroke="#fff" strokeOpacity=".32" strokeWidth="2.8" strokeLinecap="round" />
 
-      {/* 下段の頭ボルト本体。図のように上段より大きいブロック。 */}
-      <path d="M102 100 H196 V144 H102 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
-      <path d="M121 100 V144" stroke="#263943" strokeOpacity=".34" strokeWidth="3" />
-      <path d="M170 100 V144" stroke="#263943" strokeOpacity=".34" strokeWidth="3" />
-      <path d="M108 105 H190" stroke="#fff" strokeOpacity=".22" strokeWidth="2.6" strokeLinecap="round" />
+      {/* 下段の頭ボルト本体 */}
+      <path d="M102 96 H196 V140 H102 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
+      <path d="M121 96 V140" stroke="#263943" strokeOpacity=".34" strokeWidth="3" />
+      <path d="M170 96 V140" stroke="#263943" strokeOpacity=".34" strokeWidth="3" />
+      <path d="M108 101 H190" stroke="#fff" strokeOpacity=".22" strokeWidth="2.6" strokeLinecap="round" />
     </g>
   )
 }
