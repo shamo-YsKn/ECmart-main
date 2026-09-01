@@ -283,12 +283,14 @@ function SideHead({ config, metalId }: { config: RobotConfig; metalId: string })
   return (
     <g transform={`translate(145 91) translate(${headShiftX} ${headShiftY}) rotate(${headTilt}) translate(-145 -91)`}>
       {/*
-        画像の赤線に合わせて、側面の下段頭部(六角部分)を上へ32px移動する。
-        これに合わせて、目ねじの表示領域と本体位置も同量だけ上へ追従させる。
+        側面頭部のバランス調整。
+        - 左の台形は少し大きくする
+        - 上段の横長部品はもっと細くする
+        - 下段の四角は高さを約4分の1削る (44 -> 33)
       */}
       <defs>
         <clipPath id={eyeClipId}>
-          <rect x="102" y="64" width="94" height="44" />
+          <rect x="102" y="64" width="94" height="33" />
         </clipPath>
       </defs>
 
@@ -304,14 +306,14 @@ function SideHead({ config, metalId }: { config: RobotConfig; metalId: string })
       </g>
 
       {/* 上段の横長部品 */}
-      <path d="M84 28 L104 34 V58 L84 64 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="3.2" strokeLinejoin="round" />
-      <path d="M104 31 H168 Q180 31 180 42 V50 Q180 62 168 62 H104 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
-      <path d="M110 36 H166" stroke="#fff" strokeOpacity=".32" strokeWidth="2.8" strokeLinecap="round" />
+      <path d="M80 26 L104 32 V60 L80 66 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="3.2" strokeLinejoin="round" />
+      <path d="M104 34 H168 Q180 34 180 42 V50 Q180 58 168 58 H104 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
+      <path d="M110 39 H166" stroke="#fff" strokeOpacity=".32" strokeWidth="2.5" strokeLinecap="round" />
 
-      {/* 下段の頭ボルト本体: y=96..140 -> y=64..108 に上げる */}
-      <path d="M102 64 H196 V108 H102 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
-      <path d="M121 64 V108" stroke="#263943" strokeOpacity=".34" strokeWidth="3" />
-      <path d="M170 64 V108" stroke="#263943" strokeOpacity=".34" strokeWidth="3" />
+      {/* 下段の頭ボルト本体: 高さを 44 -> 33 に縮小 */}
+      <path d="M102 64 H196 V97 H102 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
+      <path d="M121 64 V97" stroke="#263943" strokeOpacity=".34" strokeWidth="3" />
+      <path d="M170 64 V97" stroke="#263943" strokeOpacity=".34" strokeWidth="3" />
       <path d="M108 69 H190" stroke="#fff" strokeOpacity=".22" strokeWidth="2.6" strokeLinecap="round" />
     </g>
   )
