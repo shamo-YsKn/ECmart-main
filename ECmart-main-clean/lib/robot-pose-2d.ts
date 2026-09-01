@@ -285,6 +285,13 @@ function angleWithVerticalDelta(currentTargetAngle: number, sourceBeforeAngle: n
   return normalizeAngle((Math.atan2(targetSin, targetCos) * 180) / Math.PI)
 }
 
+function pseudo3DProjectionScale(orthogonalAbsoluteAngle: number) {
+  // 反対ビューでその部位が「横に開いている」ほど、こちらのビューでは奥行き方向に倒れて見えるため短く見せる。
+  // 真下/真上ではフル長、真横ではほぼ点に近い見え方にします。
+  const visible = Math.abs(Math.sin(degToRad(orthogonalAbsoluteAngle)))
+  return 0.14 + 0.86 * visible
+}
+
 /**
  * 片方のビューを編集したとき、同じ関節チェーンを反対ビューにも連動させます。
  * front/side の横方向成分は独立のまま保ち、上下方向だけ共有する 2.5D 編集です。
@@ -370,7 +377,10 @@ export function buildRobot2DLayout(
   config: Pick<RobotConfig, "base" | "size" | "pose" | "poseState" | "view">,
 ): Robot2DLayout {
   const axis = poseAxisForView(config.view)
-  const joints = resolveJointAngles(config, axis)
+  const frontJoints = resolveJointAngles(config, "front")
+  const sideJoints = resolveJointAngles(config, "side")
+  const joints = axis === "side" ? sideJoints : frontJoints
+  const orthogonalJoints = axis === "side" ? frontJoints : sideJoints
   const isNatty = config.base === "natty"
   const scale = 0.82 + ((Math.min(90, Math.max(20, config.size)) - 20) / 70) * 0.18
 
@@ -387,26 +397,65 @@ export function buildRobot2DLayout(
     ? { left: { x: 145, y: sideHipY }, right: { x: 158, y: sideHipY + 2 } }
     : { left: { x: 138, y: bodyBottomY }, right: { x: 162, y: bodyBottomY } }
 
-  const upperArmLength = side ? 45 : 40
-  const lowerArmLength = side ? 47 : 40
-  const upperLegLength = side ? (isNatty ? 36 : 42) : 38
-  const lowerLegLength = side ? (isNatty ? 42 : 48) : isNatty ? 38 : 45
+  const baseUpperArmLength = side ? 45 : 40
+  const baseLowerArmLength = side ? 47 : 40
+  const baseUpperLegLength = side ? (isNatty ? 36 : 42) : 38
+  const baseLowerLegLength = side ? (isNatty ? 42 : 48) : isNatty ? 38 : 45
+
+  const frontAbs = {
+    leftShoulder: absoluteSegmentAngle(frontJoints, "leftShoulder"),
+    rightShoulder: absoluteSegmentAngle(frontJoints, "rightShoulder"),
+    leftElbow: absoluteSegmentAngle(frontJoints, "leftElbow"),
+    rightElbow: absoluteSegmentAngle(frontJoints, "rightElbow"),
+    leftHip: absoluteSegmentAngle(frontJoints, "leftHip"),
+    rightHip: absoluteSegmentAngle(frontJoints, "rightHip"),
+    leftKnee: absoluteSegmentAngle(frontJoints, "leftKnee"),
+    rightKnee: absoluteSegmentAngle(frontJoints, "rightKnee"),
+  }
+  const sideAbs = {
+    leftShoulder: absoluteSegmentAngle(sideJoints, "leftShoulder"),
+    rightShoulder: absoluteSegmentAngle(sideJoints, "rightShoulder"),
+    leftElbow: absoluteSegmentAngle(sideJoints, "leftElbow"),
+    rightElbow: absoluteSegmentAngle(sideJoints, "rightElbow"),
+    leftHip: absoluteSegmentAngle(sideJoints, "leftHip"),
+    rightHip: absoluteSegmentAngle(sideJoints, "rightHip"),
+    leftKnee: absoluteSegmentAngle(sideJoints, "leftKnee"),
+    rightKnee: absoluteSegmentAngle(sideJoints, "rightKnee"),
+  }
+  const orthoAbs = axis === "side" ? frontAbs : sideAbs
+
+  const upperArmLength = {
+    left: baseUpperArmLength * pseudo3DProjectionScale(orthoAbs.leftShoulder),
+    right: baseUpperArmLength * pseudo3DProjectionScale(orthoAbs.rightShoulder),
+  }
+  const lowerArmLength = {
+    left: baseLowerArmLength * pseudo3DProjectionScale(orthoAbs.leftElbow),
+    right: baseLowerArmLength * pseudo3DProjectionScale(orthoAbs.rightElbow),
+  }
+  const upperLegLength = {
+    left: baseUpperLegLength * pseudo3DProjectionScale(orthoAbs.leftHip),
+    right: baseUpperLegLength * pseudo3DProjectionScale(orthoAbs.rightHip),
+  }
+  const lowerLegLength = {
+    left: baseLowerLegLength * pseudo3DProjectionScale(orthoAbs.leftKnee),
+    right: baseLowerLegLength * pseudo3DProjectionScale(orthoAbs.rightKnee),
+  }
 
   const elbowsAxis = {
-    left: pointFrom(shouldersAxis.left, joints.leftShoulder, upperArmLength),
-    right: pointFrom(shouldersAxis.right, joints.rightShoulder, upperArmLength),
+    left: pointFrom(shouldersAxis.left, joints.leftShoulder, upperArmLength.left),
+    right: pointFrom(shouldersAxis.right, joints.rightShoulder, upperArmLength.right),
   }
   const handsAxis = {
-    left: pointFrom(elbowsAxis.left, joints.leftShoulder + joints.leftElbow, lowerArmLength),
-    right: pointFrom(elbowsAxis.right, joints.rightShoulder + joints.rightElbow, lowerArmLength),
+    left: pointFrom(elbowsAxis.left, joints.leftShoulder + joints.leftElbow, lowerArmLength.left),
+    right: pointFrom(elbowsAxis.right, joints.rightShoulder + joints.rightElbow, lowerArmLength.right),
   }
   const kneesAxis = {
-    left: pointFrom(hipsAxis.left, joints.leftHip, upperLegLength),
-    right: pointFrom(hipsAxis.right, joints.rightHip, upperLegLength),
+    left: pointFrom(hipsAxis.left, joints.leftHip, upperLegLength.left),
+    right: pointFrom(hipsAxis.right, joints.rightHip, upperLegLength.right),
   }
   const feetAxis = {
-    left: pointFrom(kneesAxis.left, joints.leftHip + joints.leftKnee, lowerLegLength),
-    right: pointFrom(kneesAxis.right, joints.rightHip + joints.rightKnee, lowerLegLength),
+    left: pointFrom(kneesAxis.left, joints.leftHip + joints.leftKnee, lowerLegLength.left),
+    right: pointFrom(kneesAxis.right, joints.rightHip + joints.rightKnee, lowerLegLength.right),
   }
 
   return {

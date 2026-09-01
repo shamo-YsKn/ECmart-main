@@ -72,10 +72,29 @@ export type RobotJointId =
 
 export type RobotJointAngles = Partial<Record<RobotJointId, number>>
 
+export type RobotSpatialSegmentId =
+  | "leftUpperArm"
+  | "leftLowerArm"
+  | "rightUpperArm"
+  | "rightLowerArm"
+  | "leftUpperLeg"
+  | "leftLowerLeg"
+  | "rightUpperLeg"
+  | "rightLowerLeg"
+
+export interface RobotSpatialVector {
+  x: number
+  y: number
+  z: number
+}
+
+export type RobotPoseSpatial = Partial<Record<RobotSpatialSegmentId, RobotSpatialVector>>
+
 /**
  * 2D自由ポーズの2.5D保存形式。
  * front は正面/背面で共有する左右方向、side は側面で編集する前後方向。
  * joints はPhase 1-2 v1互換のfront軸エイリアスとして残します。
+ * spatial は疑似3D同期用の内部表現で、旧保存データがなくても自動補完します。
  */
 export interface RobotPoseState {
   mode: "preset" | "custom"
@@ -85,6 +104,7 @@ export interface RobotPoseState {
     front?: RobotJointAngles
     side?: RobotJointAngles
   }
+  spatial?: RobotPoseSpatial
 }
 
 /**
