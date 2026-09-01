@@ -239,51 +239,37 @@ function FrontOrBackHead({ config, metalId }: { config: RobotConfig; metalId: st
   )
 }
 
-function SideEyeScrew({
-  x1,
-  y1,
-  x2,
-  y2,
+function SideEyeScrewProfile({
+  startX,
+  startY,
+  endX,
+  endY,
   metalId,
   opacity = 1,
 }: {
-  x1: number
-  y1: number
-  x2: number
-  y2: number
+  startX: number
+  startY: number
+  endX: number
+  endY: number
   metalId: string
   opacity?: number
 }) {
-  const dx = x2 - x1
-  const dy = y2 - y1
-  const length = Math.hypot(dx, dy) || 1
-  const nx = -dy / length
-  const ny = dx / length
-  const threadMarks = [0.24, 0.38, 0.52, 0.66, 0.8]
+  const dx = endX - startX
+  const dy = endY - startY
+  const length = Math.max(26, Math.hypot(dx, dy) || 1)
+  const angle = (Math.atan2(dy, dx) * 180) / Math.PI
+  const shaftLength = Math.max(14, length - 18)
 
   return (
-    <g opacity={opacity}>
-      {/* 側面から見た目ねじ。腕と見分けやすいよう細く、ねじらしい溝を入れる。 */}
-      <path d={`M${x1} ${y1} L${x2} ${y2}`} fill="none" stroke="#263943" strokeWidth="9" strokeLinecap="round" />
-      <path d={`M${x1} ${y1} L${x2} ${y2}`} fill="none" stroke={`url(#${metalId})`} strokeWidth="5.5" strokeLinecap="round" />
-      <path d={`M${x1 + nx * 1.2} ${y1 + ny * 1.2} L${x2 + nx * 1.2} ${y2 + ny * 1.2}`} fill="none" stroke="#fff" strokeOpacity=".3" strokeWidth="1.4" strokeLinecap="round" />
-      {threadMarks.map((t) => {
-        const x = x1 + dx * t
-        const y = y1 + dy * t
-        return (
-          <line
-            key={t}
-            x1={x - nx * 3.1}
-            y1={y - ny * 3.1}
-            x2={x + nx * 3.1}
-            y2={y + ny * 3.1}
-            stroke="#263943"
-            strokeOpacity=".38"
-            strokeWidth="1.1"
-            strokeLinecap="round"
-          />
-        )
-      })}
+    <g opacity={opacity} transform={`translate(${startX} ${startY}) rotate(${angle})`}>
+      {/* 側面から見た目ねじの専用形状。
+          「謎の棒」に見えないよう、露出している皿ねじ頭 + 軸 + スリットを別形状で描く。 */}
+      <path d="M-11 -8 L2 -8 L12 -4 L12 4 L2 8 L-11 8 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="3" strokeLinejoin="round" />
+      <rect x="8" y="-4.5" width={shaftLength} height="9" rx="4.5" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="2.6" />
+      <path d={`M-2 0 H${Math.max(6, shaftLength - 4)}`} stroke="#111" strokeWidth="2" strokeLinecap="round" opacity=".72" />
+      <path d={`M-6 -4 H6`} stroke="#fff" strokeOpacity=".35" strokeWidth="1.7" strokeLinecap="round" />
+      <path d={`M12 -2.6 H${8 + shaftLength - 4}`} stroke="#fff" strokeOpacity=".25" strokeWidth="1.2" strokeLinecap="round" />
+      <circle cx={8 + shaftLength} cy="0" r="1.8" fill="#263943" fillOpacity=".25" />
     </g>
   )
 }
@@ -293,41 +279,45 @@ function SideHead({ config, metalId }: { config: RobotConfig; metalId: string })
   const headShiftX = head.yaw * 0.18
   const headShiftY = head.pitch * 0.14
   const headTilt = head.pitch * 0.28
-  const eyeShiftX = head.eyeYaw * 0.1 + head.yaw * 0.04
-  const eyeShiftY = head.eyePitch * 0.14
+  const eyeShiftX = head.eyeYaw * 0.08 + head.yaw * 0.03
+  const eyeShiftY = head.eyePitch * 0.12
 
   return (
     <g transform={`translate(145 81) translate(${headShiftX} ${headShiftY}) rotate(${headTilt}) translate(-145 -81)`}>
       {/*
-        参考図に合わせた側面構造。
-        目ねじは頭ボルトの「前面」に置かず、頭の上側〜後方へ長く逃がす。
-        ねじの付け根は頭ボルトに隠れ、見えている部分だけが斜め後方へ伸びる。
+        側面は一度リセットして描き直す。
+        目ねじを「棒」ではなく、側面から見た皿ねじとして別形状で描く。
+        2本とも頭ボルトの後方側から生え、付け根は頭ボルトに隠れる構造にする。
       */}
 
-      {/* 奥側の目ねじ：手前側より少し上・薄く。 */}
-      <SideEyeScrew
-        x1={118 + eyeShiftX}
-        y1={84 + eyeShiftY}
-        x2={183 + eyeShiftX}
-        y2={28 + eyeShiftY}
+      {/* 奥側の目ねじ：上側。 */}
+      <SideEyeScrewProfile
+        startX={176 + eyeShiftX}
+        startY={31 + eyeShiftY}
+        endX={132 + eyeShiftX}
+        endY={73 + eyeShiftY}
         metalId={metalId}
-        opacity={0.48}
+        opacity={0.52}
       />
 
-      {/* 手前側の目ねじ：頭の後方から、より長く斜めに伸ばす。 */}
-      <SideEyeScrew
-        x1={158 + eyeShiftX}
-        y1={106 + eyeShiftY}
-        x2={222 + eyeShiftX}
-        y2={50 + eyeShiftY}
+      {/* 手前側の目ねじ：少し下。 */}
+      <SideEyeScrewProfile
+        startX={205 + eyeShiftX}
+        startY={61 + eyeShiftY}
+        endX={154 + eyeShiftX}
+        endY={98 + eyeShiftY}
         metalId={metalId}
       />
 
-      {/* 六角ボルト頭本体の側面。頭ボルト本体を後から描画し、目ねじの付け根を物理的に隠す。 */}
+      {/* 六角ボルト頭本体の側面。頭ボルトを後から描いて、目ねじの根元を隠す。 */}
       <path d="M88 63 L108 69 V93 L88 99 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="3.5" strokeLinejoin="round" />
       <path d="M108 66 H178 Q190 66 190 77 V86 Q190 97 178 97 H108 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
       <path d="M114 71 H176" stroke="#fff" strokeOpacity=".34" strokeWidth="3" strokeLinecap="round" />
       <path d="M108 67 V96" stroke="#263943" strokeOpacity=".42" strokeWidth="3" />
+
+      {/* ねじの差し込み位置のヒント。 */}
+      <circle cx={130 + eyeShiftX} cy={74 + eyeShiftY} r="2.2" fill="#263943" fillOpacity=".35" />
+      <circle cx={152 + eyeShiftX} cy={98 + eyeShiftY} r="2.2" fill="#263943" fillOpacity=".35" />
     </g>
   )
 }
