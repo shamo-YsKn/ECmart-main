@@ -191,10 +191,10 @@ function EyeScrewFront({
 function EyeScrewBack({ x, y, metalId, scale = 1 }: { x: number; y: number; metalId: string; scale?: number }) {
   return (
     <g transform={`translate(${x} ${y}) scale(${scale})`}>
-      {/* 目ねじは頭部の前面へ差し込まれているため、背面からは大きなねじ頭ではなく
-          軸と小さなカラーだけが頭の上端からわずかに見える。 */}
-      <rect x="-4" y="-10" width="8" height="18" rx="3" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="2.2" />
-      <ellipse cx="0" cy="-8" rx="8" ry="4.5" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="2.2" />
+      {/* 背面からは＋溝ではなく、目ねじ頭の裏側の円形だけが見える。 */}
+      <circle r="18" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="3.5" />
+      <circle r="11.5" fill="none" stroke="#263943" strokeOpacity=".58" strokeWidth="2" />
+      <path d="M-9 -9 Q0 -14 9 -9" fill="none" stroke="#fff" strokeOpacity=".24" strokeWidth="2" strokeLinecap="round" />
     </g>
   )
 }
@@ -217,12 +217,14 @@ function FrontOrBackHead({ config, metalId }: { config: RobotConfig; metalId: st
     <g transform={`translate(150 85) translate(${headShiftX} ${headShiftY}) rotate(${headTilt}) translate(-150 -85)`}>
       {isBack ? (
         <>
-          {/* 奥にある目ねじの軸を先に描き、六角ボルト頭で大部分を隠す。 */}
-          <EyeScrewBack x={132 + eyeShiftX} y={72 + eyeShiftY} metalId={metalId} scale={leftScale} />
-          <EyeScrewBack x={168 + eyeShiftX} y={72 + eyeShiftY} metalId={metalId} scale={rightScale} />
+          {/* 背面のボルト頭本体。 */}
           <path d="M112 74 L121 66 H179 L188 74 V96 L179 104 H121 L112 96 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" strokeLinejoin="round" />
           <path d="M121 70 H179" stroke="#fff" strokeOpacity=".24" strokeWidth="3" strokeLinecap="round" />
           <path d="M124 98 H176" stroke="#263943" strokeOpacity=".28" strokeWidth="2.5" strokeLinecap="round" />
+
+          {/* 参考図どおり、背面では目ねじの丸い裏面が2つ頭部上端に重なって見える。 */}
+          <EyeScrewBack x={132 + eyeShiftX} y={64 + eyeShiftY} metalId={metalId} scale={leftScale} />
+          <EyeScrewBack x={168 + eyeShiftX} y={64 + eyeShiftY} metalId={metalId} scale={rightScale} />
         </>
       ) : (
         <>
@@ -232,6 +234,30 @@ function FrontOrBackHead({ config, metalId }: { config: RobotConfig; metalId: st
           <EyeScrewFront x={168 + eyeShiftX} y={67 + eyeShiftY} metalId={metalId} accentColor={config.accentColor} scale={rightScale} />
         </>
       )}
+    </g>
+  )
+}
+
+function SideEyeScrew({
+  x1,
+  y1,
+  x2,
+  y2,
+  metalId,
+  opacity = 1,
+}: {
+  x1: number
+  y1: number
+  x2: number
+  y2: number
+  metalId: string
+  opacity?: number
+}) {
+  return (
+    <g opacity={opacity}>
+      <path d={`M${x1} ${y1} L${x2} ${y2}`} fill="none" stroke="#263943" strokeWidth="13" strokeLinecap="round" />
+      <path d={`M${x1} ${y1} L${x2} ${y2}`} fill="none" stroke={`url(#${metalId})`} strokeWidth="8" strokeLinecap="round" />
+      <path d={`M${x1 + 3} ${y1 - 3} L${x2 + 3} ${y2 - 3}`} fill="none" stroke="#fff" strokeOpacity=".28" strokeWidth="2" strokeLinecap="round" />
     </g>
   )
 }
@@ -246,26 +272,37 @@ function SideHead({ config, metalId }: { config: RobotConfig; metalId: string })
 
   return (
     <g transform={`translate(145 81) translate(${headShiftX} ${headShiftY}) rotate(${headTilt}) translate(-145 -81)`}>
-      {/* 実物の横姿に合わせ、右側の厚い金属ブロックを六角ボルト頭の側面、
-          左側の薄い台形を「目の＋ねじ頭」の側面として分離する。 */}
+      {/*
+        参考図の側面構造：
+        - 左の薄い台形 + 横長の丸い胴が「頭のボルト」
+        - 目用ねじ2本はその前側には置かず、ボルトの後方へ斜めに伸びる
+        - 奥側を先に描き、手前側を少し濃くして前後差を出す
+      */}
 
-      {/* 奥側の目ねじ。真横ではほぼ重なるので、少しだけ上・後ろにずらす。 */}
-      <g opacity=".48" transform={`translate(${eyeShiftX + 3} ${eyeShiftY - 6})`}>
-        <rect x="108" y="77" width="15" height="8" rx="2.5" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="2" />
-        <path d="M91 67 L108 72 V90 L91 95 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="2.6" strokeLinejoin="round" />
-      </g>
+      {/* 奥側の目ねじ。頭ボルトより後方へ伸びる。 */}
+      <SideEyeScrew
+        x1={128 + eyeShiftX}
+        y1={78 + eyeShiftY}
+        x2={170 + eyeShiftX}
+        y2={43 + eyeShiftY}
+        metalId={metalId}
+        opacity={0.5}
+      />
 
-      {/* 六角ボルト頭本体の側面。目ねじとは別部品。 */}
-      <path d="M121 63 H181 Q193 63 193 75 V87 Q193 99 181 99 H121 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
-      <path d="M127 68 H178" stroke="#fff" strokeOpacity=".34" strokeWidth="3" strokeLinecap="round" />
-      <path d="M121 63 V99" stroke="#263943" strokeOpacity=".42" strokeWidth="3" />
+      {/* 手前側の目ねじ。2本目は少し下・後ろから伸びる。 */}
+      <SideEyeScrew
+        x1={164 + eyeShiftX}
+        y1={94 + eyeShiftY}
+        x2={204 + eyeShiftX}
+        y2={61 + eyeShiftY}
+        metalId={metalId}
+      />
 
-      {/* 手前側の目ねじ。短い軸を介してボルト頭の前面から突き出す。 */}
-      <g transform={`translate(${eyeShiftX} ${eyeShiftY})`}>
-        <rect x="107" y="76" width="15" height="10" rx="3" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="2.4" />
-        <path d="M87 64 L107 70 V92 L87 98 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="3.2" strokeLinejoin="round" />
-        <path d="M92 70 L102 73 M92 92 L102 89" stroke="#fff" strokeOpacity=".28" strokeWidth="2" strokeLinecap="round" />
-      </g>
+      {/* 六角ボルト頭本体の側面。目ねじを「前に付ける」描画はしない。 */}
+      <path d="M88 63 L108 69 V93 L88 99 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="3.5" strokeLinejoin="round" />
+      <path d="M108 66 H178 Q190 66 190 77 V86 Q190 97 178 97 H108 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
+      <path d="M114 71 H176" stroke="#fff" strokeOpacity=".34" strokeWidth="3" strokeLinecap="round" />
+      <path d="M108 67 V96" stroke="#263943" strokeOpacity=".42" strokeWidth="3" />
     </g>
   )
 }
