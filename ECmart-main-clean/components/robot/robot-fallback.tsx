@@ -283,23 +283,21 @@ function SideHead({ config, metalId }: { config: RobotConfig; metalId: string })
   return (
     <g transform={`translate(145 91) translate(${headShiftX} ${headShiftY}) rotate(${headTilt}) translate(-145 -91)`}>
       {/*
-        不要部分は「減らす」のではなく見えないよう完全に消す。
-        目ねじは装飾パーツで腕の運動学とは独立しているため、
-        四角の外へ飛び出す見え方だけをクリップして削除して問題ない。
+        画像の赤線に合わせて、側面の下段頭部(六角部分)を上へ32px移動する。
+        これに合わせて、目ねじの表示領域と本体位置も同量だけ上へ追従させる。
       */}
       <defs>
         <clipPath id={eyeClipId}>
-          <rect x="102" y="96" width="94" height="44" />
+          <rect x="102" y="64" width="94" height="44" />
         </clipPath>
       </defs>
 
-      {/* 残す目ねじ本体。位置は上寄りにするが、四角の外へ出る部分はクリップで完全に消す。 */}
       <g clipPath={`url(#${eyeClipId})`}>
         <SideEyeBar
           startX={148 + eyeShiftX}
-          startY={104 + eyeShiftY}
+          startY={72 + eyeShiftY}
           endX={180 + eyeShiftX}
-          endY={83 + eyeShiftY}
+          endY={51 + eyeShiftY}
           metalId={metalId}
           opacity={0.88}
         />
@@ -310,11 +308,11 @@ function SideHead({ config, metalId }: { config: RobotConfig; metalId: string })
       <path d="M104 31 H168 Q180 31 180 42 V50 Q180 62 168 62 H104 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
       <path d="M110 36 H166" stroke="#fff" strokeOpacity=".32" strokeWidth="2.8" strokeLinecap="round" />
 
-      {/* 下段の頭ボルト本体 */}
-      <path d="M102 96 H196 V140 H102 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
-      <path d="M121 96 V140" stroke="#263943" strokeOpacity=".34" strokeWidth="3" />
-      <path d="M170 96 V140" stroke="#263943" strokeOpacity=".34" strokeWidth="3" />
-      <path d="M108 101 H190" stroke="#fff" strokeOpacity=".22" strokeWidth="2.6" strokeLinecap="round" />
+      {/* 下段の頭ボルト本体: y=96..140 -> y=64..108 に上げる */}
+      <path d="M102 64 H196 V108 H102 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
+      <path d="M121 64 V108" stroke="#263943" strokeOpacity=".34" strokeWidth="3" />
+      <path d="M170 64 V108" stroke="#263943" strokeOpacity=".34" strokeWidth="3" />
+      <path d="M108 69 H190" stroke="#fff" strokeOpacity=".22" strokeWidth="2.6" strokeLinecap="round" />
     </g>
   )
 }
