@@ -283,10 +283,10 @@ function SideHead({ config, metalId }: { config: RobotConfig; metalId: string })
   return (
     <g transform={`translate(145 91) translate(${headShiftX} ${headShiftY}) rotate(${headTilt}) translate(-145 -91)`}>
       {/*
-        側面頭部のバランス調整。
-        - 左の台形は少し大きくする
-        - 上段の横長部品はもっと細くする
-        - 下段の四角は高さを約4分の1削る (44 -> 33)
+        側面頭部の追加微調整。
+        - 頭(下段四角)の上端と、上段ボルトの下端をそろえる
+        - 上段ボルトは赤線分だけ少し短くする
+        - それに合わせて左台形も下げて接続感を整える
       */}
       <defs>
         <clipPath id={eyeClipId}>
@@ -306,9 +306,9 @@ function SideHead({ config, metalId }: { config: RobotConfig; metalId: string })
       </g>
 
       {/* 上段の横長部品 */}
-      <path d="M80 26 L104 32 V60 L80 66 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="3.2" strokeLinejoin="round" />
-      <path d="M104 34 H168 Q180 34 180 42 V50 Q180 58 168 58 H104 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
-      <path d="M110 39 H166" stroke="#fff" strokeOpacity=".32" strokeWidth="2.5" strokeLinecap="round" />
+      <path d="M80 32 L104 38 V66 L80 72 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="3.2" strokeLinejoin="round" />
+      <path d="M104 40 H160 Q172 40 172 48 V56 Q172 64 160 64 H104 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
+      <path d="M110 45 H158" stroke="#fff" strokeOpacity=".32" strokeWidth="2.5" strokeLinecap="round" />
 
       {/* 下段の頭ボルト本体: 高さを 44 -> 33 に縮小 */}
       <path d="M102 64 H196 V97 H102 Z" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
