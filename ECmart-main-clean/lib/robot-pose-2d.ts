@@ -440,6 +440,33 @@ function mapPair(pair: { left: Point; right: Point }, view: RobotView) {
   }
 }
 
+function isArmSegment(segmentId: RobotSpatialSegmentId) {
+  return segmentId.includes("Arm")
+}
+
+function armProjectionLimit(axis: PoseAxis, segmentId: RobotSpatialSegmentId) {
+  // 正面の腕は40px系、側面の腕は既存デザインに合わせて 45 / 47px 系を上限として投影する。
+  if (axis === "front") {
+    return segmentId.includes("Lower") ? 47 : 45
+  }
+  return 40
+}
+
+function projectedHorizontalFromSpatial(
+  vector: RobotSpatialVector,
+  segmentId: RobotSpatialSegmentId,
+  axis: PoseAxis,
+) {
+  const visible = axis === "front" ? vector.x : vector.y
+  if (!isArmSegment(segmentId)) return visible
+
+  const hidden = axis === "front" ? vector.y : vector.x
+  const limit = armProjectionLimit(axis, segmentId)
+  const ratio = clamp(Math.abs(hidden) / Math.max(1, limit), 0, 1)
+  const scale = Math.sqrt(Math.max(0, 1 - ratio * ratio))
+  return visible * scale
+}
+
 function pointFromSpatialOrAngle(
   origin: Point,
   spatial: RobotPoseSpatial | undefined,
@@ -450,7 +477,7 @@ function pointFromSpatialOrAngle(
 ): Point {
   const vector = spatial?.[segmentId]
   if (!vector) return pointFrom(origin, absoluteAngleDeg, fallbackLength)
-  const horizontal = axis === "front" ? vector.x : vector.y
+  const horizontal = projectedHorizontalFromSpatial(vector, segmentId, axis)
   return {
     x: origin.x + horizontal,
     y: origin.y - vector.z,
