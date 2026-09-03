@@ -1,4 +1,4 @@
-import type { RobotConfig, RobotHeldItemReference, RobotPoseState } from "@/lib/types"
+import type { RobotConfig, RobotHeldItemReference, RobotPoseState, RobotView } from "@/lib/types"
 import { normalizeRobotConfig } from "@/lib/robot-config"
 
 /**
@@ -75,6 +75,8 @@ export type DioramaStageReference =
 export interface DioramaRobotPlacement {
   placementId: string
   savedRobotId: string
+  /** ジオラマ上での向き。正面・側面・背面を選べます。 */
+  view: RobotView
   transform: SceneTransform
 }
 

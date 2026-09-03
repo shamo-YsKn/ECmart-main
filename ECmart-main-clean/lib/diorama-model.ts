@@ -7,6 +7,7 @@ import {
   type SceneTransform,
   type Vec3,
 } from "@/lib/creation-model"
+import type { RobotView } from "@/lib/types"
 import {
   STARTER_DIORAMA_STAGE_ID,
   getDioramaStage,
@@ -40,6 +41,11 @@ function finite(value: unknown, fallback = 0) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
+}
+
+
+function normalizePlacementView(value: unknown): RobotView {
+  return value === "side" || value === "back" ? value : "front"
 }
 
 function vec3(value: unknown, fallback: Vec3): Vec3 {
@@ -124,6 +130,7 @@ function normalizeRobotPlacement(value: unknown, index: number): DioramaRobotPla
   return {
     placementId: typeof value.placementId === "string" && value.placementId.trim() ? value.placementId.slice(0, 100) : `robot-${index + 1}`,
     savedRobotId: value.savedRobotId.slice(0, 100),
+    view: normalizePlacementView(value.view),
     transform: normalizeDioramaTransform(value.transform),
   }
 }

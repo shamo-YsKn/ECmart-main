@@ -23,12 +23,12 @@ function transformStyle(position: [number, number, number], rotation: [number, n
   }
 }
 
-function RobotAsset({ robot, customItems }: { robot: SavedRobot; customItems: SavedCustomItem[] }) {
+function RobotAsset({ robot, customItems, view = "front" }: { robot: SavedRobot; customItems: SavedCustomItem[]; view?: "front" | "side" | "back" }) {
   const held = normalizeRobotHeldItem(robot.config.heldItem, robot.config.item)
   const customDocument = held.kind === "custom"
     ? customItems.find((item) => item.id === held.customItemId)?.document ?? null
     : null
-  return <RobotCharacter config={robot.config} customItemDocument={customDocument} className="h-full w-full" />
+  return <RobotCharacter config={{ ...robot.config, view }} customItemDocument={customDocument} className="h-full w-full" />
 }
 
 function ItemAsset({ item }: { item: SavedCustomItem }) {
@@ -96,7 +96,7 @@ export function DioramaScenePreview({
             onPointerDown={(event) => onPointerDown?.({ kind: "robot", placementId: placement.placementId }, event)}
             aria-label={robot ? `${robot.name}を選択` : "見つからないロボット"}
           >
-            {robot ? <RobotAsset robot={robot} customItems={customItems} /> : <MissingAsset>ロボットが見つかりません</MissingAsset>}
+            {robot ? <RobotAsset robot={robot} customItems={customItems} view={placement.view} /> : <MissingAsset>ロボットが見つかりません</MissingAsset>}
           </button>
         )
       })}

@@ -43,6 +43,7 @@ export const GACHA_REWARDS: GachaReward[] = [
 
   { id: "stage-muroran-port", category: "diorama_stage", label: "室蘭港", value: "muroran-port", rarity: "normal", weight: 7 },
   { id: "stage-muroran-it", category: "diorama_stage", label: "室蘭工業大学", value: "muroran-it", rarity: "rare", weight: 5 },
+  { id: "stage-muroran-it-tech", category: "diorama_stage", label: "室蘭工業大学 研究エリア", value: "muroran-it-tech", rarity: "special", weight: 3 },
   { id: "stage-chikyu-misaki", category: "diorama_stage", label: "地球岬", value: "chikyu-misaki", rarity: "rare", weight: 5 },
   { id: "stage-sokuryozan", category: "diorama_stage", label: "測量山", value: "sokuryozan", rarity: "rare", weight: 4 },
   { id: "stage-hakucho-bridge", category: "diorama_stage", label: "白鳥大橋", value: "hakucho-bridge", rarity: "special", weight: 3 },
@@ -106,6 +107,7 @@ export function rewardPreview(reward: GachaReward) {
     "purple-led": "🟣",
     "muroran-port": "⚓",
     "muroran-it": "🏫",
+    "muroran-it-tech": "🤖",
     "chikyu-misaki": "🌊",
     sokuryozan: "⛰️",
     "hakucho-bridge": "🌉",

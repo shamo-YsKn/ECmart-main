@@ -14,6 +14,32 @@ function StageArtwork({ atmosphere }: { atmosphere: string }) {
       </>
     )
   }
+  if (atmosphere === "campus-tech") {
+    return (
+      <>
+        <rect width="640" height="360" fill="#d8e8f2" />
+        <rect y="250" width="640" height="110" fill="#b7caa0" />
+        <rect x="108" y="126" width="424" height="126" rx="8" fill="#d8d6ce" stroke="#53636a" strokeWidth="6" />
+        <rect x="396" y="95" width="164" height="102" rx="8" fill="#c8d3da" stroke="#53636a" strokeWidth="6" />
+        <rect x="140" y="156" width="86" height="56" fill="#78a9c2" />
+        <rect x="246" y="156" width="86" height="56" fill="#78a9c2" />
+        <rect x="352" y="156" width="86" height="56" fill="#78a9c2" />
+        <rect x="446" y="122" width="76" height="42" fill="#8eb4c6" />
+        <rect x="286" y="208" width="68" height="44" fill="#596a70" />
+        <path d="M170 116 h76" stroke="#5b6a72" strokeWidth="8" />
+        <circle cx="182" cy="100" r="15" fill="#c9a24b" stroke="#5b6a72" strokeWidth="5" />
+        <circle cx="235" cy="100" r="15" fill="#c9a24b" stroke="#5b6a72" strokeWidth="5" />
+        <path d="M171 100 H246" stroke="#5b6a72" strokeWidth="5" />
+        <rect x="260" y="92" width="58" height="22" fill="#f0c44c" stroke="#5b6a72" strokeWidth="4" />
+        <path d="M289 70 V92 M272 78 H306" stroke="#5b6a72" strokeWidth="5" />
+        <path d="M470 228 l18 -42 l16 19 l34 -27 l18 21 l-28 29 z" fill="#bcc7ce" stroke="#5b6a72" strokeWidth="4" />
+        <circle cx="156" cy="275" r="18" fill="#d7b35a" stroke="#5b6a72" strokeWidth="5" />
+        <path d="M156 257 V293 M138 275 H174" stroke="#5b6a72" strokeWidth="4" />
+        <circle cx="115" cy="286" r="8" fill="#82c8ef" /><circle cx="197" cy="286" r="8" fill="#ee8d91" />
+        <text x="320" y="110" textAnchor="middle" fontSize="24" fontWeight="800" fill="#405057">MURORAN IT LABS</text>
+      </>
+    )
+  }
   if (atmosphere === "cape") {
     return (
       <>

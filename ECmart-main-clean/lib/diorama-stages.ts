@@ -36,6 +36,14 @@ export const DIORAMA_STAGES: DioramaStageDefinition[] = [
     atmosphere: "campus",
   },
   {
+    id: "muroran-it-tech",
+    label: "室蘭工業大学 研究エリア",
+    description: "ロボット・建築・化学の研究イメージをまとめた、室工大の第2ジオラマです。",
+    emoji: "🤖",
+    rewardId: "stage-muroran-it-tech",
+    atmosphere: "campus-tech",
+  },
+  {
     id: "chikyu-misaki",
     label: "地球岬",
     description: "海と空が広がる地球岬をイメージしたステージです。",
@@ -108,6 +116,11 @@ const DIORAMA_PLACEMENT_SURFACES: Record<string, DioramaPlacementSurface[]> = {
   "muroran-it": [
     { id: "ground", label: "キャンパスの地面", xMin: 0, xMax: 640, yPx: 324, kind: "ground" },
     { id: "roof", label: "校舎の屋上", xMin: 130, xMax: 510, yPx: 128, kind: "platform" },
+  ],
+  "muroran-it-tech": [
+    { id: "ground", label: "研究広場の地面", xMin: 0, xMax: 640, yPx: 324, kind: "ground" },
+    { id: "terrace", label: "研究棟テラス", xMin: 108, xMax: 532, yPx: 208, kind: "platform" },
+    { id: "annex-roof", label: "別棟の屋上", xMin: 392, xMax: 596, yPx: 170, kind: "platform" },
   ],
   "chikyu-misaki": [
     { id: "ground", label: "岬の地面", xMin: 0, xMax: 640, yPx: 330, kind: "ground" },

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import type { DioramaDocument, SceneTransform } from "@/lib/creation-model"
+import type { RobotView } from "@/lib/types"
 import { useAccount } from "@/lib/account-context"
 import {
   DIORAMA_DRAFT_KEY,
@@ -55,6 +56,12 @@ type DragState = {
   offsetY: number
 }
 
+const ROBOT_VIEW_OPTIONS = [
+  { value: "front", label: "正面" },
+  { value: "side", label: "側面" },
+  { value: "back", label: "背面" },
+] as const satisfies readonly { value: RobotView; label: string }[]
+
 function dispatchNavigate(tab: "account" | "robot" | "gacha") {
   window.dispatchEvent(new CustomEvent("machinowa:navigate", { detail: { tab } }))
 }
@@ -99,6 +106,11 @@ export function DioramaWorkshop() {
       ? document.robots.find((entry) => entry.placementId === selected.placementId) ?? null
       : document.items.find((entry) => entry.placementId === selected.placementId) ?? null
   }, [document.items, document.robots, selected])
+
+  const selectedRobotPlacement = useMemo(() => {
+    if (!selected || selected.kind !== "robot") return null
+    return document.robots.find((entry) => entry.placementId === selected.placementId) ?? null
+  }, [document.robots, selected])
 
   const selectedLabel = useMemo(() => {
     if (!selected) return null
@@ -188,7 +200,7 @@ export function DioramaWorkshop() {
     const placementId = newDioramaPlacementId("robot")
     setDocument((current) => ({
       ...current,
-      robots: [...current.robots, { placementId, savedRobotId, transform: defaultTransform(current.robots.length + current.items.length, "robot", stageIdFromReference(current.stage)) }],
+      robots: [...current.robots, { placementId, savedRobotId, view: "front", transform: defaultTransform(current.robots.length + current.items.length, "robot", stageIdFromReference(current.stage)) }],
     }))
     setSelected({ kind: "robot", placementId })
   }
@@ -284,6 +296,7 @@ export function DioramaWorkshop() {
 
   const selectedRotation = selectedPlacement?.transform.rotationDeg[2] ?? 0
   const selectedScale = selectedPlacement?.transform.scale[0] ?? 1
+  const selectedRobotView = selectedRobotPlacement?.view ?? "front"
 
   return (
     <div className="flex flex-col gap-6">
@@ -336,7 +349,7 @@ export function DioramaWorkshop() {
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <div ref={canvasRef}><DioramaScenePreview document={document} robots={account.savedRobots} customItems={account.savedCustomItems} selected={selected} onSelect={setSelected} onPointerDown={startDrag} /></div>
-            <div className="rounded-xl border bg-muted/35 p-3 text-xs text-muted-foreground">ロボットは見やすさを優先して最大5体。移動すると地面や対応する建物・橋の上へ自動で接地します。アイテムは自由配置できます。</div>
+            <div className="rounded-xl border bg-muted/35 p-3 text-xs text-muted-foreground">ロボットは見やすさを優先して最大5体。移動すると地面や対応する建物・橋の上へ自動で接地し、選択中パネルから正面・側面・背面を切り替えられます。アイテムは自由配置できます。</div>
           </CardContent>
         </Card>
 
@@ -354,6 +367,9 @@ export function DioramaWorkshop() {
             <CardContent className="flex flex-col gap-5">
               {selected && selectedPlacement ? <>
                 <div><Badge className="rounded-full">{selected.kind === "robot" ? "ロボット" : "自作アイテム"}</Badge><div className="font-display mt-2 text-lg font-black">{selectedLabel}</div></div>
+                {selected.kind === "robot" && (
+                  <div className="flex flex-col gap-2"><Label>向き</Label><div className="grid grid-cols-3 gap-2">{ROBOT_VIEW_OPTIONS.map((option) => <Button key={option.value} type="button" variant={selectedRobotView === option.value ? "default" : "outline"} size="sm" className="rounded-full" onClick={() => setDocument((current) => ({ ...current, robots: current.robots.map((entry) => entry.placementId === selected.placementId ? { ...entry, view: option.value } : entry) }))}>{option.label}</Button>)}</div></div>
+                )}
                 <div className="flex flex-col gap-2"><div className="flex justify-between text-sm"><Label>回転</Label><span>{Math.round(selectedRotation)}°</span></div><Slider value={[selectedRotation]} min={-180} max={180} step={1} onValueChange={(value) => updatePlacementTransform(selected, (transform) => ({ ...transform, rotationDeg: [0, 0, Array.isArray(value) ? value[0] : (value as number)] }))} /></div>
                 <div className="flex flex-col gap-2"><div className="flex justify-between text-sm"><Label>大きさ</Label><span>{Math.round(selectedScale * 100)}%</span></div><Slider value={[selectedScale]} min={0.25} max={2.5} step={0.05} onValueChange={(value) => { const scale = Array.isArray(value) ? value[0] : (value as number); updatePlacementTransform(selected, (transform) => ({ ...transform, scale: [scale, scale, scale] })) }} /></div>
                 <div className="grid grid-cols-2 gap-2"><Button type="button" variant="outline" size="sm" className="rounded-full" onClick={() => moveLayer(5)}><ArrowUp data-icon="inline-start" />手前へ</Button><Button type="button" variant="outline" size="sm" className="rounded-full" onClick={() => moveLayer(-5)}><ArrowDown data-icon="inline-start" />奥へ</Button></div>
@@ -365,7 +381,7 @@ export function DioramaWorkshop() {
 
           <Card className="border-2 border-primary/30 bg-primary/5">
             <CardContent className="flex flex-col gap-3 p-5">
-              <div><h3 className="font-display font-black">マイページへ保存</h3><p className="mt-1 text-sm text-muted-foreground">背景・配置・回転・大きさ・前後関係をまとめて保存します。</p></div>
+              <div><h3 className="font-display font-black">マイページへ保存</h3><p className="mt-1 text-sm text-muted-foreground">背景・配置・向き・回転・大きさ・前後関係をまとめて保存します。</p></div>
               <Button type="button" className="rounded-full" onClick={() => void saveCurrent(false)} disabled={submitting || (Boolean(account.user) && !account.dioramaStorageReady)}>{submitting ? <LoaderCircle className="animate-spin" data-icon="inline-start" /> : account.user ? <Save data-icon="inline-start" /> : <UserRound data-icon="inline-start" />}{!account.user ? "ログインして保存" : editingDioramaId ? "変更を上書き保存" : "このジオラマを保存"}</Button>
               {editingDioramaId && account.user && <Button type="button" variant="outline" className="rounded-full" onClick={() => void saveCurrent(true)} disabled={submitting || !account.dioramaStorageReady}><Plus data-icon="inline-start" />新規として保存</Button>}
             </CardContent>
