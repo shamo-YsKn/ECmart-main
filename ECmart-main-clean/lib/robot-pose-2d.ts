@@ -472,8 +472,10 @@ export function buildRobot2DLayout(
   const bodyBottomY = side ? (isNatty ? 190 : 194) : (isNatty ? 182 : 188)
   const bodyHeight = bodyBottomY - bodyTopY
 
+  // 腕は正面(XZ)と側面(YZ)でZ基準を共有するため、肩の高さを同じ y=104 に揃える。
+  // 奥側/手前側の違いは x 方向だけで表現し、Z同期時の上下ずれをなくす。
   const shouldersAxis = side
-    ? { left: { x: 147, y: 116 }, right: { x: 158, y: 123 } }
+    ? { left: { x: 147, y: 104 }, right: { x: 158, y: 104 } }
     : { left: { x: 116, y: 104 }, right: { x: 184, y: 104 } }
   const sideHipY = isNatty ? 214 : bodyBottomY
   const hipsAxis = side

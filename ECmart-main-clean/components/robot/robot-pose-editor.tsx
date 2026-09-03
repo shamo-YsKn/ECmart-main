@@ -86,6 +86,72 @@ function oppositeView(view: RobotConfig["view"]): "front" | "side" {
   return view === "side" ? "front" : "side"
 }
 
+function isArmHandle(handle: PoseHandleId) {
+  return handle.endsWith("Elbow") || handle.endsWith("Hand")
+}
+
+function armPlaneLength(axis: "front" | "side", handle: PoseHandleId) {
+  // 足と同じく「各ビューの平面上での操作長」を使う。
+  // 正面は従来どおり40、側面は既存デザインの上腕45 / 前腕47を使う。
+  if (axis === "front") return 40
+  return handle.endsWith("Elbow") ? 45 : 47
+}
+
+function vectorBetween(from: Point, to: Point): RobotSpatialVector {
+  return {
+    x: to.x - from.x,
+    y: 0,
+    z: -(to.y - from.y),
+  }
+}
+
+function seededArmSpatial(
+  poseState: RobotPoseState,
+  config: RobotConfig,
+): RobotPoseSpatial {
+  const next: RobotPoseSpatial = { ...(poseState.spatial ?? {}) }
+  const frontLayout = buildRobot2DLayout({ ...config, view: "front", poseState: { ...poseState, spatial: {} } })
+
+  const seeds: Array<[ReturnType<typeof spatialSegmentForJoint>, Point, Point]> = [
+    ["leftUpperArm", frontLayout.shoulders.left, frontLayout.elbows.left],
+    ["leftLowerArm", frontLayout.elbows.left, frontLayout.hands.left],
+    ["rightUpperArm", frontLayout.shoulders.right, frontLayout.elbows.right],
+    ["rightLowerArm", frontLayout.elbows.right, frontLayout.hands.right],
+  ]
+
+  for (const [segmentId, parent, child] of seeds) {
+    if (!next[segmentId]) next[segmentId] = vectorBetween(parent, child)
+  }
+  return next
+}
+
+function armPlanarVector(
+  axis: "front" | "side",
+  handle: PoseHandleId,
+  visibleAngleDeg: number,
+  previous: RobotSpatialVector,
+): RobotSpatialVector {
+  const length = armPlaneLength(axis, handle)
+  const rad = (visibleAngleDeg * Math.PI) / 180
+
+  if (axis === "front") {
+    // 正面 = XZ。Yは一切変更せず、従来と同じ半径でX/Zだけを動かす。
+    return {
+      x: Math.cos(rad) * length,
+      y: previous.y,
+      z: -Math.sin(rad) * length,
+    }
+  }
+
+  // 側面 = YZ。Xは一切変更せず、Y/Zだけを動かす。
+  // 正面で腕が真横になり側面投影が点になっていても、固定の側面操作長を使うため再びドラッグできる。
+  return {
+    x: previous.x,
+    y: Math.cos(rad) * length,
+    z: -Math.sin(rad) * length,
+  }
+}
+
 export function RobotPoseEditor({
   config,
   enabled,
@@ -121,7 +187,7 @@ export function RobotPoseEditor({
 
   const linkedLayout = useMemo(() => linkedGuide ? buildRobot2DLayout(linkedGuide.config) : null, [linkedGuide])
 
-  function toModelPoint(event: ReactPointerEvent<SVGCircleElement> | PointerEvent): Point | null {
+  function toModelPoint(event: { clientX: number; clientY: number }): Point | null {
     const svg = svgRef.current
     if (!svg) return null
     const ctm = svg.getScreenCTM()
@@ -205,6 +271,22 @@ export function RobotPoseEditor({
       ? normalizeAngle(nextResolved[parentJoint] + nextResolved[joint])
       : nextResolved[joint]
 
+    if (isArmHandle(handle)) {
+      // 足の自然な挙動を腕にも合わせる。ただし腕は正面で真横になると側面投影が点になり得るため、
+      // 現在の投影長ではなく各ビューの既定操作長を使い、XZ/YZを独立操作できるようにする。
+      const seededSpatial = seededArmSpatial(poseState, config)
+      const segmentId = spatialSegmentForJoint(joint)
+      const previousVector = seededSpatial[segmentId] ?? { x: 0, y: 0, z: 0 }
+      const vector = armPlanarVector(layout.axis, handle, absoluteAngle, previousVector)
+      const spatialPatch: RobotPoseSpatial = {
+        ...seededSpatial,
+        [segmentId]: vector,
+      }
+      onPoseStateChange(updatePoseAxisLinked(poseState, layout.axis, patch, spatialPatch))
+      return
+    }
+
+    // 脚は現在の挙動が自然なので、従来のXZ/YZ・Z共有処理を維持する。
     const sourceParent = parentPointForHandle(handle, layout)
     const sourceChild = childPointForHandle(handle, layout)
     const sourceLength = Math.max(1, Math.hypot(sourceChild.x - sourceParent.x, sourceChild.y - sourceParent.y))
@@ -244,11 +326,11 @@ export function RobotPoseEditor({
     event.stopPropagation()
     setDragState({ pointerId: event.pointerId, handle })
     onInteractionChange?.(handle)
-    event.currentTarget.setPointerCapture(event.pointerId)
+    svgRef.current?.setPointerCapture(event.pointerId)
     updateFromHandle(handle, point)
   }
 
-  function moveDrag(event: ReactPointerEvent<SVGCircleElement>) {
+  function moveDrag(event: ReactPointerEvent<SVGSVGElement>) {
     if (!dragState || dragState.pointerId !== event.pointerId) return
     const point = toModelPoint(event)
     if (!point) return
@@ -256,7 +338,7 @@ export function RobotPoseEditor({
     updateFromHandle(dragState.handle, point)
   }
 
-  function endDrag(event: ReactPointerEvent<SVGCircleElement>) {
+  function endDrag(event: ReactPointerEvent<SVGSVGElement>) {
     if (!dragState || dragState.pointerId !== event.pointerId) return
     event.preventDefault()
     setDragState(null)
@@ -297,6 +379,15 @@ export function RobotPoseEditor({
           viewBox={ROBOT_2D_VIEWBOX}
           className="pointer-events-auto absolute inset-0 h-full w-full touch-none select-none"
           aria-hidden="true"
+          onPointerMove={moveDrag}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onPointerLeave={(event) => {
+            if (dragState && !event.currentTarget.hasPointerCapture(dragState.pointerId)) {
+              setDragState(null)
+              onInteractionChange?.(null)
+            }
+          }}
         >
           <g transform={scaledGroupTransform(layout.scale)}>
             <path d={`M${layout.shoulders.left.x} ${layout.shoulders.left.y} L${layout.elbows.left.x} ${layout.elbows.left.y} L${layout.hands.left.x} ${layout.hands.left.y}`} fill="none" stroke="rgba(255,255,255,0.58)" strokeWidth="2" strokeDasharray="6 4" />
@@ -323,9 +414,6 @@ export function RobotPoseEditor({
                     fill="transparent"
                     className="cursor-grab active:cursor-grabbing"
                     onPointerDown={(event) => startDrag(handle, event)}
-                    onPointerMove={moveDrag}
-                    onPointerUp={endDrag}
-                    onPointerCancel={endDrag}
                   />
                   <circle
                     cx={point.x}
