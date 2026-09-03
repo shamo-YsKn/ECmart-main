@@ -12,7 +12,7 @@ requireText("components/robot/robot-pose-studio.tsx", 'view: "side"', "side pose
 requireText("components/robot/robot-pose-studio.tsx", '背面確認', "back preview exists")
 requireText("components/robot/robot-pose-editor.tsx", 'linkedGuidePoint', "linked projection point exists")
 requireText("components/robot/robot-fallback.tsx", 'const perpendicular = side === "left" ? -90 : 90', "left/right hand heads use mirrored perpendicular directions")
-requireText("components/robot/robot-fallback.tsx", '六角ボルト頭本体の側面', "side head parts are separated")
+requireText("components/robot/robot-fallback.tsx", '側面頭部の追加微調整', "side head uses the finalized tuned structure")
 requireText("components/robot/robot-fallback.tsx", '背面では目ねじの丸い裏面が2つ', "rear eye screw placement follows the new reference")
 requireText("lib/diorama-model.ts", 'DIORAMA_EDITOR_ROBOT_LIMIT = 5', "diorama visible robot limit")
 requireText("lib/diorama-model.ts", 'snapDioramaRobotTransform', "diorama ground snapping")

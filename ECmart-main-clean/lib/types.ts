@@ -82,6 +82,11 @@ export type RobotSpatialSegmentId =
   | "rightUpperLeg"
   | "rightLowerLeg"
 
+/**
+ * 疑似3D自由ポーズの局所ベクトル。
+ * x = 正面(XZ)での横方向、y = 側面(YZ)での前後方向、z = 両ビューで共有する高さ方向。
+ * z は上方向を正として保存します。
+ */
 export interface RobotSpatialVector {
   x: number
   y: number
@@ -94,7 +99,6 @@ export type RobotPoseSpatial = Partial<Record<RobotSpatialSegmentId, RobotSpatia
  * 2D自由ポーズの2.5D保存形式。
  * front は正面/背面で共有する左右方向、side は側面で編集する前後方向。
  * joints はPhase 1-2 v1互換のfront軸エイリアスとして残します。
- * spatial は疑似3D同期用の内部表現で、旧保存データがなくても自動補完します。
  */
 export interface RobotPoseState {
   mode: "preset" | "custom"
@@ -104,6 +108,7 @@ export interface RobotPoseState {
     front?: RobotJointAngles
     side?: RobotJointAngles
   }
+  /** X/Yは各ビュー独立、Zだけ共有する疑似3D内部表現。旧保存データでは未指定。 */
   spatial?: RobotPoseSpatial
 }
 

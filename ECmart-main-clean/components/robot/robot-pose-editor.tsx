@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react"
 import type { PointerEvent as ReactPointerEvent } from "react"
-import type { RobotConfig, RobotJointId, RobotPoseState } from "@/lib/types"
+import type { RobotConfig, RobotJointId, RobotPoseSpatial, RobotPoseState, RobotSpatialVector } from "@/lib/types"
 import type { CustomItemDocument } from "@/lib/creation-model"
 import { RobotFallback } from "./robot-fallback"
 import {
@@ -13,9 +13,11 @@ import {
   limbRoleLabel,
   normalizeAngle,
   pointFromViewToAxis,
+  resolveJointAngles,
   resolvePoseState,
   scaledGroupTransform,
   segmentAngleDeg,
+  spatialSegmentForJoint,
   updatePoseAxisLinked,
   type Point,
 } from "@/lib/robot-pose-2d"
@@ -52,6 +54,36 @@ function jointPartLabel(handle: PoseHandleId) {
   if (handle.endsWith("Hand")) return "ひじ"
   if (handle.endsWith("Knee")) return "股関節"
   return "ひざ"
+}
+
+function parentPointForHandle(handle: PoseHandleId, layout: ReturnType<typeof buildRobot2DLayout>): Point {
+  switch (handle) {
+    case "leftElbow": return layout.shoulders.left
+    case "leftHand": return layout.elbows.left
+    case "rightElbow": return layout.shoulders.right
+    case "rightHand": return layout.elbows.right
+    case "leftKnee": return layout.hips.left
+    case "leftFoot": return layout.knees.left
+    case "rightKnee": return layout.hips.right
+    case "rightFoot": return layout.knees.right
+  }
+}
+
+function childPointForHandle(handle: PoseHandleId, layout: ReturnType<typeof buildRobot2DLayout>): Point {
+  switch (handle) {
+    case "leftElbow": return layout.elbows.left
+    case "leftHand": return layout.hands.left
+    case "rightElbow": return layout.elbows.right
+    case "rightHand": return layout.hands.right
+    case "leftKnee": return layout.knees.left
+    case "leftFoot": return layout.feet.left
+    case "rightKnee": return layout.knees.right
+    case "rightFoot": return layout.feet.right
+  }
+}
+
+function oppositeView(view: RobotConfig["view"]): "front" | "side" {
+  return view === "side" ? "front" : "side"
 }
 
 export function RobotPoseEditor({
@@ -161,7 +193,47 @@ export function RobotPoseEditor({
       }
     }
 
-    onPoseStateChange(updatePoseAxisLinked(poseState, layout.axis, patch))
+    const joint = JOINT_BY_HANDLE[handle]
+    const currentAngles = resolveJointAngles(config, layout.axis)
+    const nextResolved = { ...currentAngles, ...patch } as Required<RobotJointAngles>
+    const parentJoint =
+      joint === "leftElbow" ? "leftShoulder" :
+      joint === "rightElbow" ? "rightShoulder" :
+      joint === "leftKnee" ? "leftHip" :
+      joint === "rightKnee" ? "rightHip" : null
+    const absoluteAngle = parentJoint
+      ? normalizeAngle(nextResolved[parentJoint] + nextResolved[joint])
+      : nextResolved[joint]
+
+    const sourceParent = parentPointForHandle(handle, layout)
+    const sourceChild = childPointForHandle(handle, layout)
+    const sourceLength = Math.max(1, Math.hypot(sourceChild.x - sourceParent.x, sourceChild.y - sourceParent.y))
+    const sourceRad = (absoluteAngle * Math.PI) / 180
+    const sourceHorizontal = Math.cos(sourceRad) * sourceLength
+    const sharedZ = -Math.sin(sourceRad) * sourceLength
+
+    const targetLayout = buildRobot2DLayout({ ...config, view: oppositeView(config.view) })
+    const targetParent = parentPointForHandle(handle, targetLayout)
+    const targetChild = childPointForHandle(handle, targetLayout)
+    const targetHorizontal = targetChild.x - targetParent.x
+
+    const previousVector = poseState.spatial?.[spatialSegmentForJoint(joint)]
+    const vector: RobotSpatialVector = layout.axis === "front"
+      ? {
+          x: sourceHorizontal,
+          y: previousVector?.y ?? targetHorizontal,
+          z: sharedZ,
+        }
+      : {
+          x: previousVector?.x ?? targetHorizontal,
+          y: sourceHorizontal,
+          z: sharedZ,
+        }
+    const spatialPatch: RobotPoseSpatial = {
+      [spatialSegmentForJoint(joint)]: vector,
+    }
+
+    onPoseStateChange(updatePoseAxisLinked(poseState, layout.axis, patch, spatialPatch))
   }
 
   function startDrag(handle: PoseHandleId, event: ReactPointerEvent<SVGCircleElement>) {

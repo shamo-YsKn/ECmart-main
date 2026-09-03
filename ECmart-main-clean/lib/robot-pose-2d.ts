@@ -4,7 +4,10 @@ import type {
   RobotJointAngles,
   RobotJointId,
   RobotPose,
+  RobotPoseSpatial,
   RobotPoseState,
+  RobotSpatialSegmentId,
+  RobotSpatialVector,
   RobotView,
 } from "@/lib/types"
 
@@ -24,6 +27,28 @@ export const ROBOT_POSE_JOINT_IDS = [
   "rightHip",
   "rightKnee",
 ] as const satisfies readonly RobotJointId[]
+
+export const ROBOT_SPATIAL_SEGMENT_IDS = [
+  "leftUpperArm",
+  "leftLowerArm",
+  "rightUpperArm",
+  "rightLowerArm",
+  "leftUpperLeg",
+  "leftLowerLeg",
+  "rightUpperLeg",
+  "rightLowerLeg",
+] as const satisfies readonly RobotSpatialSegmentId[]
+
+const SEGMENT_BY_JOINT: Record<RobotJointId, RobotSpatialSegmentId> = {
+  leftShoulder: "leftUpperArm",
+  leftElbow: "leftLowerArm",
+  rightShoulder: "rightUpperArm",
+  rightElbow: "rightLowerArm",
+  leftHip: "leftUpperLeg",
+  leftKnee: "leftLowerLeg",
+  rightHip: "rightUpperLeg",
+  rightKnee: "rightLowerLeg",
+}
 
 export interface Robot2DLayout {
   axis: PoseAxis
@@ -168,6 +193,30 @@ function sanitizeJointAngles(value: unknown): RobotJointAngles {
   return result
 }
 
+function sanitizeSpatial(value: unknown): RobotPoseSpatial {
+  if (!isRecord(value)) return {}
+  const result: RobotPoseSpatial = {}
+  for (const segmentId of ROBOT_SPATIAL_SEGMENT_IDS) {
+    const candidate = value[segmentId]
+    if (!isRecord(candidate)) continue
+    const x = candidate.x
+    const y = candidate.y
+    const z = candidate.z
+    if (
+      typeof x === "number" && Number.isFinite(x) &&
+      typeof y === "number" && Number.isFinite(y) &&
+      typeof z === "number" && Number.isFinite(z)
+    ) {
+      result[segmentId] = {
+        x: clamp(x, -120, 120),
+        y: clamp(y, -120, 120),
+        z: clamp(z, -120, 120),
+      }
+    }
+  }
+  return result
+}
+
 export function poseAxisForView(view: RobotView): PoseAxis {
   return view === "side" ? "side" : "front"
 }
@@ -183,6 +232,7 @@ export function normalizePoseState(pose: RobotPose, value: unknown): RobotPoseSt
       preset: pose,
       joints: {},
       axes: { front: {}, side: {} },
+      spatial: {},
     }
   }
 
@@ -198,12 +248,14 @@ export function normalizePoseState(pose: RobotPose, value: unknown): RobotPoseSt
     ...sanitizeJointAngles(axesInput.front),
   }
   const side = sanitizeJointAngles(axesInput.side)
+  const spatial = sanitizeSpatial(value.spatial)
 
   return {
     mode,
     preset,
     joints: front,
     axes: { front, side },
+    spatial,
   }
 }
 
@@ -250,6 +302,7 @@ export function updatePoseAxis(
     preset: normalized.preset,
     joints: front,
     axes: { front, side },
+    spatial: { ...(normalized.spatial ?? {}) },
   }
 }
 
@@ -285,13 +338,6 @@ function angleWithVerticalDelta(currentTargetAngle: number, sourceBeforeAngle: n
   return normalizeAngle((Math.atan2(targetSin, targetCos) * 180) / Math.PI)
 }
 
-function pseudo3DProjectionScale(orthogonalAbsoluteAngle: number) {
-  // 反対ビューでその部位が「横に開いている」ほど、こちらのビューでは奥行き方向に倒れて見えるため短く見せる。
-  // 真下/真上ではフル長、真横ではほぼ点に近い見え方にします。
-  const visible = Math.abs(Math.sin(degToRad(orthogonalAbsoluteAngle)))
-  return 0.14 + 0.86 * visible
-}
-
 /**
  * 片方のビューを編集したとき、同じ関節チェーンを反対ビューにも連動させます。
  * front/side の横方向成分は独立のまま保ち、上下方向だけ共有する 2.5D 編集です。
@@ -300,12 +346,28 @@ export function updatePoseAxisLinked(
   state: RobotPoseState,
   axis: PoseAxis,
   nextAngles: RobotJointAngles,
+  spatialPatch?: RobotPoseSpatial,
 ): RobotPoseState {
   const normalized = normalizePoseState(state.preset, state)
-  const beforeSource = resolveJointAngles({ pose: normalized.preset, poseState: normalized }, axis)
   const targetAxis = linkedAxis(axis)
-  const beforeTarget = resolveJointAngles({ pose: normalized.preset, poseState: normalized }, targetAxis)
   let updated = updatePoseAxis(normalized, axis, nextAngles)
+
+  if (spatialPatch && Object.keys(spatialPatch).length > 0) {
+    // X(正面) / Y(側面) は互いに独立したまま、同じ spatial.z を両ビューが参照する。
+    // 反対ビューの角度は変更しないため、横方向を勝手に同期させない。
+    updated = {
+      ...updated,
+      spatial: {
+        ...(normalized.spatial ?? {}),
+        ...spatialPatch,
+      },
+    }
+    return updated
+  }
+
+  // 旧呼び出しとの互換用。spatial情報がない場合だけ従来のZ相当同期を使用します。
+  const beforeSource = resolveJointAngles({ pose: normalized.preset, poseState: normalized }, axis)
+  const beforeTarget = resolveJointAngles({ pose: normalized.preset, poseState: normalized }, targetAxis)
   const afterSource = resolveJointAngles({ pose: updated.preset, poseState: updated }, axis)
   const targetPatch: RobotJointAngles = {}
 
@@ -337,12 +399,17 @@ export function updatePoseAxisLinked(
   return updated
 }
 
+export function spatialSegmentForJoint(joint: RobotJointId): RobotSpatialSegmentId {
+  return SEGMENT_BY_JOINT[joint]
+}
+
 export function clearCustomPose(preset: RobotPose): RobotPoseState {
   return {
     mode: "custom",
     preset,
     joints: {},
     axes: { front: {}, side: {} },
+    spatial: {},
   }
 }
 
@@ -373,14 +440,30 @@ function mapPair(pair: { left: Point; right: Point }, view: RobotView) {
   }
 }
 
+function pointFromSpatialOrAngle(
+  origin: Point,
+  spatial: RobotPoseSpatial | undefined,
+  segmentId: RobotSpatialSegmentId,
+  axis: PoseAxis,
+  absoluteAngleDeg: number,
+  fallbackLength: number,
+): Point {
+  const vector = spatial?.[segmentId]
+  if (!vector) return pointFrom(origin, absoluteAngleDeg, fallbackLength)
+  const horizontal = axis === "front" ? vector.x : vector.y
+  return {
+    x: origin.x + horizontal,
+    y: origin.y - vector.z,
+  }
+}
+
 export function buildRobot2DLayout(
   config: Pick<RobotConfig, "base" | "size" | "pose" | "poseState" | "view">,
 ): Robot2DLayout {
   const axis = poseAxisForView(config.view)
-  const frontJoints = resolveJointAngles(config, "front")
-  const sideJoints = resolveJointAngles(config, "side")
-  const joints = axis === "side" ? sideJoints : frontJoints
-  const orthogonalJoints = axis === "side" ? frontJoints : sideJoints
+  const joints = resolveJointAngles(config, axis)
+  const poseState = resolvePoseState(config)
+  const spatial = poseState.mode === "custom" ? poseState.spatial : undefined
   const isNatty = config.base === "natty"
   const scale = 0.82 + ((Math.min(90, Math.max(20, config.size)) - 20) / 70) * 0.18
 
@@ -397,65 +480,26 @@ export function buildRobot2DLayout(
     ? { left: { x: 145, y: sideHipY }, right: { x: 158, y: sideHipY + 2 } }
     : { left: { x: 138, y: bodyBottomY }, right: { x: 162, y: bodyBottomY } }
 
-  const baseUpperArmLength = side ? 45 : 40
-  const baseLowerArmLength = side ? 47 : 40
-  const baseUpperLegLength = side ? (isNatty ? 36 : 42) : 38
-  const baseLowerLegLength = side ? (isNatty ? 42 : 48) : isNatty ? 38 : 45
-
-  const frontAbs = {
-    leftShoulder: absoluteSegmentAngle(frontJoints, "leftShoulder"),
-    rightShoulder: absoluteSegmentAngle(frontJoints, "rightShoulder"),
-    leftElbow: absoluteSegmentAngle(frontJoints, "leftElbow"),
-    rightElbow: absoluteSegmentAngle(frontJoints, "rightElbow"),
-    leftHip: absoluteSegmentAngle(frontJoints, "leftHip"),
-    rightHip: absoluteSegmentAngle(frontJoints, "rightHip"),
-    leftKnee: absoluteSegmentAngle(frontJoints, "leftKnee"),
-    rightKnee: absoluteSegmentAngle(frontJoints, "rightKnee"),
-  }
-  const sideAbs = {
-    leftShoulder: absoluteSegmentAngle(sideJoints, "leftShoulder"),
-    rightShoulder: absoluteSegmentAngle(sideJoints, "rightShoulder"),
-    leftElbow: absoluteSegmentAngle(sideJoints, "leftElbow"),
-    rightElbow: absoluteSegmentAngle(sideJoints, "rightElbow"),
-    leftHip: absoluteSegmentAngle(sideJoints, "leftHip"),
-    rightHip: absoluteSegmentAngle(sideJoints, "rightHip"),
-    leftKnee: absoluteSegmentAngle(sideJoints, "leftKnee"),
-    rightKnee: absoluteSegmentAngle(sideJoints, "rightKnee"),
-  }
-  const orthoAbs = axis === "side" ? frontAbs : sideAbs
-
-  const upperArmLength = {
-    left: baseUpperArmLength * pseudo3DProjectionScale(orthoAbs.leftShoulder),
-    right: baseUpperArmLength * pseudo3DProjectionScale(orthoAbs.rightShoulder),
-  }
-  const lowerArmLength = {
-    left: baseLowerArmLength * pseudo3DProjectionScale(orthoAbs.leftElbow),
-    right: baseLowerArmLength * pseudo3DProjectionScale(orthoAbs.rightElbow),
-  }
-  const upperLegLength = {
-    left: baseUpperLegLength * pseudo3DProjectionScale(orthoAbs.leftHip),
-    right: baseUpperLegLength * pseudo3DProjectionScale(orthoAbs.rightHip),
-  }
-  const lowerLegLength = {
-    left: baseLowerLegLength * pseudo3DProjectionScale(orthoAbs.leftKnee),
-    right: baseLowerLegLength * pseudo3DProjectionScale(orthoAbs.rightKnee),
-  }
+  const upperArmLength = side ? 45 : 40
+  const lowerArmLength = side ? 47 : 40
+  const upperLegLength = side ? (isNatty ? 36 : 42) : 38
+  const lowerLegLength = side ? (isNatty ? 42 : 48) : isNatty ? 38 : 45
 
   const elbowsAxis = {
-    left: pointFrom(shouldersAxis.left, joints.leftShoulder, upperArmLength.left),
-    right: pointFrom(shouldersAxis.right, joints.rightShoulder, upperArmLength.right),
+    left: pointFromSpatialOrAngle(shouldersAxis.left, spatial, "leftUpperArm", axis, joints.leftShoulder, upperArmLength),
+    right: pointFromSpatialOrAngle(shouldersAxis.right, spatial, "rightUpperArm", axis, joints.rightShoulder, upperArmLength),
   }
   const handsAxis = {
-    left: pointFrom(elbowsAxis.left, joints.leftShoulder + joints.leftElbow, lowerArmLength.left),
-    right: pointFrom(elbowsAxis.right, joints.rightShoulder + joints.rightElbow, lowerArmLength.right),
+    left: pointFromSpatialOrAngle(elbowsAxis.left, spatial, "leftLowerArm", axis, joints.leftShoulder + joints.leftElbow, lowerArmLength),
+    right: pointFromSpatialOrAngle(elbowsAxis.right, spatial, "rightLowerArm", axis, joints.rightShoulder + joints.rightElbow, lowerArmLength),
   }
   const kneesAxis = {
-    left: pointFrom(hipsAxis.left, joints.leftHip, upperLegLength.left),
-    right: pointFrom(hipsAxis.right, joints.rightHip, upperLegLength.right),
+    left: pointFromSpatialOrAngle(hipsAxis.left, spatial, "leftUpperLeg", axis, joints.leftHip, upperLegLength),
+    right: pointFromSpatialOrAngle(hipsAxis.right, spatial, "rightUpperLeg", axis, joints.rightHip, upperLegLength),
   }
   const feetAxis = {
-    left: pointFrom(kneesAxis.left, joints.leftHip + joints.leftKnee, lowerLegLength.left),
-    right: pointFrom(kneesAxis.right, joints.rightHip + joints.rightKnee, lowerLegLength.right),
+    left: pointFromSpatialOrAngle(kneesAxis.left, spatial, "leftLowerLeg", axis, joints.leftHip + joints.leftKnee, lowerLegLength),
+    right: pointFromSpatialOrAngle(kneesAxis.right, spatial, "rightLowerLeg", axis, joints.rightHip + joints.rightKnee, lowerLegLength),
   }
 
   return {

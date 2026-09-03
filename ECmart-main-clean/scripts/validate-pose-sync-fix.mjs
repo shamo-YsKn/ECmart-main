@@ -6,9 +6,9 @@ function requireText(path, needle, label) {
 }
 
 requireText("lib/robot-pose-2d.ts", "export function updatePoseAxisLinked", "linked front/side pose updater exists")
-requireText("lib/robot-pose-2d.ts", "angleWithVerticalDelta", "vertical motion is synchronized across views")
+requireText("lib/robot-pose-2d.ts", "RobotPoseSpatial", "XYZ pseudo-3D pose storage is available")
 requireText("components/robot/robot-pose-editor.tsx", "updatePoseAxisLinked", "pose editor uses linked updater")
-requireText("components/robot/robot-pose-studio.tsx", "反対ビューの関節線も同期して動き", "pose studio explains linked movement")
+requireText("components/robot/robot-pose-studio.tsx", "Z（高さ）だけ", "pose studio explains Z-only synchronization")
 requireText("components/robot/robot-fallback.tsx", 'const perpendicular = side === "left" ? -90 : 90', "hand orientation follows the requested screen-right reference")
 
 console.log("POSE_SYNC_FIX_VALIDATE_OK")
