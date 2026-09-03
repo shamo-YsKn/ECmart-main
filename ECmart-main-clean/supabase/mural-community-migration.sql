@@ -11,6 +11,8 @@ create table if not exists public.mural_posts (
   author_name text not null check (char_length(author_name) between 1 and 40),
   robot_name text not null check (char_length(robot_name) between 1 and 40),
   robot_config jsonb not null check (jsonb_typeof(robot_config) = 'object'),
+  robot_view text not null default 'front' check (robot_view in ('front', 'side', 'back')),
+  mural_variant text not null default 'default' check (char_length(mural_variant) between 1 and 40),
   custom_item_document jsonb,
   review text not null check (char_length(review) between 1 and 400),
   position_x numeric not null default 50 check (position_x between 0 and 100),
@@ -19,7 +21,7 @@ create table if not exists public.mural_posts (
   rotation_deg numeric not null default 0 check (rotation_deg between -30 and 30),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (user_id, spot_id, saved_robot_id)
+  unique (user_id, spot_id, mural_variant, saved_robot_id)
 );
 
 create table if not exists public.mural_post_likes (

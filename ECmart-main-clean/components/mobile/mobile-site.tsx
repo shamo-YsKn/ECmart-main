@@ -7,7 +7,7 @@ import { RobotFallback } from "@/components/robot/robot-fallback"
 import { calculateCartTotals } from "@/lib/purchase"
 import { GACHA_CATEGORY_LABELS, GACHA_COST, GACHA_RARITY_LABELS, getGachaReward, rewardPreview } from "@/lib/gacha"
 import { normalizeRobotConfig } from "@/lib/robot-config"
-import { MURAL_WALL_ROBOT_LIMIT, MURORAN_SPOTS, getMuroranSpot, getSpotProducts } from "@/lib/mural-spots"
+import { DEFAULT_MURAL_VARIANT_ID, MURAL_WALL_ROBOT_LIMIT, MURORAN_SPOTS, getMuroranSpot, getSpotProducts, muralSpotForVariant, muralVariantsForSpot } from "@/lib/mural-spots"
 import { generateAmbientMuralRobots, localMuralDateKey } from "@/lib/mural-npc"
 import {
   ROBOT_ACCENT_COLORS,
@@ -125,20 +125,25 @@ export async function MobileSite({ params }: { params: Params }) {
     }
   } else if (tab === "mural") {
     const spot = getMuroranSpot(one(params.spot)) ?? MURORAN_SPOTS[0]
-    const muralPosts = await getMobileMuralPosts(spot.id)
+    const muralVariants = muralVariantsForSpot(spot)
+    const requestedVariant = one(params.muralStage) || DEFAULT_MURAL_VARIANT_ID
+    const activeVariant = muralVariants.find((variant) => variant.id === requestedVariant) ?? muralVariants[0]
+    const activeMuralSpot = muralSpotForVariant(spot, activeVariant.id)
+    const muralPosts = await getMobileMuralPosts(spot.id, activeVariant.id)
     const mobileWallPosts = muralPosts.slice(0, MURAL_WALL_ROBOT_LIMIT)
     const ambientRobots = generateAmbientMuralRobots(
-      spot,
+      activeMuralSpot,
       mobileWallPosts.length,
       mobileWallPosts.map((post) => ({ x: post.positionX, y: post.positionY })),
-      localMuralDateKey(),
+      `${localMuralDateKey()}|${activeVariant.id}`,
     )
     const spotProducts = getSpotProducts(spot)
     content = <div className="flex flex-col gap-5">
       <div><div className="text-sm font-bold text-primary">Phase 5 / まち歩き</div><h1 className="font-display text-3xl font-black">室蘭マップと壁画</h1><p className="mt-2 text-muted-foreground">スポットごとの壁画とレビューをスマホでも閲覧できます。投稿位置の編集はPC版が中心です。</p></div>
       <Card><div className="grid grid-cols-2 gap-2">{MURORAN_SPOTS.map((entry)=><a key={entry.id} href={q({tab:"mural",spot:entry.id})} className={`${pill(entry.id===spot.id)} justify-start`}><span className="mr-1">{entry.emoji}</span>{entry.shortName}</a>)}</div></Card>
-      <Card><div className="text-4xl">{spot.emoji}</div><h2 className="font-display mt-2 text-2xl font-black">{spot.name}</h2><div className="mt-1 text-sm font-bold text-primary">{spot.muralTitle}</div><p className="mt-2 text-sm text-muted-foreground">{spot.description}</p><div className="mt-3 flex gap-2 text-xs"><span className="rounded-full bg-muted px-2 py-1">ユーザー投稿 {muralPosts.length}</span><span className="rounded-full bg-muted px-2 py-1">街のロボット {ambientRobots.length}</span></div></Card>
-      <Card><h2 className="font-display font-bold">この場所の壁画</h2><p className="mt-1 text-xs text-muted-foreground">「街のロボット」は自動生成で、実ユーザーのレビューではありません。</p><div className="mt-4 grid grid-cols-2 gap-3">{ambientRobots.slice(0, MURAL_WALL_ROBOT_LIMIT).map((robot)=><div key={robot.id} className="rounded-xl bg-muted p-2"><div className="aspect-square"><RobotFallback config={robot.config}/></div><div className="text-center text-xs font-bold">{robot.label}</div><div className="text-center text-[10px] text-muted-foreground">自動生成</div></div>)}{mobileWallPosts.map((post)=><details key={post.id} className="rounded-xl border bg-background p-2"><summary className="cursor-pointer list-none"><div className="aspect-square"><RobotFallback config={{...post.robotConfig,view:"front"}} customItemDocument={post.customItemDocument}/></div><div className="text-center text-xs font-bold">{post.authorName}さん</div><div className="text-center text-[10px] text-primary">レビューあり</div></summary><p className="mt-2 rounded-lg bg-muted p-2 text-xs leading-relaxed">「{post.review}」</p></details>)}</div></Card>
+      {muralVariants.length>1&&<Card><div className="text-sm font-bold">室工大の壁画ステージ</div><div className="mt-3 flex flex-wrap gap-2">{muralVariants.map(variant=><a key={variant.id} className={pill(activeVariant.id===variant.id)} href={q({tab:"mural",spot:spot.id,muralStage:variant.id===DEFAULT_MURAL_VARIANT_ID?undefined:variant.id})}>{variant.label}</a>)}</div></Card>}
+      <Card><div className="text-4xl">{spot.emoji}</div><h2 className="font-display mt-2 text-2xl font-black">{spot.name}</h2><div className="mt-1 text-sm font-bold text-primary">{activeMuralSpot.muralTitle}</div><p className="mt-2 text-sm text-muted-foreground">{activeMuralSpot.description}</p><div className="mt-3 flex gap-2 text-xs"><span className="rounded-full bg-muted px-2 py-1">ユーザー投稿 {muralPosts.length}</span><span className="rounded-full bg-muted px-2 py-1">街のロボット {ambientRobots.length}</span></div></Card>
+      <Card><h2 className="font-display font-bold">この場所の壁画</h2><p className="mt-1 text-xs text-muted-foreground">「街のロボット」は自動生成で、実ユーザーのレビューではありません。</p><div className="mt-4 grid grid-cols-2 gap-3">{ambientRobots.slice(0, MURAL_WALL_ROBOT_LIMIT).map((robot)=><div key={robot.id} className="rounded-xl bg-muted p-2"><div className="aspect-square"><RobotFallback config={robot.config}/></div><div className="text-center text-xs font-bold">{robot.label}</div><div className="text-center text-[10px] text-muted-foreground">自動生成</div></div>)}{mobileWallPosts.map((post)=><details key={post.id} className="rounded-xl border bg-background p-2"><summary className="cursor-pointer list-none"><div className="aspect-square"><RobotFallback config={{...post.robotConfig,view:post.robotView}} customItemDocument={post.customItemDocument}/></div><div className="text-center text-xs font-bold">{post.authorName}さん</div><div className="text-center text-[10px] text-primary">レビューあり</div></summary><p className="mt-2 rounded-lg bg-muted p-2 text-xs leading-relaxed">「{post.review}」</p></details>)}</div></Card>
       {spotProducts.length>0&&<div className="flex flex-col gap-3"><h2 className="font-display text-xl font-black">この場所の商品</h2>{spotProducts.slice(0,3).map(product=><ProductRow key={product.id} productId={product.id} favorites={account.favorites} loggedIn={!!account.user} returnTo={returnTo} quantity={quantityOf(product.id)}/>)}</div>}
       <Card><p className="text-sm text-muted-foreground">壁画への投稿、位置調整、いいね、作者プロフィールはPC版の「まち歩き」で利用できます。</p></Card>
     </div>

@@ -3,7 +3,7 @@ import { products, shops } from "@/lib/data"
 export type MuralSpotType = "shop" | "restaurant" | "tourism" | "university" | "workshop" | "port"
 export const MURAL_WALL_ROBOT_LIMIT = 5
 
-export type MuralTheme = "university" | "cape" | "bridge" | "mountain" | "port" | "industrial" | "yakitori" | "ramen" | "farm" | "workshop" | "diner"
+export type MuralTheme = "university" | "university-tech" | "cape" | "bridge" | "mountain" | "port" | "industrial" | "yakitori" | "ramen" | "farm" | "workshop" | "diner"
 
 export interface MuralAmbientConfig {
   targetPopulation: number
@@ -29,6 +29,19 @@ export interface MuroranSpot {
   muralSubtitle: string
   relatedShopId?: string
   ambient: MuralAmbientConfig
+}
+
+export const DEFAULT_MURAL_VARIANT_ID = "default"
+
+export interface MuralStageVariant {
+  id: string
+  label: string
+  shortLabel: string
+  description: string
+  theme: MuralTheme
+  muralTitle: string
+  muralSubtitle: string
+  ambient?: MuralAmbientConfig
 }
 
 const STEEL = ["#9c9790", "#b8b2a8", "#6f7b80", "#c9a24b", "#8096a0"]
@@ -247,6 +260,53 @@ export function getSpotProducts(spot: MuroranSpot) {
 }
 
 
+export function muralVariantsForSpot(spot: MuroranSpot): MuralStageVariant[] {
+  const defaultVariant: MuralStageVariant = {
+    id: DEFAULT_MURAL_VARIANT_ID,
+    label: spot.id === "muroran-it" ? "キャンパス" : spot.name,
+    shortLabel: spot.id === "muroran-it" ? "キャンパス" : "通常",
+    description: spot.description,
+    theme: spot.theme,
+    muralTitle: spot.muralTitle,
+    muralSubtitle: spot.muralSubtitle,
+    ambient: spot.ambient,
+  }
+
+  if (spot.id !== "muroran-it") return [defaultVariant]
+
+  return [
+    defaultVariant,
+    {
+      id: "research",
+      label: "研究エリア",
+      shortLabel: "研究エリア",
+      description: "室蘭工業大学の研究をイメージした第2壁画。ロボット、建築、化学のモチーフを中心にしています。",
+      theme: "university-tech",
+      muralTitle: "ロボット・建築・化学が交わる研究の壁",
+      muralSubtitle: "ロボットアーム、構造物、実験器具を背景に、研究室らしいボルタ・ナッティを配置できます。",
+      ambient: {
+        ...spot.ambient,
+        bodyColors: ["#9c9790", "#b8b2a8", "#6f7b80", "#c9a24b", "#7b9aa8"],
+        poses: ["point", "stand", "wave", "cheer"],
+        items: ["wrench", "gear", "none"],
+      },
+    },
+  ]
+}
+
+export function muralSpotForVariant(spot: MuroranSpot, variantId: string): MuroranSpot {
+  const variants = muralVariantsForSpot(spot)
+  const variant = variants.find((entry) => entry.id === variantId) ?? variants[0]
+  return {
+    ...spot,
+    description: variant.description,
+    theme: variant.theme,
+    muralTitle: variant.muralTitle,
+    muralSubtitle: variant.muralSubtitle,
+    ambient: variant.ambient ?? spot.ambient,
+  }
+}
+
 interface MuralPlacementSurface {
   xMin: number
   xMax: number
@@ -255,6 +315,10 @@ interface MuralPlacementSurface {
 
 const MURAL_PLATFORM_SURFACES: Partial<Record<MuralTheme, MuralPlacementSurface[]>> = {
   university: [{ xMin: 8, xMax: 43, centerY: 31 }],
+  "university-tech": [
+    { xMin: 10, xMax: 54, centerY: 46 },
+    { xMin: 62, xMax: 91, centerY: 39 },
+  ],
   bridge: [{ xMin: 12, xMax: 88, centerY: 49 }],
   cape: [{ xMin: 4, xMax: 40, centerY: 65 }],
   port: [{ xMin: 57, xMax: 86, centerY: 65 }],

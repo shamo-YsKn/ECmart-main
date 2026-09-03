@@ -61,6 +61,45 @@ export function MuralBackground({ spot }: { spot: MuroranSpot }) {
         </>
       )}
 
+      {spot.theme === "university-tech" && (
+        <>
+          <rect y="382" width="1000" height="178" fill="#c4b593" />
+          <rect x="84" y="175" width="492" height="225" rx="10" fill="#d7d5cf" stroke="#53636a" strokeWidth="9" />
+          <rect x="604" y="132" width="286" height="268" rx="10" fill="#c8d4da" stroke="#53636a" strokeWidth="9" />
+          <rect x="128" y="218" width="106" height="68" fill="#79a8be" />
+          <rect x="270" y="218" width="106" height="68" fill="#79a8be" />
+          <rect x="412" y="218" width="106" height="68" fill="#79a8be" />
+          <rect x="676" y="178" width="132" height="76" fill="#8db4c6" />
+          <rect x="302" y="313" width="76" height="87" fill="#596970" />
+
+          {/* ロボット研究 */}
+          <g transform="translate(112 112)">
+            <circle cx="0" cy="0" r="22" fill="#c9a24b" stroke="#435760" strokeWidth="7" />
+            <path d="M17 -2 L82 -38 L111 -5 L75 20 L118 53" fill="none" stroke="#9c9790" strokeWidth="18" strokeLinecap="round" strokeLinejoin="round" />
+            <circle cx="82" cy="-38" r="12" fill="#c9a24b" stroke="#435760" strokeWidth="6" />
+            <circle cx="75" cy="20" r="12" fill="#c9a24b" stroke="#435760" strokeWidth="6" />
+            <path d="M112 53 l24 -10 l-7 25 z" fill="#c9a24b" stroke="#435760" strokeWidth="5" />
+          </g>
+
+          {/* 建築・構造 */}
+          <g transform="translate(520 110)" opacity=".82">
+            <path d="M0 92 L55 18 L110 92 Z M22 92 L55 48 L88 92" fill="none" stroke="#667980" strokeWidth="8" />
+            <path d="M10 72 H100 M31 52 H79" stroke="#667980" strokeWidth="5" />
+          </g>
+
+          {/* 化学 */}
+          <g transform="translate(828 286)">
+            <path d="M-35 -88 H-6 V-38 L-55 42 Q-63 57 -43 62 H39 Q59 57 51 42 L3 -38 V-88 H32" fill="#9bd4df" fillOpacity=".48" stroke="#526970" strokeWidth="7" strokeLinejoin="round" />
+            <path d="M-43 26 Q0 6 42 27" fill="none" stroke="#4ba0b5" strokeWidth="9" />
+            <circle cx="-14" cy="22" r="7" fill="#f1cb5b" /><circle cx="18" cy="37" r="6" fill="#e68475" />
+          </g>
+
+          <Gear x={474} y={340} r={42} opacity={0.18} />
+          <path d="M0 418 H1000" stroke="#6d665f" strokeWidth="9" />
+          <text x="500" y="94" textAnchor="middle" fontSize="30" fontWeight="900" fill="#405057">MURORAN IT — RESEARCH AREA</text>
+        </>
+      )}
+
       {spot.theme === "cape" && (
         <>
           <rect y="315" width="1000" height="245" fill="#6e9cab" />

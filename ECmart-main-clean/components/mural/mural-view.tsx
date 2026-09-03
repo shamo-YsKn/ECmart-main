@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react"
 import type { CartApi } from "@/lib/use-cart"
-import type { SavedRobot } from "@/lib/types"
+import type { RobotView, SavedRobot } from "@/lib/types"
 import { useAccount } from "@/lib/account-context"
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client"
 import { normalizeRobotHeldItem } from "@/lib/robot-held-item"
-import { MURAL_WALL_ROBOT_LIMIT, MURORAN_SPOTS, getMuroranSpot, getSpotProducts, getSpotShop, snapMuralRobotY, type MuroranSpot } from "@/lib/mural-spots"
+import { DEFAULT_MURAL_VARIANT_ID, MURAL_WALL_ROBOT_LIMIT, MURORAN_SPOTS, getMuroranSpot, getSpotProducts, getSpotShop, muralSpotForVariant, muralVariantsForSpot, snapMuralRobotY, type MuroranSpot } from "@/lib/mural-spots"
 import { generateAmbientMuralRobots, localMuralDateKey, type AmbientMuralRobot } from "@/lib/mural-npc"
 import {
   clampMuralPositionX,
@@ -48,7 +48,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-const MURAL_POST_SELECT = "id,user_id,spot_id,saved_robot_id,author_name,robot_name,robot_config,custom_item_document,review,position_x,position_y,scale,rotation_deg,created_at,updated_at"
+const MURAL_POST_SELECT = "id,user_id,spot_id,saved_robot_id,author_name,robot_name,robot_config,robot_view,mural_variant,custom_item_document,review,position_x,position_y,scale,rotation_deg,created_at,updated_at"
 
 type Notice = { type: "error" | "success"; text: string } | null
 type ReviewSort = "new" | "popular"
@@ -78,6 +78,7 @@ function MuralRobotMarker({
   scale,
   rotationDeg,
   generated,
+  view,
   review,
   selected,
   onClick,
@@ -89,6 +90,7 @@ function MuralRobotMarker({
   scale: number
   rotationDeg: number
   generated: boolean
+  view?: RobotView
   review?: string
   selected?: boolean
   onClick?: (event: MouseEvent<HTMLButtonElement>) => void
@@ -109,7 +111,7 @@ function MuralRobotMarker({
       }}
       aria-label={generated ? `${config.name}（自動生成）` : `${config.name}のレビューを見る`}
     >
-      <RobotCharacter config={config} customItemDocument={customItemDocument} className="h-full w-full overflow-visible" />
+      <RobotCharacter config={{ ...config, view: view ?? config.view }} customItemDocument={customItemDocument} className="h-full w-full overflow-visible" />
       {generated ? (
         <span className="absolute left-1/2 top-0 -translate-x-1/2 whitespace-nowrap rounded-full border border-white/60 bg-background/80 px-2 py-0.5 text-[9px] font-bold opacity-0 shadow-sm backdrop-blur-sm transition-opacity group-hover:opacity-100">
           街のロボット
@@ -154,6 +156,7 @@ export function MuralView({ cart }: { cart: CartApi }) {
   const account = useAccount()
   const stageRef = useRef<HTMLDivElement | null>(null)
   const [selectedSpotId, setSelectedSpotId] = useState(MURORAN_SPOTS[0].id)
+  const [selectedMuralVariantId, setSelectedMuralVariantId] = useState(DEFAULT_MURAL_VARIANT_ID)
   const [posts, setPosts] = useState<MuralPost[]>([])
   const [mapCounts, setMapCounts] = useState<Record<string, number>>({})
   const [likeCounts, setLikeCounts] = useState<Record<string, number>>({})
@@ -167,6 +170,7 @@ export function MuralView({ cart }: { cart: CartApi }) {
   const [placement, setPlacement] = useState<{ x: number; y: number } | null>(null)
   const [draftScale, setDraftScale] = useState(0.9)
   const [draftRotation, setDraftRotation] = useState(0)
+  const [draftRobotView, setDraftRobotView] = useState<RobotView>("front")
   const [submitting, setSubmitting] = useState(false)
   const [notice, setNotice] = useState<Notice>(null)
   const [reviewSort, setReviewSort] = useState<ReviewSort>("new")
@@ -176,13 +180,24 @@ export function MuralView({ cart }: { cart: CartApi }) {
   const [loadingAuthor, setLoadingAuthor] = useState(false)
 
   const selectedSpot = getMuroranSpot(selectedSpotId) ?? MURORAN_SPOTS[0]
+  const muralVariants = muralVariantsForSpot(selectedSpot)
+  const activeMuralVariant = muralVariants.find((variant) => variant.id === selectedMuralVariantId) ?? muralVariants[0]
+  const activeMuralSpot = muralSpotForVariant(selectedSpot, activeMuralVariant.id)
   const selectedRobot = account.savedRobots.find((robot) => robot.id === selectedRobotId) ?? null
   const relatedShop = getSpotShop(selectedSpot)
   const relatedProducts = getSpotProducts(selectedSpot)
 
   useEffect(() => {
-    const fromUrl = new URL(window.location.href).searchParams.get("spot")
-    if (fromUrl && getMuroranSpot(fromUrl)) setSelectedSpotId(fromUrl)
+    const url = new URL(window.location.href)
+    const fromUrl = url.searchParams.get("spot")
+    const variantFromUrl = url.searchParams.get("muralStage")
+    if (fromUrl && getMuroranSpot(fromUrl)) {
+      const spot = getMuroranSpot(fromUrl)!
+      setSelectedSpotId(fromUrl)
+      if (variantFromUrl && muralVariantsForSpot(spot).some((variant) => variant.id === variantFromUrl)) {
+        setSelectedMuralVariantId(variantFromUrl)
+      }
+    }
   }, [])
 
   useEffect(() => {
@@ -201,7 +216,7 @@ export function MuralView({ cart }: { cart: CartApi }) {
       if (error) {
         if (isMissingMuralStorage(error)) {
           setStorageReady(false)
-          setStorageMessage("壁画共有用のSupabase設定がまだ完了していません。supabase/mural-community-migration.sql を実行してください。")
+          setStorageMessage("壁画共有用のSupabase設定を更新してください。既存環境では supabase/mural-view-stage2-migration.sql を実行してください。")
         }
         return
       }
@@ -218,7 +233,7 @@ export function MuralView({ cart }: { cart: CartApi }) {
     }
   }, [])
 
-  const loadSpotPosts = useCallback(async (spotId: string) => {
+  const loadSpotPosts = useCallback(async (spotId: string, muralVariant: string) => {
     setLoadingPosts(true)
     setSelectedEntry(null)
     if (!isSupabaseConfigured) {
@@ -236,12 +251,13 @@ export function MuralView({ cart }: { cart: CartApi }) {
         .from("mural_posts")
         .select(MURAL_POST_SELECT)
         .eq("spot_id", spotId)
+        .eq("mural_variant", muralVariant)
         .order("created_at", { ascending: false })
         .limit(120)
       if (error) {
         if (isMissingMuralStorage(error)) {
           setStorageReady(false)
-          setStorageMessage("壁画共有用のSupabase設定がまだ完了していません。supabase/mural-community-migration.sql を実行してください。")
+          setStorageMessage("壁画共有用のSupabase設定を更新してください。既存環境では supabase/mural-view-stage2-migration.sql を実行してください。")
         }
         setPosts([])
         return
@@ -280,8 +296,8 @@ export function MuralView({ cart }: { cart: CartApi }) {
   }, [loadMapCounts])
 
   useEffect(() => {
-    void loadSpotPosts(selectedSpotId)
-  }, [loadSpotPosts, selectedSpotId])
+    void loadSpotPosts(selectedSpotId, activeMuralVariant.id)
+  }, [activeMuralVariant.id, loadSpotPosts, selectedSpotId])
 
   const wallPosts = useMemo(
     () => [...posts].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, MURAL_WALL_ROBOT_LIMIT),
@@ -290,12 +306,12 @@ export function MuralView({ cart }: { cart: CartApi }) {
 
   const ambientRobots = useMemo(
     () => generateAmbientMuralRobots(
-      selectedSpot,
+      activeMuralSpot,
       wallPosts.length,
-      wallPosts.map((post) => ({ x: post.positionX, y: snapMuralRobotY(selectedSpot, post.positionX, post.positionY) })),
-      localMuralDateKey(),
+      wallPosts.map((post) => ({ x: post.positionX, y: snapMuralRobotY(activeMuralSpot, post.positionX, post.positionY) })),
+      `${localMuralDateKey()}|${activeMuralVariant.id}`,
     ),
-    [selectedSpot, wallPosts],
+    [activeMuralSpot, activeMuralVariant.id, wallPosts],
   )
 
   const sortedReviews = useMemo(() => {
@@ -310,11 +326,13 @@ export function MuralView({ cart }: { cart: CartApi }) {
 
   function selectSpot(spot: MuroranSpot) {
     setSelectedSpotId(spot.id)
+    setSelectedMuralVariantId(DEFAULT_MURAL_VARIANT_ID)
     setPlacement(null)
     setNotice(null)
     const url = new URL(window.location.href)
     url.searchParams.set("tab", "mural")
     url.searchParams.set("spot", spot.id)
+    url.searchParams.delete("muralStage")
     window.history.replaceState({ tab: "mural" }, "", url)
     requestAnimationFrame(() => document.getElementById("spot-mural")?.scrollIntoView({ behavior: "smooth", block: "start" }))
   }
@@ -332,7 +350,7 @@ export function MuralView({ cart }: { cart: CartApi }) {
     const rect = event.currentTarget.getBoundingClientRect()
     const x = clampMuralPositionX(((event.clientX - rect.left) / rect.width) * 100)
     const requestedY = clampMuralPositionY(((event.clientY - rect.top) / rect.height) * 100)
-    const y = snapMuralRobotY(selectedSpot, x, requestedY)
+    const y = snapMuralRobotY(activeMuralSpot, x, requestedY)
     setPlacement({ x, y })
     setNotice(null)
   }
@@ -375,6 +393,8 @@ export function MuralView({ cart }: { cart: CartApi }) {
         author_name: (account.profile?.display_name || "マチノワユーザー").slice(0, 40),
         robot_name: selectedRobot.name.slice(0, 40),
         robot_config: selectedRobot.config,
+        robot_view: draftRobotView,
+        mural_variant: activeMuralVariant.id,
         custom_item_document: customItemForRobot(selectedRobot),
         review: cleanReview,
         position_x: placement.x,
@@ -385,10 +405,10 @@ export function MuralView({ cart }: { cart: CartApi }) {
       const { data, error } = await supabase.from("mural_posts").insert(payload).select(MURAL_POST_SELECT).single()
       if (error) {
         if (error.code === "23505") {
-          setNotice({ type: "error", text: "このロボットはすでにこの場所の壁画へ投稿されています。別のロボットを選ぶか、既存投稿を削除してください。" })
+          setNotice({ type: "error", text: "このロボットはすでにこの壁画ステージへ投稿されています。別のロボットを選ぶか、既存投稿を削除してください。" })
         } else if (isMissingMuralStorage(error)) {
           setStorageReady(false)
-          setStorageMessage("supabase/mural-community-migration.sql を実行してください。")
+          setStorageMessage("既存環境では supabase/mural-view-stage2-migration.sql を実行してください。")
           setNotice({ type: "error", text: "壁画共有用のSupabase設定がまだ完了していません。" })
         } else {
           setNotice({ type: "error", text: `投稿できませんでした：${error.message}` })
@@ -510,9 +530,9 @@ export function MuralView({ cart }: { cart: CartApi }) {
                 <Badge variant="secondary" className="rounded-full">{selectedSpot.area}</Badge>
                 {relatedShop && <Badge className="rounded-full"><Store className="mr-1 size-3" />店舗</Badge>}
               </div>
-              <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">{selectedSpot.description}</p>
-              <div className="mt-3 font-bold text-primary">{selectedSpot.muralTitle}</div>
-              <p className="mt-1 text-sm text-muted-foreground">{selectedSpot.muralSubtitle}</p>
+              <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">{activeMuralSpot.description}</p>
+              <div className="mt-3 font-bold text-primary">{activeMuralSpot.muralTitle}</div>
+              <p className="mt-1 text-sm text-muted-foreground">{activeMuralSpot.muralSubtitle}</p>
             </div>
           </div>
           <div className="flex shrink-0 gap-2 text-xs">
@@ -520,6 +540,34 @@ export function MuralView({ cart }: { cart: CartApi }) {
             <Badge variant="outline" className="rounded-full">レビュー {posts.length}件</Badge>
           </div>
         </div>
+
+        {muralVariants.length > 1 && (
+          <div className="flex flex-wrap items-center gap-2 rounded-2xl border bg-card p-3">
+            <span className="mr-1 text-sm font-bold">室工大の壁画ステージ</span>
+            {muralVariants.map((variant) => (
+              <Button
+                key={variant.id}
+                type="button"
+                size="sm"
+                variant={activeMuralVariant.id === variant.id ? "default" : "outline"}
+                className="rounded-full"
+                onClick={() => {
+                  setSelectedMuralVariantId(variant.id)
+                  setPlacement(null)
+                  setSelectedEntry(null)
+                  const url = new URL(window.location.href)
+                  url.searchParams.set("tab", "mural")
+                  url.searchParams.set("spot", selectedSpot.id)
+                  if (variant.id === DEFAULT_MURAL_VARIANT_ID) url.searchParams.delete("muralStage")
+                  else url.searchParams.set("muralStage", variant.id)
+                  window.history.replaceState({ tab: "mural" }, "", url)
+                }}
+              >
+                {variant.label}
+              </Button>
+            ))}
+          </div>
+        )}
 
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_330px]">
           <div className="flex flex-col gap-3">
@@ -532,7 +580,7 @@ export function MuralView({ cart }: { cart: CartApi }) {
               )}
               aria-label={`${selectedSpot.name}の壁画`}
             >
-              <MuralBackground spot={selectedSpot} />
+              <MuralBackground spot={activeMuralSpot} />
               <div className="pointer-events-none absolute inset-x-0 top-0 z-[2] flex items-start justify-between gap-3 bg-gradient-to-b from-black/36 to-transparent p-4 text-white">
                 <div>
                   <div className="font-display text-lg font-black drop-shadow">{selectedSpot.name}</div>
@@ -549,6 +597,7 @@ export function MuralView({ cart }: { cart: CartApi }) {
                   y={robot.positionY}
                   scale={robot.scale}
                   rotationDeg={robot.rotationDeg}
+                  view={robot.config.view}
                   generated
                   onClick={(event) => {
                     event.stopPropagation()
@@ -563,8 +612,9 @@ export function MuralView({ cart }: { cart: CartApi }) {
                   config={post.robotConfig}
                   customItemDocument={post.customItemDocument}
                   x={post.positionX}
-                  y={snapMuralRobotY(selectedSpot, post.positionX, post.positionY)}
+                  y={snapMuralRobotY(activeMuralSpot, post.positionX, post.positionY)}
                   scale={post.scale}
+                  view={post.robotView}
                   rotationDeg={post.rotationDeg}
                   generated={false}
                   review={post.review}
@@ -577,7 +627,7 @@ export function MuralView({ cart }: { cart: CartApi }) {
 
               {selectedRobot && placement && (
                 <div className="pointer-events-none absolute z-40 h-[34%] min-h-28 w-[19%] min-w-24 max-w-40 -translate-x-1/2 -translate-y-1/2 rounded-2xl ring-4 ring-primary/75" style={{ left: `${placement.x}%`, top: `${placement.y}%`, transform: `translate(-50%, -50%) rotate(${draftRotation}deg) scale(${draftScale})`, transformOrigin: "50% 82%" }}>
-                  <RobotCharacter config={selectedRobot.config} customItemDocument={customItemForRobot(selectedRobot)} className="h-full w-full overflow-visible opacity-85" />
+                  <RobotCharacter config={{ ...selectedRobot.config, view: draftRobotView }} customItemDocument={customItemForRobot(selectedRobot)} className="h-full w-full overflow-visible opacity-85" />
                   <span className="absolute left-1/2 top-0 -translate-x-1/2 whitespace-nowrap rounded-full bg-primary px-2 py-1 text-[9px] font-black text-primary-foreground shadow">投稿予定</span>
                 </div>
               )}
@@ -635,6 +685,14 @@ export function MuralView({ cart }: { cart: CartApi }) {
                     </div>
                     <div className="flex flex-col gap-3">
                       <div>
+                        <div className="mb-1 text-xs font-bold">向き</div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {([['front', '正面'], ['side', '側面'], ['back', '背面']] as const).map(([view, label]) => (
+                            <Button key={view} type="button" size="sm" variant={draftRobotView === view ? "default" : "outline"} className="rounded-full" onClick={() => setDraftRobotView(view)}>{label}</Button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
                         <div className="mb-1 flex justify-between text-xs"><span>大きさ</span><span>{Math.round(draftScale * 100)}%</span></div>
                         <Slider value={[draftScale]} min={0.55} max={1.35} step={0.05} onValueChange={(value) => setDraftScale(Array.isArray(value) ? value[0] : Number(value))} />
                       </div>
@@ -642,7 +700,7 @@ export function MuralView({ cart }: { cart: CartApi }) {
                         <div className="mb-1 flex justify-between text-xs"><span>傾き</span><span>{Math.round(draftRotation)}°</span></div>
                         <Slider value={[draftRotation]} min={-18} max={18} step={1} onValueChange={(value) => setDraftRotation(Array.isArray(value) ? value[0] : Number(value))} />
                       </div>
-                      <Button variant="outline" size="sm" className="rounded-full" onClick={() => { setPlacement(null); setDraftScale(0.9); setDraftRotation(0) }}><RotateCcw data-icon="inline-start" />配置をリセット</Button>
+                      <Button variant="outline" size="sm" className="rounded-full" onClick={() => { setPlacement(null); setDraftScale(0.9); setDraftRotation(0); setDraftRobotView("front") }}><RotateCcw data-icon="inline-start" />配置をリセット</Button>
                     </div>
                   </div>
 
@@ -672,7 +730,7 @@ export function MuralView({ cart }: { cart: CartApi }) {
               <div className="rounded-2xl border border-dashed p-7 text-center text-sm text-muted-foreground">まだユーザーのレビューはありません。最初の1体を壁画へ飾ってみましょう。</div>
             ) : sortedReviews.map((post) => (
               <button key={post.id} type="button" className="flex gap-3 rounded-2xl border p-3 text-left transition hover:border-primary/40 hover:bg-muted/40" onClick={() => setSelectedEntry({ kind: "post", post })}>
-                <div className="size-20 shrink-0 overflow-hidden rounded-xl bg-muted"><RobotCharacter config={{ ...post.robotConfig, view: "front" }} customItemDocument={post.customItemDocument} className="h-full w-full" /></div>
+                <div className="size-20 shrink-0 overflow-hidden rounded-xl bg-muted"><RobotCharacter config={{ ...post.robotConfig, view: post.robotView }} customItemDocument={post.customItemDocument} className="h-full w-full" /></div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center justify-between gap-2"><span className="font-bold">{post.authorName}</span><span className="text-xs text-muted-foreground">{dateLabel(post.createdAt)}</span></div>
                   <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{post.review}</p>
@@ -703,8 +761,8 @@ export function MuralView({ cart }: { cart: CartApi }) {
               <>
                 <div className="text-6xl">{selectedSpot.emoji}</div>
                 <div className="font-display text-xl font-black">{selectedSpot.name}</div>
-                <p className="text-sm leading-relaxed text-muted-foreground">{selectedSpot.description}</p>
-                <div className="rounded-2xl bg-primary/10 p-4 text-sm"><div className="font-bold text-primary">場所限定デザイン</div><p className="mt-1 text-muted-foreground">{selectedSpot.muralSubtitle}</p></div>
+                <p className="text-sm leading-relaxed text-muted-foreground">{activeMuralSpot.description}</p>
+                <div className="rounded-2xl bg-primary/10 p-4 text-sm"><div className="font-bold text-primary">場所限定デザイン</div><p className="mt-1 text-muted-foreground">{activeMuralSpot.muralSubtitle}</p></div>
               </>
             )}
           </CardContent>
@@ -736,7 +794,7 @@ export function MuralView({ cart }: { cart: CartApi }) {
                   <DialogDescription>{post.authorName}さんのレビュー ・ {dateLabel(post.createdAt)}</DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 sm:grid-cols-[180px_1fr]">
-                  <div className="h-56 overflow-hidden rounded-2xl bg-muted"><RobotCharacter config={{ ...post.robotConfig, view: "front" }} customItemDocument={post.customItemDocument} className="h-full w-full" /></div>
+                  <div className="h-56 overflow-hidden rounded-2xl bg-muted"><RobotCharacter config={{ ...post.robotConfig, view: post.robotView }} customItemDocument={post.customItemDocument} className="h-full w-full" /></div>
                   <div className="flex flex-col gap-3">
                     <blockquote className="rounded-2xl bg-muted p-4 text-sm leading-relaxed">「{post.review}」</blockquote>
                     <Button variant={liked ? "default" : "outline"} className={cn("rounded-full", liked && "bg-rose-600 hover:bg-rose-500")} onClick={() => void toggleLike(post)}><Heart data-icon="inline-start" fill={liked ? "currentColor" : "none"} />{liked ? "いいね済み" : "いいね"}（{likeCounts[post.id] ?? 0}）</Button>
@@ -766,7 +824,7 @@ export function MuralView({ cart }: { cart: CartApi }) {
                 const spot = getMuroranSpot(post.spotId)
                 return (
                   <button key={post.id} type="button" className="flex gap-3 rounded-2xl border p-3 text-left hover:bg-muted/40" onClick={() => { setAuthorUserId(null); selectSpot(spot ?? selectedSpot); window.setTimeout(() => setSelectedEntry({ kind: "post", post }), 350) }}>
-                    <div className="size-16 shrink-0 overflow-hidden rounded-xl bg-muted"><RobotCharacter config={{ ...post.robotConfig, view: "front" }} customItemDocument={post.customItemDocument} className="h-full w-full" /></div>
+                    <div className="size-16 shrink-0 overflow-hidden rounded-xl bg-muted"><RobotCharacter config={{ ...post.robotConfig, view: post.robotView }} customItemDocument={post.customItemDocument} className="h-full w-full" /></div>
                     <div className="min-w-0"><div className="font-bold">{spot?.name ?? post.spotId}</div><p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{post.review}</p></div>
                   </button>
                 )

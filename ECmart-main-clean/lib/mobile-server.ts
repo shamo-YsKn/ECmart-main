@@ -106,9 +106,9 @@ async function restPublicGet<T>(path: string): Promise<T | null> {
   }
 }
 
-export async function getMobileMuralPosts(spotId: string): Promise<MuralPost[]> {
+export async function getMobileMuralPosts(spotId: string, muralVariant = "default"): Promise<MuralPost[]> {
   const rows = await restPublicGet<unknown[]>(
-    `mural_posts?select=id,user_id,spot_id,saved_robot_id,author_name,robot_name,robot_config,custom_item_document,review,position_x,position_y,scale,rotation_deg,created_at,updated_at&spot_id=eq.${encodeURIComponent(spotId)}&order=created_at.desc&limit=60`,
+    `mural_posts?select=id,user_id,spot_id,saved_robot_id,author_name,robot_name,robot_config,robot_view,mural_variant,custom_item_document,review,position_x,position_y,scale,rotation_deg,created_at,updated_at&spot_id=eq.${encodeURIComponent(spotId)}&mural_variant=eq.${encodeURIComponent(muralVariant)}&order=created_at.desc&limit=60`,
   )
   return (rows ?? [])
     .map((row) => parseMuralPostRow(row))

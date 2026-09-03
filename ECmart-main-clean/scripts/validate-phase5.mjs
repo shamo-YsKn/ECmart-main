@@ -40,7 +40,7 @@ if (!mobile.includes('["mural", "まち歩き"]')) failures.push("mobile navigat
 if (!mobile.includes('tab === "mural"')) failures.push("mobile read-only mural view missing")
 
 const sql = fs.readFileSync(path.join(root, "supabase/mural-community-migration.sql"), "utf8")
-for (const token of ["public.mural_posts", "public.mural_post_likes", "mural_posts_select_public", "get_mural_like_counts", "mural_likes_select_own", "unique (user_id, spot_id, saved_robot_id)"]) {
+for (const token of ["public.mural_posts", "public.mural_post_likes", "mural_posts_select_public", "get_mural_like_counts", "mural_likes_select_own", "unique (user_id, spot_id, mural_variant, saved_robot_id)"]) {
   if (!sql.includes(token)) failures.push(`SQL missing: ${token}`)
 }
 

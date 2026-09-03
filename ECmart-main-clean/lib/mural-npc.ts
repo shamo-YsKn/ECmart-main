@@ -1,4 +1,4 @@
-import type { RobotConfig, RobotItem, RobotPose } from "@/lib/types"
+import type { RobotConfig, RobotItem, RobotPose, RobotView } from "@/lib/types"
 import { snapMuralRobotY, type MuroranSpot } from "@/lib/mural-spots"
 import { normalizeRobotConfig } from "@/lib/robot-config"
 
@@ -92,13 +92,14 @@ export function generateAmbientMuralRobots(
     const bodyColor = pick(random, spot.ambient.bodyColors)
     const accentColor = pick(random, spot.ambient.accentColors)
     const size = Math.round(47 + random() * 16)
+    const view = pick(random, ["front", "front", "side", "back"] as const) as RobotView
     const config = normalizeRobotConfig({
       base,
       pose,
       poseState: { mode: "preset", preset: pose, joints: {}, axes: { front: {}, side: {} } },
       item,
       heldItem: { kind: "builtin", item },
-      view: "front",
+      view,
       size,
       bodyColor,
       accentColor,
