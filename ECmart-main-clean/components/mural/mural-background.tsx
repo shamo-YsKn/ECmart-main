@@ -63,40 +63,123 @@ export function MuralBackground({ spot }: { spot: MuroranSpot }) {
 
       {spot.theme === "university-tech" && (
         <>
-          <rect y="382" width="1000" height="178" fill="#c4b593" />
-          <rect x="84" y="175" width="492" height="225" rx="10" fill="#d7d5cf" stroke="#53636a" strokeWidth="9" />
-          <rect x="604" y="132" width="286" height="268" rx="10" fill="#c8d4da" stroke="#53636a" strokeWidth="9" />
-          <rect x="128" y="218" width="106" height="68" fill="#79a8be" />
-          <rect x="270" y="218" width="106" height="68" fill="#79a8be" />
-          <rect x="412" y="218" width="106" height="68" fill="#79a8be" />
-          <rect x="676" y="178" width="132" height="76" fill="#8db4c6" />
-          <rect x="302" y="313" width="76" height="87" fill="#596970" />
+          {/*
+            室工大 第2壁画「研究エリア」。
+            参考イメージの3Dジオラマ構図を、そのまま立体化せず、
+            壁画として読みやすいパノラマ型の2Dイラストへ整理。
+            左=機械・ロボット / 中央=建築 / 右=化学。
+          */}
 
-          {/* ロボット研究 */}
-          <g transform="translate(112 112)">
-            <circle cx="0" cy="0" r="22" fill="#c9a24b" stroke="#435760" strokeWidth="7" />
-            <path d="M17 -2 L82 -38 L111 -5 L75 20 L118 53" fill="none" stroke="#9c9790" strokeWidth="18" strokeLinecap="round" strokeLinejoin="round" />
-            <circle cx="82" cy="-38" r="12" fill="#c9a24b" stroke="#435760" strokeWidth="6" />
-            <circle cx="75" cy="20" r="12" fill="#c9a24b" stroke="#435760" strokeWidth="6" />
-            <path d="M112 53 l24 -10 l-7 25 z" fill="#c9a24b" stroke="#435760" strokeWidth="5" />
+          {/* 室蘭の遠景：海・白鳥大橋・丘・工場 */}
+          <rect y="208" width="1000" height="180" fill="#79a8bd" opacity=".62" />
+          <path d="M0 246 C150 220 255 236 374 224 C514 208 655 234 1000 214 V342 H0 Z" fill="#4f8fa7" opacity=".8" />
+          <path d="M0 205 C105 164 166 174 242 207 C322 235 390 213 452 178 C535 132 632 148 708 199 C802 262 892 171 1000 190 V268 H0 Z" fill="#78936c" opacity=".86" />
+
+          {/* 白鳥大橋 */}
+          <g opacity=".86">
+            <path d="M32 217 H365" stroke="#eef1ed" strokeWidth="8" />
+            <path d="M105 219 V119 M288 219 V104" stroke="#eef1ed" strokeWidth="9" />
+            <path d="M105 130 C158 165 224 170 288 115" fill="none" stroke="#eef1ed" strokeWidth="5" />
+            {Array.from({ length: 6 }, (_, index) => {
+              const x = 127 + index * 27
+              return <path key={index} d={`M${x} ${143 + Math.abs(2.5 - index) * 8} V216`} stroke="#eef1ed" strokeWidth="2.5" />
+            })}
           </g>
 
-          {/* 建築・構造 */}
-          <g transform="translate(520 110)" opacity=".82">
-            <path d="M0 92 L55 18 L110 92 Z M22 92 L55 48 L88 92" fill="none" stroke="#667980" strokeWidth="8" />
-            <path d="M10 72 H100 M31 52 H79" stroke="#667980" strokeWidth="5" />
+          {/* 工場のシルエット */}
+          <g opacity=".72">
+            <rect x="724" y="181" width="196" height="82" fill="#64747a" />
+            <rect x="755" y="135" width="18" height="128" fill="#75858a" />
+            <rect x="828" y="119" width="16" height="144" fill="#75858a" />
+            <rect x="888" y="157" width="14" height="106" fill="#75858a" />
+            <path d="M711 226 H949 M744 196 H921" stroke="#89989c" strokeWidth="8" />
           </g>
 
-          {/* 化学 */}
-          <g transform="translate(828 286)">
-            <path d="M-35 -88 H-6 V-38 L-55 42 Q-63 57 -43 62 H39 Q59 57 51 42 L3 -38 V-88 H32" fill="#9bd4df" fillOpacity=".48" stroke="#526970" strokeWidth="7" strokeLinejoin="round" />
-            <path d="M-43 26 Q0 6 42 27" fill="none" stroke="#4ba0b5" strokeWidth="9" />
-            <circle cx="-14" cy="22" r="7" fill="#f1cb5b" /><circle cx="18" cy="37" r="6" fill="#e68475" />
+          {/* 中景：室工大キャンパス。時計塔を中央軸にする */}
+          <g>
+            <path d="M285 326 V226 H475 V326 M525 326 V226 H715 V326" fill="#ddd9cf" stroke="#52636a" strokeWidth="7" />
+            <path d="M475 326 V185 H525 V326" fill="#e5e0d4" stroke="#52636a" strokeWidth="7" />
+            <rect x="487" y="214" width="26" height="30" rx="4" fill="#8aa8b3" stroke="#52636a" strokeWidth="4" />
+            <circle cx="500" cy="202" r="12" fill="#f2eee2" stroke="#52636a" strokeWidth="4" />
+            <path d="M500 190 V202 L507 207" stroke="#52636a" strokeWidth="3" strokeLinecap="round" />
+            {Array.from({ length: 5 }, (_, index) => (
+              <rect key={`l-${index}`} x={306 + index * 31} y="251" width="19" height="27" rx="2" fill="#84a9b7" opacity=".84" />
+            ))}
+            {Array.from({ length: 5 }, (_, index) => (
+              <rect key={`r-${index}`} x={546 + index * 31} y="251" width="19" height="27" rx="2" fill="#84a9b7" opacity=".84" />
+            ))}
+            <path d="M500 326 C455 347 422 363 386 389 M500 326 C545 347 578 363 614 389" fill="none" stroke="#d8cbb4" strokeWidth="20" strokeLinecap="round" />
           </g>
 
-          <Gear x={474} y={340} r={42} opacity={0.18} />
-          <path d="M0 418 H1000" stroke="#6d665f" strokeWidth="9" />
-          <text x="500" y="94" textAnchor="middle" fontSize="30" fontWeight="900" fill="#405057">MURORAN IT — RESEARCH AREA</text>
+          {/* 研究分野を3つの連続した前景パネルに分ける */}
+          <path d="M0 365 H330 L312 522 H0 Z" fill="#687d87" fillOpacity=".88" stroke="#43565e" strokeWidth="7" />
+          <path d="M330 365 H670 L690 522 H312 Z" fill="#c6ad78" fillOpacity=".88" stroke="#695d49" strokeWidth="7" />
+          <path d="M670 365 H1000 V522 H690 Z" fill="#6d8d68" fillOpacity=".9" stroke="#435e48" strokeWidth="7" />
+
+          {/* 左：機械・ロボット */}
+          <g transform="translate(32 363)">
+            <Gear x={56} y={101} r={34} opacity={0.78} />
+            <Gear x={126} y={125} r={24} opacity={0.64} />
+            <rect x="150" y="58" width="112" height="80" rx="7" fill="#83939a" stroke="#344853" strokeWidth="6" />
+            <rect x="172" y="77" width="60" height="32" fill="#315a68" opacity=".9" />
+            <path d="M230 58 V34" stroke="#344853" strokeWidth="8" />
+            <g transform="translate(36 9)">
+              <circle cx="0" cy="0" r="17" fill="#c9a24b" stroke="#344853" strokeWidth="6" />
+              <path d="M15 -2 L72 -31 L101 -4 L77 28 L123 53" fill="none" stroke="#d0d4d2" strokeWidth="16" strokeLinecap="round" strokeLinejoin="round" />
+              <circle cx="72" cy="-31" r="10" fill="#c9a24b" stroke="#344853" strokeWidth="5" />
+              <circle cx="77" cy="28" r="10" fill="#c9a24b" stroke="#344853" strokeWidth="5" />
+              <path d="M119 48 l22 -8 l-7 22 z" fill="#c9a24b" stroke="#344853" strokeWidth="4" />
+            </g>
+            <path d="M150 140 H270" stroke="#dbe2e3" strokeWidth="4" strokeDasharray="13 8" />
+          </g>
+
+          {/* 中央：建築。木造フレーム + 建物模型 + 製図 */}
+          <g transform="translate(346 372)">
+            <g stroke="#775f3d" strokeWidth="6" fill="none" strokeLinejoin="round">
+              <path d="M18 104 V28 H132 V104 M18 28 L75 0 L132 28 M44 104 V45 H106 V104" />
+              <path d="M18 52 H132 M18 78 H132 M44 45 L75 22 L106 45" />
+              <path d="M18 28 L132 104 M132 28 L18 104" opacity=".45" />
+            </g>
+            <g transform="translate(154 36)">
+              <path d="M0 72 V18 H118 V72 H78 V45 H42 V72 Z" fill="#e9e4d7" stroke="#5d6b70" strokeWidth="5" />
+              <rect x="13" y="31" width="24" height="18" fill="#86aebd" /><rect x="81" y="31" width="24" height="18" fill="#86aebd" />
+              <path d="M0 18 L58 0 L118 18" fill="#d5d1c8" stroke="#5d6b70" strokeWidth="5" />
+            </g>
+            <path d="M82 132 H270 L241 157 H47 Z" fill="#e7dfcc" stroke="#695d49" strokeWidth="5" />
+            <path d="M102 138 L148 148 M133 135 L176 149 M193 137 L224 145" stroke="#71838a" strokeWidth="3" />
+          </g>
+
+          {/* 右：化学。大型フラスコ、試験管、分子、顕微鏡 */}
+          <g transform="translate(699 352)">
+            <path d="M52 15 H84 V62 L31 142 Q21 160 44 165 H110 Q133 160 123 142 L72 62 V15 H104" fill="#a8dce4" fillOpacity=".55" stroke="#49646d" strokeWidth="6" />
+            <path d="M43 128 Q78 112 115 129" fill="none" stroke="#3e99b1" strokeWidth="8" />
+            <rect x="144" y="79" width="122" height="79" rx="5" fill="#bdc9c2" fillOpacity=".56" stroke="#49646d" strokeWidth="5" />
+            {Array.from({ length: 5 }, (_, index) => (
+              <g key={index}>
+                <rect x={155 + index * 22} y="51" width="12" height="90" rx="6" fill={index % 2 ? "#8acfb7" : "#77b9d4"} fillOpacity=".7" stroke="#49646d" strokeWidth="3" />
+                <path d={`M${158 + index * 22} 112 H${164 + index * 22}`} stroke={index % 2 ? "#4ca67e" : "#3b8eae"} strokeWidth="8" />
+              </g>
+            ))}
+            <g transform="translate(224 4)" stroke="#425a62" strokeWidth="4" fill="none">
+              <circle cx="0" cy="0" r="9" fill="#d9b658" />
+              <circle cx="43" cy="22" r="9" fill="#77a8cb" />
+              <circle cx="73" cy="-10" r="9" fill="#88b778" />
+              <circle cx="105" cy="19" r="9" fill="#d68b74" />
+              <path d="M8 4 L35 18 M51 15 L65 -3 M81 -4 L98 14" />
+            </g>
+            <g transform="translate(269 86)">
+              <path d="M18 0 H50 L58 22 L44 37 L64 73 H18 L34 36 L20 21 Z" fill="#d8ddd9" stroke="#41575f" strokeWidth="5" />
+              <path d="M46 36 H72 M62 36 V80 M26 80 H82" stroke="#41575f" strokeWidth="7" strokeLinecap="round" />
+            </g>
+          </g>
+
+          {/* 分野の色帯。ロボット配置を邪魔しないよう下端へ */}
+          <rect x="15" y="510" width="295" height="34" rx="12" fill="#344f61" opacity=".93" />
+          <rect x="352" y="510" width="296" height="34" rx="12" fill="#8d6738" opacity=".93" />
+          <rect x="690" y="510" width="295" height="34" rx="12" fill="#406248" opacity=".93" />
+          <text x="162" y="533" textAnchor="middle" fontSize="19" fontWeight="900" fill="#f6f3ea">MECHANICAL / ROBOTICS</text>
+          <text x="500" y="533" textAnchor="middle" fontSize="19" fontWeight="900" fill="#fff7e8">ARCHITECTURE</text>
+          <text x="838" y="533" textAnchor="middle" fontSize="19" fontWeight="900" fill="#f2f8ef">CHEMICAL SCIENCE</text>
         </>
       )}
 

@@ -280,10 +280,10 @@ export function muralVariantsForSpot(spot: MuroranSpot): MuralStageVariant[] {
       id: "research",
       label: "研究エリア",
       shortLabel: "研究エリア",
-      description: "室蘭工業大学の研究をイメージした第2壁画。ロボット、建築、化学のモチーフを中心にしています。",
+      description: "室蘭工業大学の研究分野を一枚のパノラマ壁画にまとめた第2ステージ。室蘭の海・白鳥大橋・キャンパスを背景に、機械ロボット、建築、化学を3つのゾーンで表現しています。",
       theme: "university-tech",
-      muralTitle: "ロボット・建築・化学が交わる研究の壁",
-      muralSubtitle: "ロボットアーム、構造物、実験器具を背景に、研究室らしいボルタ・ナッティを配置できます。",
+      muralTitle: "工学がつながる、室工大研究パノラマ",
+      muralSubtitle: "機械・ロボット、建築、化学。室蘭の景色と研究のモチーフの中に、ボルタ・ナッティを配置できます。",
       ambient: {
         ...spot.ambient,
         bodyColors: ["#9c9790", "#b8b2a8", "#6f7b80", "#c9a24b", "#7b9aa8"],
@@ -316,8 +316,9 @@ interface MuralPlacementSurface {
 const MURAL_PLATFORM_SURFACES: Partial<Record<MuralTheme, MuralPlacementSurface[]>> = {
   university: [{ xMin: 8, xMax: 43, centerY: 31 }],
   "university-tech": [
-    { xMin: 10, xMax: 54, centerY: 46 },
-    { xMin: 62, xMax: 91, centerY: 39 },
+    { xMin: 4, xMax: 31, centerY: 69 },
+    { xMin: 34, xMax: 66, centerY: 69 },
+    { xMin: 69, xMax: 96, centerY: 69 },
   ],
   bridge: [{ xMin: 12, xMax: 88, centerY: 49 }],
   cape: [{ xMin: 4, xMax: 40, centerY: 65 }],
