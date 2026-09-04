@@ -86,70 +86,16 @@ function oppositeView(view: RobotConfig["view"]): "front" | "side" {
   return view === "side" ? "front" : "side"
 }
 
-function isArmHandle(handle: PoseHandleId) {
-  return handle.endsWith("Elbow") || handle.endsWith("Hand")
-}
-
-function armPlaneLength(axis: "front" | "side", handle: PoseHandleId) {
-  // 足と同じく「各ビューの平面上での操作長」を使う。
-  // 正面は従来どおり40、側面は既存デザインの上腕45 / 前腕47を使う。
-  if (axis === "front") return 40
-  return handle.endsWith("Elbow") ? 45 : 47
-}
-
-function vectorBetween(from: Point, to: Point): RobotSpatialVector {
-  return {
-    x: to.x - from.x,
-    y: 0,
-    z: -(to.y - from.y),
-  }
-}
-
-function seededArmSpatial(
-  poseState: RobotPoseState,
+function defaultInteractionLength(
   config: RobotConfig,
-): RobotPoseSpatial {
-  const next: RobotPoseSpatial = { ...(poseState.spatial ?? {}) }
-  const frontLayout = buildRobot2DLayout({ ...config, view: "front", poseState: { ...poseState, spatial: {} } })
-
-  const seeds: Array<[ReturnType<typeof spatialSegmentForJoint>, Point, Point]> = [
-    ["leftUpperArm", frontLayout.shoulders.left, frontLayout.elbows.left],
-    ["leftLowerArm", frontLayout.elbows.left, frontLayout.hands.left],
-    ["rightUpperArm", frontLayout.shoulders.right, frontLayout.elbows.right],
-    ["rightLowerArm", frontLayout.elbows.right, frontLayout.hands.right],
-  ]
-
-  for (const [segmentId, parent, child] of seeds) {
-    if (!next[segmentId]) next[segmentId] = vectorBetween(parent, child)
-  }
-  return next
-}
-
-function armPlanarVector(
   axis: "front" | "side",
   handle: PoseHandleId,
-  visibleAngleDeg: number,
-  previous: RobotSpatialVector,
-): RobotSpatialVector {
-  const length = armPlaneLength(axis, handle)
-  const rad = (visibleAngleDeg * Math.PI) / 180
-
-  if (axis === "front") {
-    // 正面 = XZ。Yは一切変更せず、従来と同じ半径でX/Zだけを動かす。
-    return {
-      x: Math.cos(rad) * length,
-      y: previous.y,
-      z: -Math.sin(rad) * length,
-    }
-  }
-
-  // 側面 = YZ。Xは一切変更せず、Y/Zだけを動かす。
-  // 正面で腕が真横になり側面投影が点になっていても、固定の側面操作長を使うため再びドラッグできる。
-  return {
-    x: previous.x,
-    y: Math.cos(rad) * length,
-    z: -Math.sin(rad) * length,
-  }
+) {
+  const isNatty = config.base === "natty"
+  if (handle.endsWith("Elbow")) return axis === "side" ? 45 : 40
+  if (handle.endsWith("Hand")) return axis === "side" ? 47 : 40
+  if (handle.endsWith("Knee")) return axis === "side" ? (isNatty ? 36 : 42) : 38
+  return axis === "side" ? (isNatty ? 42 : 48) : (isNatty ? 38 : 45)
 }
 
 export function RobotPoseEditor({
@@ -271,25 +217,21 @@ export function RobotPoseEditor({
       ? normalizeAngle(nextResolved[parentJoint] + nextResolved[joint])
       : nextResolved[joint]
 
-    if (isArmHandle(handle)) {
-      // 足の自然な挙動を腕にも合わせる。ただし腕は正面で真横になると側面投影が点になり得るため、
-      // 現在の投影長ではなく各ビューの既定操作長を使い、XZ/YZを独立操作できるようにする。
-      const seededSpatial = seededArmSpatial(poseState, config)
-      const segmentId = spatialSegmentForJoint(joint)
-      const previousVector = seededSpatial[segmentId] ?? { x: 0, y: 0, z: 0 }
-      const vector = armPlanarVector(layout.axis, handle, absoluteAngle, previousVector)
-      const spatialPatch: RobotPoseSpatial = {
-        ...seededSpatial,
-        [segmentId]: vector,
-      }
-      onPoseStateChange(updatePoseAxisLinked(poseState, layout.axis, patch, spatialPatch))
-      return
-    }
-
-    // 脚は現在の挙動が自然なので、従来のXZ/YZ・Z共有処理を維持する。
+    // 腕・脚を同じ疑似3Dモデルで扱う。
+    // 正面 = XZ、側面 = YZ。編集していない横軸は保持し、Zだけ共有します。
     const sourceParent = parentPointForHandle(handle, layout)
     const sourceChild = childPointForHandle(handle, layout)
-    const sourceLength = Math.max(1, Math.hypot(sourceChild.x - sourceParent.x, sourceChild.y - sourceParent.y))
+    const projectedLength = Math.hypot(sourceChild.x - sourceParent.x, sourceChild.y - sourceParent.y)
+    const pointerDistance = Math.hypot(point.x - sourceParent.x, point.y - sourceParent.y)
+
+    // 奥行き方向を向いて投影が一点に近くなったとき、クリックした瞬間に0°へ飛ばないようにします。
+    // 少しドラッグして方向が決まってから、元の部材長を操作半径として復元します。
+    const collapsedProjection = projectedLength < 6
+    if (collapsedProjection && pointerDistance < 5) return
+
+    const sourceLength = collapsedProjection
+      ? defaultInteractionLength(config, layout.axis, handle)
+      : projectedLength
     const sourceRad = (absoluteAngle * Math.PI) / 180
     const sourceHorizontal = Math.cos(sourceRad) * sourceLength
     const sharedZ = -Math.sin(sourceRad) * sourceLength
@@ -299,7 +241,8 @@ export function RobotPoseEditor({
     const targetChild = childPointForHandle(handle, targetLayout)
     const targetHorizontal = targetChild.x - targetParent.x
 
-    const previousVector = poseState.spatial?.[spatialSegmentForJoint(joint)]
+    const segmentId = spatialSegmentForJoint(joint)
+    const previousVector = poseState.spatial?.[segmentId]
     const vector: RobotSpatialVector = layout.axis === "front"
       ? {
           x: sourceHorizontal,
@@ -312,7 +255,7 @@ export function RobotPoseEditor({
           z: sharedZ,
         }
     const spatialPatch: RobotPoseSpatial = {
-      [spatialSegmentForJoint(joint)]: vector,
+      [segmentId]: vector,
     }
 
     onPoseStateChange(updatePoseAxisLinked(poseState, layout.axis, patch, spatialPatch))
@@ -327,7 +270,8 @@ export function RobotPoseEditor({
     setDragState({ pointerId: event.pointerId, handle })
     onInteractionChange?.(handle)
     svgRef.current?.setPointerCapture(event.pointerId)
-    updateFromHandle(handle, point)
+    // クリックした瞬間には座標を更新せず、実際にドラッグが始まってから更新します。
+    // 投影が一点に縮んだ関節が、pointerdownだけで別方向へ飛ぶのを防ぎます。
   }
 
   function moveDrag(event: ReactPointerEvent<SVGSVGElement>) {
