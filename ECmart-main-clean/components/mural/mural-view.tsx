@@ -21,6 +21,9 @@ import {
 } from "@/lib/mural-model"
 import { RobotCharacter } from "@/components/robot/robot-character"
 import { ProductCard } from "@/components/product-card"
+import { MuralReviewEditor } from "@/components/community/mural-review-editor"
+import { ReportButton } from "@/components/community/report-button"
+import { communityError } from "@/lib/community-model"
 import { MuroranMiniMap } from "@/components/mural/muroran-mini-map"
 import { MuralBackground } from "@/components/mural/mural-background"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -178,6 +181,10 @@ export function MuralView({ cart }: { cart: CartApi }) {
   const [authorName, setAuthorName] = useState("")
   const [authorPosts, setAuthorPosts] = useState<MuralPost[]>([])
   const [loadingAuthor, setLoadingAuthor] = useState(false)
+  const [deletingPost, setDeletingPost] = useState(false)
+  const [postActionError, setPostActionError] = useState("")
+
+  useEffect(() => { setPostActionError("") }, [selectedEntry])
 
   const selectedSpot = getMuroranSpot(selectedSpotId) ?? MURORAN_SPOTS[0]
   const muralVariants = muralVariantsForSpot(selectedSpot)
@@ -464,15 +471,19 @@ export function MuralView({ cart }: { cart: CartApi }) {
   }
 
   async function deletePost(post: MuralPost) {
-    if (!account.user || post.userId !== account.user.id) return
-    if (!window.confirm(`${selectedSpot.name}から「${post.robotName}」の投稿を削除しますか？`)) return
-    const supabase = await createClient()
-    if (!supabase) return
-    const { error } = await supabase.from("mural_posts").delete().eq("id", post.id).eq("user_id", account.user.id)
-    if (error) return
-    setPosts((current) => current.filter((entry) => entry.id !== post.id))
-    setMapCounts((current) => ({ ...current, [post.spotId]: Math.max(0, (current[post.spotId] ?? 1) - 1) }))
-    setSelectedEntry(null)
+    if (deletingPost || !account.user || post.userId !== account.user.id) return
+    if (!window.confirm(`${selectedSpot.name}から「${post.robotName}」の投稿といいねを削除しますか？この操作は取り消せません。保存済みロボットは残ります。`)) return
+    setDeletingPost(true); setPostActionError("")
+    try {
+      const supabase = await createClient()
+      if (!supabase) throw new Error("unconfigured")
+      const { error } = await supabase.from("mural_posts").delete().eq("id", post.id).eq("user_id", account.user.id)
+      if (error) throw error
+      setPosts((current) => current.filter((entry) => entry.id !== post.id))
+      setAuthorPosts((current) => current.filter((entry) => entry.id !== post.id))
+      setMapCounts((current) => ({ ...current, [post.spotId]: Math.max(0, (current[post.spotId] ?? 1) - 1) }))
+      setSelectedEntry(null)
+    } catch (error) { setPostActionError(communityError(error)) } finally { setDeletingPost(false) }
   }
 
   async function openAuthor(post: MuralPost) {
@@ -799,7 +810,14 @@ export function MuralView({ cart }: { cart: CartApi }) {
                     <blockquote className="rounded-2xl bg-muted p-4 text-sm leading-relaxed">「{post.review}」</blockquote>
                     <Button variant={liked ? "default" : "outline"} className={cn("rounded-full", liked && "bg-rose-600 hover:bg-rose-500")} onClick={() => void toggleLike(post)}><Heart data-icon="inline-start" fill={liked ? "currentColor" : "none"} />{liked ? "いいね済み" : "いいね"}（{likeCounts[post.id] ?? 0}）</Button>
                     <Button variant="outline" className="rounded-full" onClick={() => void openAuthor(post)}><UserRound data-icon="inline-start" />{post.authorName}さんの投稿を見る</Button>
-                    {own && <Button variant="destructive" className="rounded-full" onClick={() => void deletePost(post)}><Trash2 data-icon="inline-start" />この投稿を削除</Button>}
+                    {own && <MuralReviewEditor key={post.id} post={post} onSaved={(updated) => {
+                      setPosts((current) => current.map((entry) => entry.id === updated.id ? updated : entry))
+                      setAuthorPosts((current) => current.map((entry) => entry.id === updated.id ? updated : entry))
+                      setSelectedEntry({ kind: "post", post: updated })
+                    }} />}
+                    {!own && <ReportButton key={post.id} kind="mural" targetId={post.id} />}
+                    {own && <Button variant="destructive" disabled={deletingPost} className="rounded-full" onClick={() => void deletePost(post)}><Trash2 data-icon="inline-start" />{deletingPost ? "削除中…" : "この投稿を削除"}</Button>}
+                    {postActionError && <p role="alert">{postActionError}</p>}
                   </div>
                 </div>
               </>

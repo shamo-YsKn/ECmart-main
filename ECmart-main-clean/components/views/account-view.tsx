@@ -12,6 +12,8 @@ import { RobotCharacter } from "@/components/robot/robot-character"
 import { CustomItemPreview } from "@/components/workbench/custom-item-preview"
 import { DioramaStagePreview } from "@/components/diorama/diorama-stage-preview"
 import { DioramaScenePreview } from "@/components/diorama/diorama-scene"
+import { PublicationControls } from "@/components/community/publication-controls"
+import { ModerationPanel } from "@/components/community/moderation-panel"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -287,7 +289,7 @@ export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; i
   }
 
   async function deleteDiorama(diorama: SavedDiorama) {
-    if (!window.confirm(`${diorama.name}を削除しますか？`)) return
+    if (!window.confirm(`${diorama.name}を削除しますか？公開中の作品とその「いいね」も削除されます。この操作は取り消せません。`)) return
     setDioramaActionId(diorama.id)
     setNotice(null)
     const result = await account.deleteDiorama(diorama.id)
@@ -473,6 +475,7 @@ export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; i
 
   return (
     <div className="flex flex-col gap-10">
+      <ModerationPanel />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-4">
           <RobotAvatar config={account.avatarRobot?.config} customItemDocument={customItemDocumentFor(account.avatarRobot)} className="size-20 shadow-sm" />
@@ -745,7 +748,7 @@ export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; i
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 className="font-display flex items-center gap-2 text-2xl font-black"><Layers3 className="size-6 text-primary" />マイジオラマ</h2>
-            <p className="mt-1 text-sm text-muted-foreground">背景にロボットや自作アイテムを配置して保存した作品です。</p>
+            <p className="mt-1 text-sm text-muted-foreground">保存した作品は非公開です。公開設定から、みんなのギャラリーに展示できます。</p>
           </div>
           <Button className="rounded-full" onClick={() => openDiorama()}><Plus data-icon="inline-start" />新しいジオラマ</Button>
         </div>
@@ -759,6 +762,7 @@ export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; i
                 <DioramaScenePreview document={diorama.document} robots={account.savedRobots} customItems={account.savedCustomItems} className="rounded-none border-0 shadow-none" />
                 <CardContent className="flex flex-col gap-3 p-4">
                   <div><h3 className="font-display text-lg font-black">{diorama.name}</h3><p className="mt-1 text-xs text-muted-foreground">{diorama.document.robots.length}体・{diorama.document.items.length}アイテム</p></div>
+                  <PublicationControls diorama={diorama} />
                   <div className="flex flex-wrap gap-2">
                     <Button size="sm" variant="outline" className="rounded-full" onClick={() => openDiorama(diorama)}><Pencil data-icon="inline-start" />編集</Button>
                     <Button size="sm" variant="ghost" className="rounded-full text-destructive hover:text-destructive" onClick={() => void deleteDiorama(diorama)} disabled={dioramaActionId === diorama.id}>{dioramaActionId === diorama.id ? <LoaderCircle className="animate-spin" data-icon="inline-start" /> : <Trash2 data-icon="inline-start" />}削除</Button>

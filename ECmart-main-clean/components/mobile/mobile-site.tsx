@@ -4,6 +4,7 @@ import { getMobileAccountData, getMobileMuralPosts, getMobileOrder, readMobileCa
 import type { RobotConfig, ShopCategory } from "@/lib/types"
 import { ROBOT_BASE_OPTIONS, ROBOT_ITEM_OPTIONS, ROBOT_POSE_OPTIONS, ROBOT_VIEW_OPTIONS } from "@/lib/robot-parts"
 import { RobotFallback } from "@/components/robot/robot-fallback"
+import { MobileGallery } from "@/components/mobile/mobile-gallery"
 import { calculateCartTotals } from "@/lib/purchase"
 import { GACHA_CATEGORY_LABELS, GACHA_COST, GACHA_RARITY_LABELS, getGachaReward, rewardPreview } from "@/lib/gacha"
 import { normalizeRobotConfig } from "@/lib/robot-config"
@@ -20,6 +21,7 @@ const TABS = [
   ["home", "ホーム"],
   ["shops", "ショップ"],
   ["mural", "まち歩き"],
+  ["gallery", "ギャラリー"],
   ["ranking", "ランキング"],
   ["robot", "工房"],
   ["account", "アカウント"],
@@ -105,7 +107,9 @@ export async function MobileSite({ params }: { params: Params }) {
   const quantityOf = (id: string) => cartItems.find((item) => item.productId === id)?.quantity ?? 0
 
   let content: React.ReactNode
-  if (tab === "shops") {
+  if (tab === "gallery") {
+    content = <MobileGallery params={params} userId={account.user?.id} />
+  } else if (tab === "shops") {
     const category = (one(params.category) || "すべて") as ShopCategory | "すべて"
     const shopId = one(params.shop)
     const selected = shops.find((shop) => shop.id === shopId)
@@ -222,5 +226,14 @@ export async function MobileSite({ params }: { params: Params }) {
     content = <div className="flex flex-col gap-8"><section className="rounded-3xl border-2 bg-card p-6"><div className="text-sm font-bold text-primary">北の大地・室蘭のセレクトマーケット</div><h1 className="mt-3 font-display text-4xl font-black">鉄のまちの、おいしさと<br/>手仕事を。</h1><p className="mt-3 text-muted-foreground">室蘭やきとり、うずらプリン、カレーラーメンとロボット工房を楽しめます。</p><div className="mt-5 grid grid-cols-2 gap-2"><a className={pill(true)} href="/?tab=shops">お店をのぞく</a><a className={pill()} href="/?tab=robot">ロボット工房へ</a></div></section><section><h2 className="font-display text-2xl font-black">人気の商品</h2><div className="mt-4 flex flex-col gap-3">{featured.map(p=><ProductRow key={p.id} productId={p.id} favorites={account.favorites} loggedIn={!!account.user} returnTo={returnTo} quantity={quantityOf(p.id)}/>)}</div></section><section><h2 className="font-display text-2xl font-black">室蘭の見どころ</h2><div className="mt-4 flex flex-col gap-3">{townEvents.slice(0,3).map(ev=><Card key={ev.id}><div className="font-bold">{ev.title}</div><p className="mt-1 text-sm text-muted-foreground">{ev.description}</p><a className={`${pill()} mt-3`} href={ev.url}>くわしく見る</a></Card>)}</div></section></div>
   }
 
-  return <><div data-mobile-shell className="min-h-svh bg-background text-foreground"><header className="sticky top-0 z-40 border-b bg-background/95"><div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-4"><a href="/?tab=home" className="font-display text-xl font-black">🔩 マチノワ室蘭</a><div className="text-sm">{account.user ? "ログイン中" : "ゲスト"}</div></div></header><main className="mx-auto max-w-3xl px-4 pb-28 pt-6">{one(params.favoriteError)&&<div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm">{one(params.favoriteError)}</div>}{content}</main><nav className="fixed inset-x-0 bottom-0 z-50 border-t bg-background"><div className="mx-auto grid max-w-3xl grid-cols-7">{TABS.map(([key,label])=><a key={key} href={q({tab:key})} className={`flex min-h-16 items-center justify-center px-1 text-center text-[0.68rem] font-bold ${tab===key?"text-primary":"text-muted-foreground"}`}>{label}{key==="cart"&&cartCount>0?` (${cartCount})`:""}</a>)}</div></nav></div><script src="/mobile-enhance.js" defer></script></>
+  return <>
+    <div data-mobile-shell className="min-h-svh bg-background text-foreground">
+      <header className="sticky top-0 z-40 border-b bg-background/95"><div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-4"><a href="/?tab=home" className="font-display text-xl font-black">🔩 マチノワ室蘭</a><div className="text-sm">{account.user ? "ログイン中" : "ゲスト"}</div></div></header>
+      <main className="mx-auto max-w-3xl px-4 pb-28 pt-6">{one(params.favoriteError) && <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm">{one(params.favoriteError)}</div>}{content}</main>
+      <nav aria-label="スマホメニュー" className="fixed inset-x-0 bottom-0 z-50 border-t bg-background"><div className="mx-auto flex max-w-3xl overflow-x-auto">
+        {TABS.map(([key, label]) => <a key={key} href={q({ tab: key })} className={`flex min-h-16 min-w-24 flex-1 items-center justify-center px-2 text-center text-sm font-bold ${tab === key ? "text-primary" : "text-muted-foreground"}`}>{label}{key === "cart" && cartCount > 0 ? ` (${cartCount})` : ""}</a>)}
+      </div></nav>
+    </div>
+    <script src="/mobile-enhance.js" defer />
+  </>
 }

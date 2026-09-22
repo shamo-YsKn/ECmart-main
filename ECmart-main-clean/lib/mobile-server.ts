@@ -106,6 +106,19 @@ async function restPublicGet<T>(path: string): Promise<T | null> {
   }
 }
 
+/** Phase 6 RPC bridge. Uses the current mobile cookie, never a service-role key. */
+export async function mobileCommunityRpc<T>(name: string, args: Record<string, unknown>): Promise<T> {
+  const { url, key } = supabaseConfig()
+  if (!url || !key) throw { code: "P0001", message: "Supabaseの接続設定が必要です。" }
+  const token = await getMobileAccessToken()
+  const response = await safeFetch(`${url}/rest/v1/rpc/${name}`, {
+    method: "POST", headers: authHeaders(token ?? undefined), body: JSON.stringify(args),
+  }, 12000)
+  if (!response.ok) throw await response.json()
+  const body = await response.text()
+  return (body ? JSON.parse(body) : null) as T
+}
+
 export async function getMobileMuralPosts(spotId: string, muralVariant = "default"): Promise<MuralPost[]> {
   const rows = await restPublicGet<unknown[]>(
     `mural_posts?select=id,user_id,spot_id,saved_robot_id,author_name,robot_name,robot_config,robot_view,mural_variant,custom_item_document,review,position_x,position_y,scale,rotation_deg,created_at,updated_at&spot_id=eq.${encodeURIComponent(spotId)}&mural_variant=eq.${encodeURIComponent(muralVariant)}&order=created_at.desc&limit=60`,

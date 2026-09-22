@@ -17,6 +17,7 @@ import { RobotPoseStudio } from "@/components/robot/robot-pose-studio"
 import { CustomItemWorkshop } from "@/components/workbench/custom-item-workshop"
 import { DioramaWorkshop } from "@/components/diorama/diorama-workshop"
 import { MuralView } from "@/components/mural/mural-view"
+import { GalleryView } from "@/components/community/gallery-view"
 import { RobotAvatar } from "@/components/robot/robot-avatar"
 import { normalizeRobotHeldItem } from "@/lib/robot-held-item"
 import {
@@ -34,6 +35,7 @@ const TABS = [
   { key: "home", label: "ホーム", icon: Home },
   { key: "shops", label: "ショップ一覧", icon: Store },
   { key: "mural", label: "まち歩き", icon: MapPinned },
+  { key: "gallery", label: "ギャラリー", icon: Layers3 },
   { key: "ranking", label: "ランキング", icon: TrendingUp },
   { key: "robot", label: "ロボット工房", icon: Hammer },
   { key: "account", label: "アカウント", icon: UserRound },
@@ -75,6 +77,7 @@ function Site({ initialTab, initialAuthMode }: { initialTab: TabKey; initialAuth
       if (pushHistory) {
         const url = new URL(window.location.href)
         url.searchParams.set("tab", nextTab)
+        if (nextTab !== "gallery") { url.searchParams.delete("work"); url.searchParams.delete("author") }
         window.history.pushState({ tab: nextTab }, "", url)
       }
       window.scrollTo({ top: 0, behavior: "smooth" })
@@ -148,7 +151,7 @@ function Site({ initialTab, initialAuthMode }: { initialTab: TabKey; initialAuth
             </span>
           </a>
 
-          <nav className="hidden items-center gap-1 md:flex">
+          <nav className="hidden items-center gap-1 xl:flex">
             {TABS.filter((item) => !["cart", "account"].includes(item.key)).map(
               (item) => (
                 <a
@@ -214,10 +217,11 @@ function Site({ initialTab, initialAuthMode }: { initialTab: TabKey; initialAuth
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-28 pt-8 md:pb-16">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-28 pt-8 xl:pb-16">
         {tab === "home" && <HomeView cart={cart} onNavigate={navigate} />}
         {tab === "shops" && <ShopsView cart={cart} />}
         {tab === "mural" && <MuralView cart={cart} />}
+        {tab === "gallery" && <GalleryView />}
         {tab === "ranking" && <RankingView cart={cart} />}
         {tab === "robot" && (
           <div className="flex flex-col gap-6">
@@ -287,8 +291,8 @@ function Site({ initialTab, initialAuthMode }: { initialTab: TabKey; initialAuth
         </div>
       </footer>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur md:hidden">
-        <div className="mx-auto grid max-w-6xl grid-cols-7">
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur xl:hidden">
+        <div className="mx-auto flex max-w-6xl overflow-x-auto [&>a]:min-w-20 [&>a]:flex-1">
           {TABS.map((item) => {
             const active = tab === item.key
             return (
@@ -297,7 +301,7 @@ function Site({ initialTab, initialAuthMode }: { initialTab: TabKey; initialAuth
                 href={hrefForTab(item.key)}
                 onClick={(event) => handleNavLink(event, item.key)}
                 className={cn(
-                  "relative flex min-w-0 flex-col items-center gap-1 py-2.5 text-[0.58rem] transition-colors",
+                  "relative flex min-w-0 flex-col items-center gap-1 py-2.5 text-sm transition-colors",
                   active ? "text-primary" : "text-muted-foreground",
                 )}
               >

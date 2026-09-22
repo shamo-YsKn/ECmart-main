@@ -86,6 +86,7 @@ export function DioramaScenePreview({
           <button
             key={placement.placementId}
             type="button"
+            tabIndex={interactive ? 0 : -1}
             className={cn(
               "absolute h-[42%] w-[24%] touch-none select-none rounded-xl outline-none",
               interactive && "cursor-grab active:cursor-grabbing",
@@ -108,6 +109,7 @@ export function DioramaScenePreview({
           <button
             key={placement.placementId}
             type="button"
+            tabIndex={interactive ? 0 : -1}
             className={cn(
               "absolute h-[25%] w-[18%] touch-none select-none rounded-xl outline-none",
               interactive && "cursor-grab active:cursor-grabbing",

@@ -214,9 +214,13 @@ Supabase: `mural_posts` / `mural_post_likes` を `supabase/mural-community-migra
 
 スマホ互換モードではスポット選択、NPC、公開レビュー、店舗商品をサーバー表示で閲覧可能。自由な壁画配置投稿・いいね・作者詳細はPC React版を中心に提供する。
 
-## Phase 6: 作品共有の拡張
+## Phase 6: 作品共有の拡張【初版実装済み】
 
-### ジオラマギャラリー
+導入手順・端末別対応範囲は `PHASE_6_SETUP.md` を参照。
+公開時のスナップショットを下書きから分離し、明示的な「公開内容を更新する」で反映する。
+既存作品は自動公開しない。追加SQL: `supabase/phase6-community-migration.sql`。
+
+### ジオラマギャラリー【実装済み】
 
 - 完成したジオラマを作品として公開
 - いいね
@@ -227,8 +231,8 @@ Supabase: `mural_posts` / `mural_post_likes` を `supabase/mural-community-migra
 
 ### 壁画広場の追加拡張
 
-- レビュー編集
-- 通報 / 非表示
+- レビュー編集【PC版で実装済み】
+- 通報 / 非表示【PC版で実装済み。通報確認・解除・対応履歴を含む】
 - 季節限定壁画
 - イベント限定スポット
 - 人気スポット / 人気ロボットランキング
