@@ -84,8 +84,11 @@ export function RobotPoseStudio() {
   }
 
   function resetPose() {
-    const preset = config.poseState?.preset ?? config.pose
-    updatePoseState(clearCustomPose(preset))
+    setConfig((current) => {
+      if (!current) return current
+      const preset = current.poseState?.preset ?? current.pose
+      return { ...current, pose: preset, poseState: clearCustomPose(preset) }
+    })
     setActive(null)
   }
 

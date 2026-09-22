@@ -1,5 +1,5 @@
 import fs from 'node:fs'
-import ts from '/opt/nvm/versions/node/v22.16.0/lib/node_modules/typescript/lib/typescript.js'
+import ts from "typescript"
 
 const failures = []
 const files = [
@@ -34,7 +34,7 @@ requireText('components/mural/mural-view.tsx', 'mural_variant: activeMuralVarian
 requireText('components/mural/mural-view.tsx', 'robot_view: draftRobotView', 'post saves selected robot view')
 requireText('lib/mural-spots.ts', 'id: "research"', 'Muroran IT second mural stage exists')
 requireText('lib/mural-spots.ts', 'theme: "university-tech"', 'Muroran IT research theme exists')
-requireText('components/mural/mural-background.tsx', 'MURORAN IT — RESEARCH AREA', 'research stage artwork exists')
+requireText('components/mural/mural-background.tsx', 'spot.theme === "university-tech"', 'research stage artwork exists')
 requireText('supabase/mural-view-stage2-migration.sql', 'add column if not exists robot_view', 'incremental robot view migration exists')
 requireText('supabase/mural-view-stage2-migration.sql', 'add column if not exists mural_variant', 'incremental mural variant migration exists')
 requireText('components/mobile/mobile-site.tsx', 'activeVariant', 'mobile mural stage selector exists')

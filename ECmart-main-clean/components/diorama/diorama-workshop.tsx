@@ -150,12 +150,13 @@ export function DioramaWorkshop() {
 
   useEffect(() => {
     if (!drag) return
+    const activeDrag = drag
     function move(event: PointerEvent) {
       const rect = canvasRef.current?.getBoundingClientRect()
       if (!rect) return
-      const x = ((event.clientX - rect.left) / rect.width) * 640 - 320 - drag.offsetX
-      const y = ((event.clientY - rect.top) / rect.height) * 360 - 180 - drag.offsetY
-      updatePlacementTransform(drag.selection, (transform) => ({
+      const x = ((event.clientX - rect.left) / rect.width) * 640 - 320 - activeDrag.offsetX
+      const y = ((event.clientY - rect.top) / rect.height) * 360 - 180 - activeDrag.offsetY
+      updatePlacementTransform(activeDrag.selection, (transform) => ({
         ...transform,
         position: [Math.max(-305, Math.min(305, x)), Math.max(-165, Math.min(165, y)), transform.position[2]],
       }))

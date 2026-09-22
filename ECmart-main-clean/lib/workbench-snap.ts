@@ -104,7 +104,7 @@ function childrenOf(parts: CustomItemPartPlacement[], parentId: string) {
 }
 
 /** Parentの移動量を接続済みの子孫へ伝搬します。 */
-export function translatePartTree(parts: CustomItemPartPlacement[], rootId: string, dx: number, dy: number) {
+export function translatePartTree(parts: CustomItemPartPlacement[], rootId: string, dx: number, dy: number): CustomItemPartPlacement[] {
   if (!dx && !dy) return parts
   const affected = new Set<string>([rootId])
   const queue = [rootId]
@@ -122,7 +122,7 @@ export function translatePartTree(parts: CustomItemPartPlacement[], rootId: stri
         ...part,
         transform: {
           ...part.transform,
-          position: [part.transform.position[0] + dx, part.transform.position[1] + dy, part.transform.position[2]],
+          position: [part.transform.position[0] + dx, part.transform.position[1] + dy, part.transform.position[2]] as [number, number, number],
         },
       }
     : part)

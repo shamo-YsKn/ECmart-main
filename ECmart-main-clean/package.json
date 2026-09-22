@@ -12,7 +12,7 @@
     "start:network": "next start -H 0.0.0.0 -p 3000",
     "dev:network:webpack": "next dev --webpack -H 0.0.0.0 -p 3000",
     "validate:foundation": "node scripts/validate-foundation.mjs",
-    "check": "npm run typecheck && npm run validate:foundation && npm run validate:phase2-1 && npm run validate:phase2 && npm run validate:phase3 && npm run validate:phase4 && npm run validate:phase5 && npm run validate:phase5-refinement && npm run validate:pose-hotfix && npm run validate:pose-sync-fix && npm run validate:xzyz-sync && npm run validate:arm-leg-unified",
+    "check": "npm run typecheck && npm run validate:foundation && npm run validate:phase2-1 && npm run validate:phase2 && npm run validate:phase3 && npm run validate:phase4 && npm run validate:phase5 && npm run validate:phase5-refinement && npm run validate:pose-hotfix && npm run validate:pose-sync-fix && npm run validate:xzyz-sync && npm run validate:arm-sync-refinement && npm run validate:arm-leg-unified && npm run validate:diorama-view-stage2 && npm run validate:mural-view-stage2 && npm run validate:mural-research-panorama && npm run validate:final-pose-spec && npm run validate:pose-runtime",
     "validate:phase2-1": "node scripts/validate-phase2-1.mjs",
     "validate:phase2": "node scripts/validate-phase2.mjs",
     "validate:phase3": "node scripts/validate-phase3.mjs",
@@ -22,7 +22,13 @@
     "validate:pose-hotfix": "node scripts/validate-pose-hotfix.mjs",
     "validate:pose-sync-fix": "node scripts/validate-pose-sync-fix.mjs",
     "validate:xzyz-sync": "node scripts/validate-xzyz-sync.mjs",
-    "validate:arm-leg-unified": "node scripts/validate-arm-leg-unified.mjs"
+    "validate:arm-leg-unified": "node scripts/validate-arm-leg-unified.mjs",
+    "validate:arm-sync-refinement": "node scripts/validate-arm-sync-refinement.mjs",
+    "validate:diorama-view-stage2": "node scripts/validate-diorama-view-stage2.mjs",
+    "validate:mural-view-stage2": "node scripts/validate-mural-view-stage2.mjs",
+    "validate:mural-research-panorama": "node scripts/validate-mural-research-panorama.mjs",
+    "validate:final-pose-spec": "node scripts/validate-final-pose-spec.mjs",
+    "validate:pose-runtime": "node scripts/validate-pose-runtime.mjs"
   },
   "dependencies": {
     "@vercel/analytics": "1.6.1",

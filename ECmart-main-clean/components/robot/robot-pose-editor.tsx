@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react"
 import type { PointerEvent as ReactPointerEvent } from "react"
-import type { RobotConfig, RobotJointId, RobotPoseSpatial, RobotPoseState, RobotSpatialVector } from "@/lib/types"
+import type { RobotConfig, RobotJointAngles, RobotJointId, RobotPoseSpatial, RobotPoseState, RobotSpatialVector } from "@/lib/types"
 import type { CustomItemDocument } from "@/lib/creation-model"
 import { RobotFallback } from "./robot-fallback"
 import {
