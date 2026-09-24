@@ -71,8 +71,9 @@ export function normalizeWorkbenchTransform(value: unknown): SceneTransform {
   const scale = vec3(input.scale, [1, 1, 1])
   const uniformScale = clamp(Math.abs(scale[0] || 1), 0.25, 3)
   return {
-    position: [clamp(position[0], -360, 360), clamp(position[1], -280, 280), clamp(position[2], -100, 100)],
-    rotationDeg: [0, 0, clamp(rotation[2], -360, 360)],
+    // v2工作台では X=左右 / Y=上下 / Z=奥行き。旧データのZは通常0なので互換。
+    position: [clamp(position[0], -360, 360), clamp(position[1], -280, 280), clamp(position[2], -360, 360)],
+    rotationDeg: [clamp(rotation[0], -360, 360), clamp(rotation[1], -360, 360), clamp(rotation[2], -360, 360)],
     scale: [uniformScale, uniformScale, uniformScale],
   }
 }
@@ -117,7 +118,7 @@ export function createEmptyCustomItemDocument(name = "マイアイテム"): Cust
     kind: "custom-item",
     name: sanitizeCustomItemName(name),
     editorMode: "2d",
-    coordinateSpace: "item-workbench-v1",
+    coordinateSpace: "item-workbench-v2",
     parts: [],
   }
 }
@@ -140,7 +141,8 @@ export function normalizeCustomItemDocument(value: unknown, fallbackName = "マ�
     kind: "custom-item",
     name: sanitizeCustomItemName(input.name, fallbackName),
     editorMode: "2d",
-    coordinateSpace: "item-workbench-v1",
+    // v1も同じ[X,Y,Z]配列を使っていたため、座標値を変えずv2へ昇格できます。
+    coordinateSpace: "item-workbench-v2",
     parts,
   }
 }

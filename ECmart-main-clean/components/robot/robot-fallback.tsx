@@ -2,7 +2,7 @@
 
 import { useId } from "react"
 import type { RobotConfig, RobotItem } from "@/lib/types"
-import type { CustomItemDocument } from "@/lib/creation-model"
+import type { CustomItemDocument, CustomItemView } from "@/lib/creation-model"
 import { normalizeRobotHeldItem } from "@/lib/robot-held-item"
 import { CustomItemArtwork, getCustomItemBounds } from "@/components/workbench/custom-item-preview"
 import { normalizeRobotHeadPose } from "@/lib/robot-head-pose"
@@ -72,18 +72,22 @@ function HeldCustomItem({
   document,
   anchor,
   adjustment,
+  view,
+  reverseDepth = false,
 }: {
   document: CustomItemDocument
   anchor: ItemAnchor
   adjustment: { offsetX: number; offsetY: number; rotationDeg: number; scale: number }
+  view: CustomItemView
+  reverseDepth?: boolean
 }) {
-  const bounds = getCustomItemBounds(document)
+  const bounds = getCustomItemBounds(document, view)
   const fitScale = 78 / Math.max(bounds.width, bounds.height)
   return (
     <g
       transform={`translate(${anchor.x + adjustment.offsetX} ${anchor.y + adjustment.offsetY}) rotate(${anchor.rotation + adjustment.rotationDeg}) scale(${fitScale * adjustment.scale}) translate(${-bounds.centerX} ${-bounds.centerY})`}
     >
-      <CustomItemArtwork document={document} />
+      <CustomItemArtwork document={document} view={view} reverseDepth={reverseDepth} />
     </g>
   )
 }
@@ -92,14 +96,18 @@ function HeldItemShape({
   config,
   anchor,
   customItemDocument,
+  itemView = "front",
+  reverseItemDepth = false,
 }: {
   config: RobotConfig
   anchor: ItemAnchor
   customItemDocument?: CustomItemDocument | null
+  itemView?: CustomItemView
+  reverseItemDepth?: boolean
 }) {
   const held = normalizeRobotHeldItem(config.heldItem, config.item)
   if (held.kind === "custom") {
-    return customItemDocument ? <HeldCustomItem document={customItemDocument} anchor={anchor} adjustment={held.adjustment} /> : null
+    return customItemDocument ? <HeldCustomItem document={customItemDocument} anchor={anchor} adjustment={held.adjustment} view={itemView} reverseDepth={reverseItemDepth} /> : null
   }
   return <ItemShape item={held.item} accentColor={config.accentColor} anchor={anchor} />
 }
@@ -358,7 +366,7 @@ function FrontOrBackRobot({ config, metalId, customItemDocument }: { config: Rob
 
       <FrontOrBackHead config={config} metalId={metalId} />
 
-      <HeldItemShape config={config} customItemDocument={customItemDocument} anchor={itemAnchor(layout.elbows.right, layout.hands.right)} />
+      <HeldItemShape config={config} customItemDocument={customItemDocument} anchor={itemAnchor(layout.elbows.right, layout.hands.right)} itemView={config.view === "back" ? "back" : "front"} />
     </>
   )
 }
@@ -378,7 +386,7 @@ function SideRobot({ config, metalId, customItemDocument }: { config: RobotConfi
   const nearHand = handSpec(layout.elbows[near], layout.hands[near], near)
   const farFootAngle = displayHardwareAngle(segmentAngleDeg(layout.knees[far], layout.feet[far])) * 0.12
   const nearFootAngle = displayHardwareAngle(segmentAngleDeg(layout.knees[near], layout.feet[near])) * 0.12
-  const heldItem = <HeldItemShape config={config} customItemDocument={customItemDocument} anchor={itemAnchor(layout.elbows.right, layout.hands.right)} />
+  const heldItem = <HeldItemShape config={config} customItemDocument={customItemDocument} anchor={itemAnchor(layout.elbows.right, layout.hands.right)} itemView="side" reverseItemDepth={opposite} />
 
   return (
     <g data-side-view={config.view} transform={opposite ? "translate(300 0) scale(-1 1)" : undefined}>

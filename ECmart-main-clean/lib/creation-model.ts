@@ -50,6 +50,13 @@ export type WorkbenchPartType =
   | "led_green"
   | "led_yellow"
 
+/**
+ * 自作アイテムを確認・編集する直交ビュー。
+ * local axis は X=左右 / Y=上下 / Z=奥行き とし、
+ * front=XY、side=ZY、back=-XY で同一の3D配置を投影します。
+ */
+export type CustomItemView = "front" | "side" | "back"
+
 export interface CustomItemPartPlacement {
   instanceId: string
   partType: WorkbenchPartType
@@ -64,7 +71,7 @@ export interface CustomItemDocument {
   kind: "custom-item"
   name: string
   editorMode: "2d" | "3d"
-  coordinateSpace: "item-workbench-v1"
+  coordinateSpace: "item-workbench-v1" | "item-workbench-v2"
   parts: CustomItemPartPlacement[]
 }
 

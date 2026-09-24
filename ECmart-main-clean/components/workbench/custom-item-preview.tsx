@@ -1,6 +1,7 @@
 "use client"
 
-import type { CustomItemDocument } from "@/lib/creation-model"
+import type { CustomItemDocument, CustomItemView } from "@/lib/creation-model"
+import { customItemViewLabel, itemPartsForView, itemViewTransform, projectItemPosition } from "@/lib/custom-item-view"
 import { WorkbenchPartShape } from "./workbench-part-shape"
 import { cn } from "@/lib/utils"
 
@@ -15,7 +16,7 @@ export interface CustomItemBounds {
   height: number
 }
 
-export function getCustomItemBounds(document: CustomItemDocument): CustomItemBounds {
+export function getCustomItemBounds(document: CustomItemDocument, view: CustomItemView = "front"): CustomItemBounds {
   if (document.parts.length === 0) {
     return { minX: -50, minY: -50, maxX: 50, maxY: 50, centerX: 0, centerY: 0, width: 100, height: 100 }
   }
@@ -24,14 +25,13 @@ export function getCustomItemBounds(document: CustomItemDocument): CustomItemBou
   let maxX = -Infinity
   let maxY = -Infinity
   for (const part of document.parts) {
-    // 各基本パーツはおよそ140×120以内。回転も考慮して余裕を持たせます。
+    // パーツ固有の形状差と回転を含めて余白を確保。旧frontの計算値も維持します。
     const radius = 82 * part.transform.scale[0]
-    const x = part.transform.position[0]
-    const y = part.transform.position[1]
-    minX = Math.min(minX, x - radius)
-    minY = Math.min(minY, y - radius)
-    maxX = Math.max(maxX, x + radius)
-    maxY = Math.max(maxY, y + radius)
+    const point = projectItemPosition(part.transform.position, view)
+    minX = Math.min(minX, point.x - radius)
+    minY = Math.min(minY, point.y - radius)
+    maxX = Math.max(maxX, point.x + radius)
+    maxY = Math.max(maxY, point.y + radius)
   }
   return {
     minX,
@@ -45,15 +45,12 @@ export function getCustomItemBounds(document: CustomItemDocument): CustomItemBou
   }
 }
 
-export function CustomItemArtwork({ document }: { document: CustomItemDocument }) {
+export function CustomItemArtwork({ document, view = "front", reverseDepth = false }: { document: CustomItemDocument; view?: CustomItemView; reverseDepth?: boolean }) {
   return (
     <>
-      {document.parts.map((part) => (
-        <g
-          key={part.instanceId}
-          transform={`translate(${part.transform.position[0]} ${part.transform.position[1]}) rotate(${part.transform.rotationDeg[2]}) scale(${part.transform.scale[0]})`}
-        >
-          <WorkbenchPartShape type={part.partType} variantId={part.variantId} />
+      {itemPartsForView(document.parts, view, reverseDepth).map(({ part }) => (
+        <g key={part.instanceId} transform={itemViewTransform(part, view)}>
+          <WorkbenchPartShape type={part.partType} variantId={part.variantId} view={view} />
         </g>
       ))}
     </>
@@ -64,14 +61,16 @@ export function CustomItemPreview({
   document,
   className,
   showGrid = false,
+  view = "front",
 }: {
   document: CustomItemDocument
   className?: string
   showGrid?: boolean
+  view?: CustomItemView
 }) {
   return (
     <div className={cn("overflow-hidden rounded-xl bg-[#f4ead6]", className)}>
-      <svg viewBox="-300 -220 600 440" className="h-full w-full" preserveAspectRatio="xMidYMid meet" aria-label={`${document.name}の工作アイテムプレビュー`} role="img">
+      <svg viewBox="-300 -220 600 440" className="h-full w-full" preserveAspectRatio="xMidYMid meet" aria-label={`${document.name}の${customItemViewLabel(view)}プレビュー`} role="img">
         {showGrid && (
           <g stroke="#7c6851" strokeOpacity=".12" strokeWidth="1">
             {Array.from({ length: 13 }, (_, i) => <line key={`v-${i}`} x1={-300 + i * 50} y1="-220" x2={-300 + i * 50} y2="220" />)}
@@ -80,7 +79,7 @@ export function CustomItemPreview({
         )}
         <line x1="-280" y1="0" x2="280" y2="0" stroke="#7c6851" strokeOpacity=".16" strokeDasharray="6 8" />
         <line x1="0" y1="-205" x2="0" y2="205" stroke="#7c6851" strokeOpacity=".16" strokeDasharray="6 8" />
-        <CustomItemArtwork document={document} />
+        <CustomItemArtwork document={document} view={view} />
       </svg>
     </div>
   )

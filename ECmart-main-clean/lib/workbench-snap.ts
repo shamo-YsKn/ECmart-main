@@ -1,4 +1,5 @@
-import type { CustomItemPartPlacement } from "@/lib/creation-model"
+import type { CustomItemPartPlacement, CustomItemView, Vec3 } from "@/lib/creation-model"
+import { projectItemPosition } from "@/lib/custom-item-view"
 import { getWorkbenchSocket, WORKBENCH_PART_BY_TYPE, type WorkbenchSocketDefinition } from "@/lib/workbench-parts"
 
 export interface WorkbenchPoint {
@@ -11,6 +12,7 @@ export interface SnapCandidate {
   targetInstanceId: string
   targetSocketId: string
   targetPoint: WorkbenchPoint
+  targetWorldPoint: Vec3
   distance: number
 }
 
@@ -29,9 +31,42 @@ export function localSocketToWorld(part: CustomItemPartPlacement, socket: Workbe
   }
 }
 
+function rotateVec3([x, y, z]: Vec3, [rxDeg, ryDeg, rzDeg]: Vec3): Vec3 {
+  const rx = rad(rxDeg), ry = rad(ryDeg), rz = rad(rzDeg)
+  const cx = Math.cos(rx), sx = Math.sin(rx)
+  const cy = Math.cos(ry), sy = Math.sin(ry)
+  const cz = Math.cos(rz), sz = Math.sin(rz)
+
+  // X -> Y -> Z の順で適用。旧2DデータはZ回転のみなので従来計算と一致します。
+  const x1 = x
+  const y1 = y * cx - z * sx
+  const z1 = y * sx + z * cx
+  const x2 = x1 * cy + z1 * sy
+  const y2 = y1
+  const z2 = -x1 * sy + z1 * cy
+  return [x2 * cz - y2 * sz, x2 * sz + y2 * cz, z2]
+}
+
+export function localSocketToWorld3D(part: CustomItemPartPlacement, socket: WorkbenchSocketDefinition): Vec3 {
+  const scale = part.transform.scale[0]
+  const local: Vec3 = [socket.x * scale, socket.y * scale, (socket.z ?? 0) * scale]
+  const [dx, dy, dz] = rotateVec3(local, part.transform.rotationDeg)
+  return [part.transform.position[0] + dx, part.transform.position[1] + dy, part.transform.position[2] + dz]
+}
+
 export function socketWorldPoint(part: CustomItemPartPlacement, socketId: string) {
   const socket = getWorkbenchSocket(part.partType, socketId)
   return socket ? localSocketToWorld(part, socket) : null
+}
+
+export function socketWorldPoint3D(part: CustomItemPartPlacement, socketId: string) {
+  const socket = getWorkbenchSocket(part.partType, socketId)
+  return socket ? localSocketToWorld3D(part, socket) : null
+}
+
+export function projectSocketPoint(part: CustomItemPartPlacement, socket: WorkbenchSocketDefinition, view: CustomItemView): WorkbenchPoint {
+  const point = projectItemPosition(localSocketToWorld3D(part, socket), view)
+  return { x: point.x, y: point.y }
 }
 
 export function alignPartSocketToPoint(part: CustomItemPartPlacement, ownSocketId: string, point: WorkbenchPoint): CustomItemPartPlacement {
@@ -52,21 +87,41 @@ export function alignPartSocketToPoint(part: CustomItemPartPlacement, ownSocketI
   }
 }
 
+export function alignPartSocketToWorldPoint(part: CustomItemPartPlacement, ownSocketId: string, point: Vec3): CustomItemPartPlacement {
+  const socket = getWorkbenchSocket(part.partType, ownSocketId)
+  if (!socket) return part
+  const current = localSocketToWorld3D(part, socket)
+  return {
+    ...part,
+    transform: {
+      ...part.transform,
+      position: [
+        part.transform.position[0] + point[0] - current[0],
+        part.transform.position[1] + point[1] - current[1],
+        part.transform.position[2] + point[2] - current[2],
+      ],
+    },
+  }
+}
+
 export function findSnapCandidate(
   moving: CustomItemPartPlacement,
   parts: CustomItemPartPlacement[],
   threshold = 24,
   excludeIds: Set<string> = new Set(),
+  view: CustomItemView = "front",
 ): SnapCandidate | null {
   let best: SnapCandidate | null = null
   const movingSockets = WORKBENCH_PART_BY_TYPE[moving.partType].sockets
 
   for (const ownSocket of movingSockets) {
-    const ownPoint = localSocketToWorld(moving, ownSocket)
+    const ownPoint = projectSocketPoint(moving, ownSocket, view)
     for (const target of parts) {
       if (target.instanceId === moving.instanceId || excludeIds.has(target.instanceId)) continue
       for (const targetSocket of WORKBENCH_PART_BY_TYPE[target.partType].sockets) {
-        const targetPoint = localSocketToWorld(target, targetSocket)
+        const targetWorldPoint = localSocketToWorld3D(target, targetSocket)
+        const projectedTarget = projectItemPosition(targetWorldPoint, view)
+        const targetPoint = { x: projectedTarget.x, y: projectedTarget.y }
         const distance = Math.hypot(targetPoint.x - ownPoint.x, targetPoint.y - ownPoint.y)
         if (distance <= threshold && (!best || distance < best.distance)) {
           best = {
@@ -74,6 +129,7 @@ export function findSnapCandidate(
             targetInstanceId: target.instanceId,
             targetSocketId: targetSocket.id,
             targetPoint,
+            targetWorldPoint,
             distance,
           }
         }
@@ -128,6 +184,21 @@ export function translatePartTree(parts: CustomItemPartPlacement[], rootId: stri
     : part)
 }
 
+export function translatePartTree3D(parts: CustomItemPartPlacement[], rootId: string, delta: Vec3): CustomItemPartPlacement[] {
+  const [dx, dy, dz] = delta
+  if (!dx && !dy && !dz) return parts
+  const affected = collectPartTreeIds(parts, rootId)
+  return parts.map((part) => affected.has(part.instanceId)
+    ? {
+        ...part,
+        transform: {
+          ...part.transform,
+          position: [part.transform.position[0] + dx, part.transform.position[1] + dy, part.transform.position[2] + dz],
+        },
+      }
+    : part)
+}
+
 /** 回転や拡大縮小の後、接続点の位置がずれないよう子パーツを順次再配置します。 */
 export function reflowAttachedParts(parts: CustomItemPartPlacement[]) {
   let next: CustomItemPartPlacement[] = parts.map((part) => ({ ...part, transform: { ...part.transform, position: [...part.transform.position] as [number, number, number], rotationDeg: [...part.transform.rotationDeg] as [number, number, number], scale: [...part.transform.scale] as [number, number, number] } }))
@@ -138,12 +209,12 @@ export function reflowAttachedParts(parts: CustomItemPartPlacement[]) {
       if (!attachment) return part
       const target = next.find((candidate) => candidate.instanceId === attachment.instanceId)
       if (!target || target.instanceId === part.instanceId) return { ...part, attachedTo: undefined }
-      const targetPoint = socketWorldPoint(target, attachment.socketId)
+      const targetPoint = socketWorldPoint3D(target, attachment.socketId)
       if (!targetPoint) return { ...part, attachedTo: undefined }
-      const aligned = alignPartSocketToPoint(part, attachment.ownSocketId, targetPoint)
-      const [ox, oy] = part.transform.position
-      const [nx, ny] = aligned.transform.position
-      if (Math.abs(ox - nx) > 0.01 || Math.abs(oy - ny) > 0.01) changed = true
+      const aligned = alignPartSocketToWorldPoint(part, attachment.ownSocketId, targetPoint)
+      const [ox, oy, oz] = part.transform.position
+      const [nx, ny, nz] = aligned.transform.position
+      if (Math.abs(ox - nx) > 0.01 || Math.abs(oy - ny) > 0.01 || Math.abs(oz - nz) > 0.01) changed = true
       return aligned
     })
     if (!changed) break

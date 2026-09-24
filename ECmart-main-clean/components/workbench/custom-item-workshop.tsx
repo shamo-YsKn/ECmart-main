@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import { useAccount } from "@/lib/account-context"
-import type { CustomItemDocument, CustomItemPartPlacement, WorkbenchPartType } from "@/lib/creation-model"
+import type { CustomItemDocument, CustomItemPartPlacement, CustomItemView, WorkbenchPartType } from "@/lib/creation-model"
 import {
   CUSTOM_ITEM_DRAFT_KEY,
   CUSTOM_ITEM_EQUIP_DRAFT_KEY,
@@ -15,11 +15,22 @@ import {
 import { WORKBENCH_PARTS, WORKBENCH_PART_BY_TYPE } from "@/lib/workbench-parts"
 import { WORKBENCH_PART_VARIANTS, getWorkbenchVariant, unlockedWorkbenchVariants } from "@/lib/workbench-variants"
 import {
+  CUSTOM_ITEM_VIEW_OPTIONS,
+  itemPartsForView,
+  itemRotationForView,
+  itemViewTransform,
+  projectItemPosition,
+  translateItemPositionInView,
+  updateItemRotationForView,
+} from "@/lib/custom-item-view"
+import {
+  alignPartSocketToWorldPoint,
   collectPartTreeIds,
   connectedCount,
   findSnapCandidate,
+  projectSocketPoint,
   reflowAttachedParts,
-  translatePartTree,
+  translatePartTree3D,
   type SnapCandidate,
 } from "@/lib/workbench-snap"
 import { WorkbenchPartShape } from "./workbench-part-shape"
@@ -94,6 +105,7 @@ export function CustomItemWorkshop() {
   const documentRef = useRef(document)
   const [editingItemId, setEditingItemId] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [view, setView] = useState<CustomItemView>("front")
   const [drag, setDrag] = useState<DragState | null>(null)
   const [snapEnabled, setSnapEnabled] = useState(true)
   const [snapCandidate, setSnapCandidate] = useState<SnapCandidate | null>(null)
@@ -174,6 +186,7 @@ export function CustomItemWorkshop() {
   }
 
   function startDrag(event: ReactPointerEvent<SVGGElement>, part: CustomItemPartPlacement) {
+    const projected = projectItemPosition(part.transform.position, view)
     const point = pointerToWorkbench(event.clientX, event.clientY)
     if (!point) return
     event.preventDefault()
@@ -188,8 +201,8 @@ export function CustomItemWorkshop() {
     setDrag({
       pointerId: event.pointerId,
       instanceId: part.instanceId,
-      offsetX: point.x - part.transform.position[0],
-      offsetY: point.y - part.transform.position[1],
+      offsetX: point.x - projected.x,
+      offsetY: point.y - projected.y,
     })
     svgRef.current?.setPointerCapture(event.pointerId)
   }
@@ -205,12 +218,13 @@ export function CustomItemWorkshop() {
     if (!moving) return
     const desiredX = point.x - drag.offsetX
     const desiredY = point.y - drag.offsetY
-    let parts = translatePartTree(
-      current.parts,
-      moving.instanceId,
-      desiredX - moving.transform.position[0],
-      desiredY - moving.transform.position[1],
-    )
+    const projected = projectItemPosition(moving.transform.position, view)
+    const movedPosition = translateItemPositionInView(moving.transform.position, view, desiredX - projected.x, desiredY - projected.y)
+    let parts = translatePartTree3D(current.parts, moving.instanceId, [
+      movedPosition[0] - moving.transform.position[0],
+      movedPosition[1] - moving.transform.position[1],
+      movedPosition[2] - moving.transform.position[2],
+    ])
     let root = parts.find((part) => part.instanceId === moving.instanceId)!
     root = { ...root, attachedTo: undefined }
     parts = parts.map((part) => part.instanceId === root.instanceId ? root : part)
@@ -218,19 +232,15 @@ export function CustomItemWorkshop() {
     let candidate: SnapCandidate | null = null
     if (snapEnabled) {
       const excluded = collectPartTreeIds(parts, root.instanceId)
-      candidate = findSnapCandidate(root, parts, SNAP_THRESHOLD, excluded)
+      candidate = findSnapCandidate(root, parts, SNAP_THRESHOLD, excluded, view)
       if (candidate) {
-        const ownSocket = WORKBENCH_PART_BY_TYPE[root.partType].sockets.find((socket) => socket.id === candidate!.movingSocketId)
-        if (ownSocket) {
-          const angle = (root.transform.rotationDeg[2] * Math.PI) / 180
-          const scale = root.transform.scale[0]
-          const sx = ownSocket.x * scale
-          const sy = ownSocket.y * scale
-          const socketOffsetX = sx * Math.cos(angle) - sy * Math.sin(angle)
-          const socketOffsetY = sx * Math.sin(angle) + sy * Math.cos(angle)
-          const snappedX = candidate.targetPoint.x - socketOffsetX
-          const snappedY = candidate.targetPoint.y - socketOffsetY
-          parts = translatePartTree(parts, root.instanceId, snappedX - root.transform.position[0], snappedY - root.transform.position[1])
+        const aligned = alignPartSocketToWorldPoint(root, candidate.movingSocketId, candidate.targetWorldPoint)
+        if (aligned) {
+          parts = translatePartTree3D(parts, root.instanceId, [
+            aligned.transform.position[0] - root.transform.position[0],
+            aligned.transform.position[1] - root.transform.position[1],
+            aligned.transform.position[2] - root.transform.position[2],
+          ])
           parts = parts.map((part) => part.instanceId === root.instanceId
             ? {
                 ...part,
@@ -306,6 +316,7 @@ export function CustomItemWorkshop() {
     setEditingItemId(null)
     setSelectedId(null)
     setSnapCandidate(null)
+    setView("front")
     setNotice(null)
   }
 
@@ -415,11 +426,22 @@ export function CustomItemWorkshop() {
             </CardHeader>
             <CardContent>
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap gap-2">
+                  {CUSTOM_ITEM_VIEW_OPTIONS.map((option) => (
+                    <Button key={option.value} type="button" size="sm" variant={view === option.value ? "default" : "outline"} className="rounded-full" onClick={() => { setView(option.value); setDrag(null); setSnapCandidate(null) }}>
+                      {option.label}
+                    </Button>
+                  ))}
+                </div>
                 <Button type="button" size="sm" variant={snapEnabled ? "default" : "outline"} className="rounded-full" onClick={() => { setSnapEnabled((value) => !value); setSnapCandidate(null) }}>
                   {snapEnabled ? <Link2 data-icon="inline-start" /> : <Link2Off data-icon="inline-start" />}
                   スナップ {snapEnabled ? "ON" : "OFF"}
                 </Button>
-                <span className="text-xs text-muted-foreground">自由配置したいときはOFFにできます</span>
+              </div>
+              <div className="mb-3 rounded-xl bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+                {view === "front" && "正面：X（左右）/ Y（上下）を編集します。Z（奥行き）は保持されます。"}
+                {view === "side" && "側面：Z（奥行き）/ Y（上下）を編集します。正面のX位置は保持されます。"}
+                {view === "back" && "背面：正面の反対側からX / Yを編集します。左右は実物どおり反転表示されます。"}
               </div>
               <div className="overflow-hidden rounded-2xl border-2 border-dashed border-[#b9a98c] bg-[#f4ead6] shadow-inner">
                 <svg
@@ -438,23 +460,19 @@ export function CustomItemWorkshop() {
                   </g>
                   <line x1="-280" y1="0" x2="280" y2="0" stroke="#7c6851" strokeOpacity=".16" strokeDasharray="6 8" />
                   <line x1="0" y1="-205" x2="0" y2="205" stroke="#7c6851" strokeOpacity=".16" strokeDasharray="6 8" />
-                  {document.parts.map((part) => (
-                    <g key={part.instanceId} transform={`translate(${part.transform.position[0]} ${part.transform.position[1]}) rotate(${part.transform.rotationDeg[2]}) scale(${part.transform.scale[0]})`} onPointerDown={(event) => startDrag(event, part)} className="cursor-grab active:cursor-grabbing">
+                  {itemPartsForView(document.parts, view).map(({ part }) => (
+                    <g key={part.instanceId} transform={itemViewTransform(part, view)} onPointerDown={(event) => startDrag(event, part)} className="cursor-grab active:cursor-grabbing">
                       <rect x="-70" y="-58" width="140" height="116" rx="12" fill="transparent" />
-                      <WorkbenchPartShape type={part.partType} variantId={part.variantId} selected={part.instanceId === selectedId} />
-                      {snapEnabled && (drag?.instanceId === part.instanceId || part.instanceId === selectedId) && WORKBENCH_PART_BY_TYPE[part.partType].sockets.map((socket) => (
-                        <circle key={socket.id} cx={socket.x} cy={socket.y} r="5" fill="#fff" stroke="#f97316" strokeWidth="2.5" vectorEffect="non-scaling-stroke" className="pointer-events-none" />
-                      ))}
+                      <WorkbenchPartShape type={part.partType} variantId={part.variantId} selected={part.instanceId === selectedId} view={view} />
                     </g>
                   ))}
+                  {snapEnabled && selectedPart && WORKBENCH_PART_BY_TYPE[selectedPart.partType].sockets.map((socket) => {
+                    const point = projectSocketPoint(selectedPart, socket, view)
+                    return <circle key={`selected-${socket.id}`} cx={point.x} cy={point.y} r="5" fill="#fff" stroke="#f97316" strokeWidth="2.5" vectorEffect="non-scaling-stroke" className="pointer-events-none" />
+                  })}
                   {snapEnabled && drag && document.parts.filter((part) => part.instanceId !== drag.instanceId).flatMap((part) =>
                     WORKBENCH_PART_BY_TYPE[part.partType].sockets.map((socket) => {
-                      const angle = (part.transform.rotationDeg[2] * Math.PI) / 180
-                      const scale = part.transform.scale[0]
-                      const sx = socket.x * scale
-                      const sy = socket.y * scale
-                      const x = part.transform.position[0] + sx * Math.cos(angle) - sy * Math.sin(angle)
-                      const y = part.transform.position[1] + sx * Math.sin(angle) + sy * Math.cos(angle)
+                      const { x, y } = projectSocketPoint(part, socket, view)
                       const active = snapCandidate?.targetInstanceId === part.instanceId && snapCandidate.targetSocketId === socket.id
                       return <circle key={`${part.instanceId}-${socket.id}`} cx={x} cy={y} r={active ? 8 : 4} fill={active ? "#f97316" : "#fff"} stroke="#334155" strokeWidth="2" className="pointer-events-none" />
                     }),
@@ -463,7 +481,7 @@ export function CustomItemWorkshop() {
                 </svg>
               </div>
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-                <span>ドラッグ：移動　／　オレンジ点：接続候補　／　接続済みの子パーツは親と一緒に移動</span>
+                <span>ドラッグ：現在の面で移動　／　オレンジ点：3D接続候補　／　接続済みの子パーツは親と一緒に移動</span>
                 <Button type="button" variant="ghost" size="sm" className="rounded-full" onClick={() => setSelectedId(null)}>選択解除</Button>
               </div>
             </CardContent>
@@ -491,7 +509,7 @@ export function CustomItemWorkshop() {
             {selectedPart ? (
               <>
                 <div className="flex items-center gap-3 rounded-xl bg-muted p-3"><div className="flex size-16 items-center justify-center rounded-lg bg-[#f4ead6]"><PartPalettePreview type={selectedPart.partType} variantId={selectedPart.variantId} /></div><div><div className="font-display font-black">{getWorkbenchVariant(selectedPart.variantId)?.label ?? WORKBENCH_PART_BY_TYPE[selectedPart.partType].label}</div><p className="mt-1 text-xs text-muted-foreground">{getWorkbenchVariant(selectedPart.variantId)?.description ?? WORKBENCH_PART_BY_TYPE[selectedPart.partType].description}</p></div></div>
-                <div className="flex flex-col gap-3"><div className="flex items-center justify-between"><Label>回転</Label><span className="text-sm tabular-nums text-muted-foreground">{Math.round(selectedPart.transform.rotationDeg[2])}°</span></div><Slider value={[selectedPart.transform.rotationDeg[2]]} min={-180} max={180} step={1} onValueChange={(value) => { const rotation = Array.isArray(value) ? value[0] : (value as number); patchSelected((part) => ({ ...part, transform: { ...part.transform, rotationDeg: [0, 0, rotation] } })) }} /></div>
+                <div className="flex flex-col gap-3"><div className="flex items-center justify-between"><Label>{view === "side" ? "側面回転（X軸）" : "回転"}</Label><span className="text-sm tabular-nums text-muted-foreground">{Math.round(itemRotationForView(selectedPart.transform.rotationDeg, view))}°</span></div><Slider value={[itemRotationForView(selectedPart.transform.rotationDeg, view)]} min={-180} max={180} step={1} onValueChange={(value) => { const rotation = Array.isArray(value) ? value[0] : (value as number); patchSelected((part) => ({ ...part, transform: { ...part.transform, rotationDeg: updateItemRotationForView(part.transform.rotationDeg, view, rotation) } })) }} /></div>
                 <div className="flex flex-col gap-3"><div className="flex items-center justify-between"><Label>大きさ</Label><span className="text-sm tabular-nums text-muted-foreground">{Math.round(selectedPart.transform.scale[0] * 100)}%</span></div><Slider value={[selectedPart.transform.scale[0]]} min={0.4} max={2.5} step={0.05} onValueChange={(value) => { const scale = Array.isArray(value) ? value[0] : (value as number); patchSelected((part) => ({ ...part, transform: { ...part.transform, scale: [scale, scale, scale] } })) }} /></div>
                 {selectedPart.attachedTo && (
                   <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-xs text-emerald-900">
@@ -506,12 +524,17 @@ export function CustomItemWorkshop() {
                   <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={duplicateSelected}><Copy data-icon="inline-start" />複製</Button>
                   <Button type="button" variant="outline" size="sm" className="rounded-full text-destructive hover:text-destructive" onClick={removeSelected}><Trash2 data-icon="inline-start" />削除</Button>
                 </div>
-                <div className="rounded-xl bg-muted p-3 text-xs text-muted-foreground">位置：X {Math.round(selectedPart.transform.position[0])} / Y {Math.round(selectedPart.transform.position[1])}</div>
+                <div className="rounded-xl bg-muted p-3 text-xs text-muted-foreground">3D位置：X {Math.round(selectedPart.transform.position[0])} / Y {Math.round(selectedPart.transform.position[1])} / Z {Math.round(selectedPart.transform.position[2])}</div>
               </>
             ) : (
               <div className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">工作台のパーツを選択すると、回転・大きさ・接続状態を調整できます。</div>
             )}
-            <div className="border-t pt-4"><div className="mb-2 text-sm font-bold">完成イメージ</div><CustomItemPreview document={document} className="aspect-square w-full border" /></div>
+            <div className="border-t pt-4">
+              <div className="mb-2 text-sm font-bold">3方向の完成イメージ</div>
+              <div className="grid grid-cols-3 gap-2">
+                {CUSTOM_ITEM_VIEW_OPTIONS.map((option) => <div key={option.value}><CustomItemPreview document={document} view={option.value} className="aspect-square w-full border" /><div className="mt-1 text-center text-[11px] font-bold text-muted-foreground">{option.label}</div></div>)}
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
