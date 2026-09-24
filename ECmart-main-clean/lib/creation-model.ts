@@ -75,7 +75,7 @@ export type DioramaStageReference =
 export interface DioramaRobotPlacement {
   placementId: string
   savedRobotId: string
-  /** ジオラマ上での向き。正面・側面・背面を選べます。 */
+  /** ジオラマ上での向き。正面・左側面・右側面・背面。 */
   view: RobotView
   transform: SceneTransform
 }

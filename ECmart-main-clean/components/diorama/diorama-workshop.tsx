@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import type { DioramaDocument, SceneTransform } from "@/lib/creation-model"
 import type { RobotView } from "@/lib/types"
+import { ROBOT_VIEW_OPTIONS } from "@/lib/robot-parts"
 import { useAccount } from "@/lib/account-context"
 import {
   DIORAMA_DRAFT_KEY,
@@ -55,12 +56,6 @@ type DragState = {
   offsetX: number
   offsetY: number
 }
-
-const ROBOT_VIEW_OPTIONS = [
-  { value: "front", label: "正面" },
-  { value: "side", label: "側面" },
-  { value: "back", label: "背面" },
-] as const satisfies readonly { value: RobotView; label: string }[]
 
 function dispatchNavigate(tab: "account" | "robot" | "gacha") {
   window.dispatchEvent(new CustomEvent("machinowa:navigate", { detail: { tab } }))
@@ -350,7 +345,7 @@ export function DioramaWorkshop() {
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <div ref={canvasRef}><DioramaScenePreview document={document} robots={account.savedRobots} customItems={account.savedCustomItems} selected={selected} onSelect={setSelected} onPointerDown={startDrag} /></div>
-            <div className="rounded-xl border bg-muted/35 p-3 text-xs text-muted-foreground">ロボットは見やすさを優先して最大5体。移動すると地面や対応する建物・橋の上へ自動で接地し、選択中パネルから正面・側面・背面を切り替えられます。アイテムは自由配置できます。</div>
+            <div className="rounded-xl border bg-muted/35 p-3 text-xs text-muted-foreground">ロボットは見やすさを優先して最大5体。移動すると地面や対応する建物・橋の上へ自動で接地し、選択中パネルから正面・左側面・右側面・背面を切り替えられます。左右はロボット自身が基準です。アイテムは自由配置できます。</div>
           </CardContent>
         </Card>
 
@@ -369,7 +364,7 @@ export function DioramaWorkshop() {
               {selected && selectedPlacement ? <>
                 <div><Badge className="rounded-full">{selected.kind === "robot" ? "ロボット" : "自作アイテム"}</Badge><div className="font-display mt-2 text-lg font-black">{selectedLabel}</div></div>
                 {selected.kind === "robot" && (
-                  <div className="flex flex-col gap-2"><Label>向き</Label><div className="grid grid-cols-3 gap-2">{ROBOT_VIEW_OPTIONS.map((option) => <Button key={option.value} type="button" variant={selectedRobotView === option.value ? "default" : "outline"} size="sm" className="rounded-full" onClick={() => setDocument((current) => ({ ...current, robots: current.robots.map((entry) => entry.placementId === selected.placementId ? { ...entry, view: option.value } : entry) }))}>{option.label}</Button>)}</div></div>
+                  <div className="flex flex-col gap-2"><Label>向き</Label><div className="grid grid-cols-2 gap-2">{ROBOT_VIEW_OPTIONS.map((option) => <Button key={option.value} type="button" variant={selectedRobotView === option.value ? "default" : "outline"} size="sm" className="rounded-full" onClick={() => setDocument((current) => ({ ...current, robots: current.robots.map((entry) => entry.placementId === selected.placementId ? { ...entry, view: option.value } : entry) }))}>{option.label}</Button>)}</div></div>
                 )}
                 <div className="flex flex-col gap-2"><div className="flex justify-between text-sm"><Label>回転</Label><span>{Math.round(selectedRotation)}°</span></div><Slider value={[selectedRotation]} min={-180} max={180} step={1} onValueChange={(value) => updatePlacementTransform(selected, (transform) => ({ ...transform, rotationDeg: [0, 0, Array.isArray(value) ? value[0] : (value as number)] }))} /></div>
                 <div className="flex flex-col gap-2"><div className="flex justify-between text-sm"><Label>大きさ</Label><span>{Math.round(selectedScale * 100)}%</span></div><Slider value={[selectedScale]} min={0.25} max={2.5} step={0.05} onValueChange={(value) => { const scale = Array.isArray(value) ? value[0] : (value as number); updatePlacementTransform(selected, (transform) => ({ ...transform, scale: [scale, scale, scale] })) }} /></div>

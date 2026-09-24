@@ -14,7 +14,7 @@ export const ROBOT_CONFIG_SCHEMA_VERSION = 1 as const
 export const ROBOT_DRAFT_KEY = "machinowa:robot-draft"
 
 export const ROBOT_BASE_VALUES = ["volta", "natty"] as const satisfies readonly RobotBase[]
-export const ROBOT_VIEW_VALUES = ["front", "side", "back"] as const satisfies readonly RobotView[]
+export const ROBOT_VIEW_VALUES = ["front", "side", "side-right", "back"] as const satisfies readonly RobotView[]
 export const ROBOT_POSE_VALUES = ["wave", "stand", "cheer", "point"] as const satisfies readonly RobotPose[]
 export const ROBOT_ITEM_VALUES = ["none", "wrench", "flower", "gear", "heart"] as const satisfies readonly RobotItem[]
 

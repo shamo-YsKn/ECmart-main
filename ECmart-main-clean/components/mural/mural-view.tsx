@@ -24,6 +24,7 @@ import { ProductCard } from "@/components/product-card"
 import { MuralReviewEditor } from "@/components/community/mural-review-editor"
 import { ReportButton } from "@/components/community/report-button"
 import { communityError } from "@/lib/community-model"
+import { ROBOT_VIEW_OPTIONS } from "@/lib/robot-parts"
 import { MuroranMiniMap } from "@/components/mural/muroran-mini-map"
 import { MuralBackground } from "@/components/mural/mural-background"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -697,8 +698,8 @@ export function MuralView({ cart }: { cart: CartApi }) {
                     <div className="flex flex-col gap-3">
                       <div>
                         <div className="mb-1 text-xs font-bold">向き</div>
-                        <div className="grid grid-cols-3 gap-2">
-                          {([['front', '正面'], ['side', '側面'], ['back', '背面']] as const).map(([view, label]) => (
+                        <div className="grid grid-cols-2 gap-2">
+                          {ROBOT_VIEW_OPTIONS.map(({ value: view, label }) => (
                             <Button key={view} type="button" size="sm" variant={draftRobotView === view ? "default" : "outline"} className="rounded-full" onClick={() => setDraftRobotView(view)}>{label}</Button>
                           ))}
                         </div>

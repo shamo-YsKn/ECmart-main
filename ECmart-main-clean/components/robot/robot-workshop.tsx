@@ -291,7 +291,7 @@ export function RobotWorkshop() {
 
   function openPoseStudio() {
     const poseState = { ...normalizePoseState(config.pose, config.poseState), mode: "custom" as const }
-    const nextConfig = { ...config, pose: poseState.preset, poseState, view: "front" as const }
+    const nextConfig = { ...config, pose: poseState.preset, poseState }
     const saved = saveRobotPoseStudioDraft({ config: nextConfig, originalConfig: config, editingRobotId })
 
     if (!saved) {
@@ -515,7 +515,7 @@ export function RobotWorkshop() {
                 ? "PC限定3D：ドラッグで回転、ホイールで拡大縮小できます"
                 : config.poseState?.mode === "custom"
                   ? "自由ポーズ編集済み。専用画面では正面と側面を同時に見ながら調整できます。"
-                  : "2Dは正面・側面・背面を切り替えられます。自由ポーズは専用画面で編集します。"}
+                  : "正面・左側面・右側面・背面を切り替えられます。左右はロボット自身が基準です。自由ポーズは専用画面で編集します。"}
             </p>
           </CardContent>
         </Card>

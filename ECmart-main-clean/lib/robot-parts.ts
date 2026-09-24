@@ -108,7 +108,8 @@ export const ROBOT_ITEM_PARTS: Record<RobotItem, { id: string; label: string }> 
 
 export const ROBOT_VIEW_PARTS: Record<RobotView, { id: string; label: string; yaw: number }> = {
   front: { id: "view-front", label: "正面", yaw: 0 },
-  side: { id: "view-side", label: "側面", yaw: -Math.PI / 2 },
+  side: { id: "view-side", label: "左側面", yaw: -Math.PI / 2 },
+  "side-right": { id: "view-side-right", label: "右側面", yaw: Math.PI / 2 },
   back: { id: "view-back", label: "背面", yaw: Math.PI },
 }
 

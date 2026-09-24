@@ -45,7 +45,8 @@ export interface TownEvent {
 
 /** ロボット工房の設定 */
 export type RobotBase = "volta" | "natty"
-export type RobotView = "front" | "side" | "back"
+/** side is the legacy left-side view; keep its saved value for compatibility. */
+export type RobotView = "front" | "side" | "side-right" | "back"
 export type RobotPose = "wave" | "stand" | "cheer" | "point"
 export type RobotItem = "none" | "wrench" | "flower" | "gear" | "heart"
 

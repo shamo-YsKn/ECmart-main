@@ -31,6 +31,7 @@ export function RobotPoseStudio() {
   const [originalConfig, setOriginalConfig] = useState<RobotConfig | null>(null)
   const [editingRobotId, setEditingRobotId] = useState<string | null>(null)
   const [active, setActive] = useState<{ view: "front" | "side"; handle: PoseHandleId } | null>(null)
+  const [sideView, setSideView] = useState<"side" | "side-right">("side")
 
   useEffect(() => {
     const raw = loadRobotPoseStudioDraft()
@@ -44,6 +45,7 @@ export function RobotPoseStudio() {
       const poseState = normalizePoseState(normalized.pose, normalized.poseState)
       const next = { ...normalized, poseState: { ...poseState, mode: "custom" as const } }
       setConfig(next)
+      setSideView(normalized.view === "side-right" ? "side-right" : "side")
       setOriginalConfig(draft.originalConfig ? normalizeRobotConfig(draft.originalConfig) : normalized)
       setEditingRobotId(draft.editingRobotId ?? null)
     } catch {
@@ -64,7 +66,7 @@ export function RobotPoseStudio() {
   }
 
   const frontConfig: RobotConfig = { ...config, view: "front" }
-  const sideConfig: RobotConfig = { ...config, view: "side" }
+  const sideConfig: RobotConfig = { ...config, view: sideView }
   const backConfig: RobotConfig = { ...config, view: "back" }
 
   function updatePoseState(nextPoseState: NonNullable<RobotConfig["poseState"]>) {
@@ -156,12 +158,15 @@ export function RobotPoseStudio() {
 
         <Card className="overflow-hidden border-2">
           <CardHeader className="flex-row items-center justify-between gap-2">
-            <div><CardTitle className="font-display">側面</CardTitle><p className="mt-1 text-xs text-muted-foreground">腕・脚の前後方向を編集。奥側と手前側を別々に動かせます</p></div>
-            <Badge variant="secondary" className="rounded-full">SIDE</Badge>
+            <div><CardTitle className="font-display">{sideView === "side" ? "左側面" : "右側面"}</CardTitle><p className="mt-1 text-sm text-muted-foreground">ロボット自身の左右が基準です。向きを切り替えてもポーズは変わりません。</p></div>
           </CardHeader>
           <CardContent>
+            <div className="mb-3 flex flex-wrap gap-2" aria-label="側面の表示方向">
+              {(["side", "side-right"] as const).map((view) => <Button key={view} type="button" size="sm" variant={sideView === view ? "default" : "outline"} aria-pressed={sideView === view} onClick={() => { setSideView(view); setActive(null) }}>{view === "side" ? "左側面" : "右側面"}</Button>)}
+            </div>
             <div className="mx-auto aspect-square max-w-xl rounded-2xl bg-[radial-gradient(circle_at_50%_35%,var(--color-secondary),var(--color-muted))] p-2">
               <RobotPoseEditor
+                key={sideView}
                 config={sideConfig}
                 enabled
                 onPoseStateChange={updatePoseState}

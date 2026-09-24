@@ -83,7 +83,7 @@ function childPointForHandle(handle: PoseHandleId, layout: ReturnType<typeof bui
 }
 
 function oppositeView(view: RobotConfig["view"]): "front" | "side" {
-  return view === "side" ? "front" : "side"
+  return view === "side" || view === "side-right" ? "front" : "side"
 }
 
 function defaultInteractionLength(
@@ -222,7 +222,8 @@ export function RobotPoseEditor({
     const sourceParent = parentPointForHandle(handle, layout)
     const sourceChild = childPointForHandle(handle, layout)
     const projectedLength = Math.hypot(sourceChild.x - sourceParent.x, sourceChild.y - sourceParent.y)
-    const pointerDistance = Math.hypot(point.x - sourceParent.x, point.y - sourceParent.y)
+    const parentOnAxis = axisPoint(sourceParent)
+    const pointerDistance = Math.hypot(point.x - parentOnAxis.x, point.y - parentOnAxis.y)
 
     // 奥行き方向を向いて投影が一点に近くなったとき、クリックした瞬間に0°へ飛ばないようにします。
     // 少しドラッグして方向が決まってから、元の部材長を操作半径として復元します。

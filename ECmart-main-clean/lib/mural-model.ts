@@ -43,7 +43,7 @@ function stringValue(value: unknown) {
 }
 
 function robotViewValue(value: unknown): RobotView {
-  return value === "side" || value === "back" ? value : "front"
+  return value === "side" || value === "side-right" || value === "back" ? value : "front"
 }
 
 function muralVariantValue(value: unknown) {

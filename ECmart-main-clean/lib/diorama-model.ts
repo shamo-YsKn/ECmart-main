@@ -45,7 +45,7 @@ function clamp(value: number, min: number, max: number) {
 
 
 function normalizePlacementView(value: unknown): RobotView {
-  return value === "side" || value === "back" ? value : "front"
+  return value === "side" || value === "side-right" || value === "back" ? value : "front"
 }
 
 function vec3(value: unknown, fallback: Vec3): Vec3 {

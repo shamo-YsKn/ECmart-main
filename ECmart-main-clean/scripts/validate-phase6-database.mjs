@@ -43,6 +43,8 @@ try {
     await db.exec(sql)
   }
   await db.exec(await fs.readFile("supabase/phase6-community-migration.sql", "utf8"))
+  await db.exec(await fs.readFile("supabase/robot-side-views-migration.sql", "utf8"))
+  await db.exec(await fs.readFile("supabase/robot-side-views-migration.sql", "utf8"))
   check(true, "migration is re-runnable")
   await db.query("insert into auth.users values($1),($2),($3)", [A, B, M])
   await db.query("insert into public.profiles values($1,'作者A'),($2,'作者B')", [A,B])
@@ -104,6 +106,9 @@ try {
   check((await as(B,"update public.mural_posts set review='他人の改変' where id=$1 returning id",[POST])).length === 0,"cannot edit someone else's mural")
   await as(A,"update public.mural_posts set review='編集したレビュー' where id=$1",[POST])
   check((await as(null,"select review from public.mural_posts where id=$1",[POST]))[0].review === "編集したレビュー","owner mural review edits are public")
+  await as(A,"update public.mural_posts set robot_view='side-right' where id=$1",[POST])
+  check((await as(null,"select robot_view from public.mural_posts where id=$1",[POST]))[0].robot_view === "side-right", "right-side mural view accepted and persisted")
+  await denied(A,"update public.mural_posts set robot_view='invalid' where id=$1",[POST],"invalid view still rejected")
   await as(B,"select public.report_community_content('mural',$1,'壁画通報')",[POST])
   reports = await as(M,"select * from public.list_community_reports()")
   const muralReport = reports.find((r) => r.target_kind === "mural")

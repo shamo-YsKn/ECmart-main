@@ -364,24 +364,34 @@ function FrontOrBackRobot({ config, metalId, customItemDocument }: { config: Rob
 }
 
 function SideRobot({ config, metalId, customItemDocument }: { config: RobotConfig; metalId: string; customItemDocument?: CustomItemDocument | null }) {
-  const layout = buildRobot2DLayout(config)
-  const farArmPath = linePath(layout.shoulders.left, layout.elbows.left, layout.hands.left)
-  const nearArmPath = linePath(layout.shoulders.right, layout.elbows.right, layout.hands.right)
-  const farLegPath = linePath(layout.hips.left, layout.knees.left, layout.feet.left)
-  const nearLegPath = linePath(layout.hips.right, layout.knees.right, layout.feet.right)
-  const farHand = handSpec(layout.elbows.left, layout.hands.left, "left")
-  const nearHand = handSpec(layout.elbows.right, layout.hands.right, "right")
-  const farFootAngle = displayHardwareAngle(segmentAngleDeg(layout.knees.left, layout.feet.left)) * 0.12
-  const nearFootAngle = displayHardwareAngle(segmentAngleDeg(layout.knees.right, layout.feet.right)) * 0.12
+  // Render canonical side coordinates, then mirror the whole body for the opposite camera.
+  // Legacy left/right limb IDs denote front-screen sides; never swap saved joint identities.
+  const opposite = config.view === "side-right"
+  const layout = buildRobot2DLayout({ ...config, view: "side" })
+  const far = opposite ? "right" : "left"
+  const near = opposite ? "left" : "right"
+  const farArmPath = linePath(layout.shoulders[far], layout.elbows[far], layout.hands[far])
+  const nearArmPath = linePath(layout.shoulders[near], layout.elbows[near], layout.hands[near])
+  const farLegPath = linePath(layout.hips[far], layout.knees[far], layout.feet[far])
+  const nearLegPath = linePath(layout.hips[near], layout.knees[near], layout.feet[near])
+  const farHand = handSpec(layout.elbows[far], layout.hands[far], far)
+  const nearHand = handSpec(layout.elbows[near], layout.hands[near], near)
+  const farFootAngle = displayHardwareAngle(segmentAngleDeg(layout.knees[far], layout.feet[far])) * 0.12
+  const nearFootAngle = displayHardwareAngle(segmentAngleDeg(layout.knees[near], layout.feet[near])) * 0.12
+  const heldItem = <HeldItemShape config={config} customItemDocument={customItemDocument} anchor={itemAnchor(layout.elbows.right, layout.hands.right)} />
 
   return (
-    <>
+    <g data-side-view={config.view} transform={opposite ? "translate(300 0) scale(-1 1)" : undefined}>
+      <g data-layer="far" data-limb={far}>
       <Limb path={farArmPath} bodyColor={config.bodyColor} opacity={0.58} />
       <g opacity="0.62"><CounterSunkHand spec={farHand} fill={`url(#${metalId})`} /></g>
       <Limb path={farLegPath} bodyColor={config.bodyColor} opacity={0.58} />
-      <g opacity="0.62"><SideFoot x={layout.feet.left.x} y={layout.feet.left.y} angle={farFootAngle} fill={`url(#${metalId})`} /></g>
+      <g opacity="0.62"><SideFoot x={layout.feet[far].x} y={layout.feet[far].y} angle={farFootAngle} fill={`url(#${metalId})`} /></g>
+      {opposite && <g data-held-item-layer="far">{heldItem}</g>}
+      </g>
 
       <rect
+        data-layer="body"
         x="126"
         y={layout.bodyTopY}
         width="52"
@@ -403,15 +413,16 @@ function SideRobot({ config, metalId, customItemDocument }: { config: RobotConfi
 
       <SideHead config={config} metalId={metalId} />
 
-      <circle cx={layout.shoulders.right.x} cy={layout.shoulders.right.y} r="9" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
+      <g data-layer="near" data-limb={near}>
+      <circle cx={layout.shoulders[near].x} cy={layout.shoulders[near].y} r="9" fill={`url(#${metalId})`} stroke="#263943" strokeWidth="4" />
 
       <Limb path={nearArmPath} bodyColor={config.bodyColor} />
       <CounterSunkHand spec={nearHand} fill={`url(#${metalId})`} />
       <Limb path={nearLegPath} bodyColor={config.bodyColor} />
-      <SideFoot x={layout.feet.right.x} y={layout.feet.right.y} angle={nearFootAngle} fill={`url(#${metalId})`} />
-
-      <HeldItemShape config={config} customItemDocument={customItemDocument} anchor={itemAnchor(layout.elbows.right, layout.hands.right)} />
-    </>
+      <SideFoot x={layout.feet[near].x} y={layout.feet[near].y} angle={nearFootAngle} fill={`url(#${metalId})`} />
+      {!opposite && <g data-held-item-layer="near">{heldItem}</g>}
+      </g>
+    </g>
   )
 }
 
@@ -438,7 +449,7 @@ export function RobotFallback({ config, customItemDocument }: { config: RobotCon
       <ellipse cx="150" cy="302" rx="82" ry="10" fill="#173744" opacity="0.11" />
 
       <g transform={scaledGroupTransform(layout.scale)} filter={`url(#${shadowId})`}>
-        {config.view === "side" ? (
+        {config.view === "side" || config.view === "side-right" ? (
           <SideRobot config={config} metalId={metalId} customItemDocument={customItemDocument} />
         ) : (
           <FrontOrBackRobot config={config} metalId={metalId} customItemDocument={customItemDocument} />

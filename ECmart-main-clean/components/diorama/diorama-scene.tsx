@@ -2,7 +2,7 @@
 
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from "react"
 import type { DioramaDocument } from "@/lib/creation-model"
-import type { SavedRobot } from "@/lib/types"
+import type { SavedRobot, RobotView } from "@/lib/types"
 import type { SavedCustomItem } from "@/lib/custom-item-model"
 import { stageIdFromReference } from "@/lib/diorama-model"
 import { normalizeRobotHeldItem } from "@/lib/robot-held-item"
@@ -23,7 +23,7 @@ function transformStyle(position: [number, number, number], rotation: [number, n
   }
 }
 
-function RobotAsset({ robot, customItems, view = "front" }: { robot: SavedRobot; customItems: SavedCustomItem[]; view?: "front" | "side" | "back" }) {
+function RobotAsset({ robot, customItems, view = "front" }: { robot: SavedRobot; customItems: SavedCustomItem[]; view?: RobotView }) {
   const held = normalizeRobotHeldItem(robot.config.heldItem, robot.config.item)
   const customDocument = held.kind === "custom"
     ? customItems.find((item) => item.id === held.customItemId)?.document ?? null

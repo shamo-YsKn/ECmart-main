@@ -218,7 +218,7 @@ function sanitizeSpatial(value: unknown): RobotPoseSpatial {
 }
 
 export function poseAxisForView(view: RobotView): PoseAxis {
-  return view === "side" ? "side" : "front"
+  return view === "side" || view === "side-right" ? "side" : "front"
 }
 
 export function getPresetJointAngles(pose: RobotPose, axis: PoseAxis): Required<RobotJointAngles> {
@@ -426,11 +426,11 @@ function mirrorPoint(point: Point): Point {
 }
 
 export function pointFromAxisToView(point: Point, view: RobotView): Point {
-  return view === "back" ? mirrorPoint(point) : point
+  return view === "back" || view === "side-right" ? mirrorPoint(point) : point
 }
 
 export function pointFromViewToAxis(point: Point, view: RobotView): Point {
-  return view === "back" ? mirrorPoint(point) : point
+  return view === "back" || view === "side-right" ? mirrorPoint(point) : point
 }
 
 function mapPair(pair: { left: Point; right: Point }, view: RobotView) {
@@ -552,6 +552,7 @@ export function scaledGroupTransform(scale: number) {
 }
 
 export function limbRoleLabel(view: RobotView, side: "left" | "right") {
+  if (view === "side-right") return side === "left" ? "手前側" : "奥側"
   if (view === "side") return side === "left" ? "奥側" : "手前側"
   if (view === "back") return side === "left" ? "右側" : "左側"
   return side === "left" ? "左側" : "右側"
