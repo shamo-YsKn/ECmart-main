@@ -521,7 +521,7 @@ export function CustomItemWorkshop() {
                 <div className="rounded-xl bg-white/70 p-2"><div className="text-muted-foreground">工作加算</div><div className="mt-1 font-bold">+{formatReferencePrice(priceEstimate.surcharge)}</div></div>
                 <div className="rounded-xl bg-white/70 p-2"><div className="text-muted-foreground">ボルタ装備時</div><div className="mt-1 font-bold">{formatReferencePrice(ROBOT_BASE_REFERENCE_PRICE.volta + priceEstimate.surcharge)}</div></div>
                 <div className="rounded-xl bg-white/70 p-2"><div className="text-muted-foreground">ナッティ装備時</div><div className="mt-1 font-bold">{formatReferencePrice(ROBOT_BASE_REFERENCE_PRICE.natty + priceEstimate.surcharge)}</div></div>
-                <div className="rounded-xl bg-white/70 p-2"><div className="text-muted-foreground">最大外形比</div><div className="mt-1 font-bold">{priceEstimate.features.sizeRatio.toFixed(1)}倍</div></div>
+                <div className="rounded-xl bg-white/70 p-2"><div className="text-muted-foreground">最大外形比 / 2軸広がり</div><div className="mt-1 font-bold">{priceEstimate.features.sizeRatio.toFixed(1)}倍 / {priceEstimate.features.spreadRatio.toFixed(1)}倍</div></div>
               </div>
               <div className="mt-3 space-y-1 text-[11px]">
                 {priceEstimate.components.filter((component) => component.score > 0).map((component) => (

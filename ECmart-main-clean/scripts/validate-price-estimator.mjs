@@ -71,7 +71,7 @@ check("medium connected item maps to detailed tier", () => {
   const result = pricing.estimateCustomItemPrice(detailed)
   assert.equal(result.tier, "detailed")
   assert.equal(result.surcharge, 750)
-  assert.ok(result.score >= 18 && result.score < 38)
+  assert.ok(result.score >= pricing.PRICE_SCORE_RULES.tierThresholds.detailed && result.score < pricing.PRICE_SCORE_RULES.tierThresholds.complex)
 })
 
 const complexTypes = ["bolt","hex_nut","washer","metal_rod","wire","spring","led_red","bolt","wire","hex_nut","washer","spring"]
@@ -86,19 +86,19 @@ check("dense special-parts item maps to complex tier", () => {
   const result = pricing.estimateCustomItemPrice(complex)
   assert.equal(result.tier, "complex")
   assert.equal(result.surcharge, 1050)
-  assert.ok(result.score >= 38)
+  assert.ok(result.score >= pricing.PRICE_SCORE_RULES.tierThresholds.complex)
   assert.equal(result.largeStructure, false)
 })
 
-const large = doc([
-  part("l0", "metal_rod", [-270, 0, 0]),
-  part("l1", "metal_rod", [-160, 0, 0]),
-  part("l2", "metal_rod", [-50, 0, 0]),
-  part("l3", "metal_rod", [60, 0, 0]),
-  part("l4", "metal_rod", [170, 0, 0]),
-  part("l5", "metal_rod", [270, 0, 0]),
-])
-check("large footprint forces large tier independently of raw score", () => {
+const largeTypes = ["washer","hex_nut","metal_rod","bolt","spring","washer","hex_nut","metal_rod","bolt","wire","led_red","led_yellow","metal_rod","hex_nut","washer","wire"]
+const large = doc(largeTypes.map((type, i) => part(
+  `l${i}`,
+  type,
+  [(i % 8 - 3.5) * 42, (Math.floor(i / 8) ? 70 : -55), (i % 4 - 1.5) * 22],
+  i ? { instanceId: `l${i-1}`, socketId: "center", ownSocketId: "center" } : undefined,
+  (i === 0 || i === 5) ? 1.3 : 1,
+)))
+check("large multi-axis mechanical structure maps to large tier", () => {
   const result = pricing.estimateCustomItemPrice(large)
   assert.equal(result.tier, "large")
   assert.equal(result.surcharge, 2250)

@@ -13,7 +13,7 @@ import { WORKBENCH_PART_BY_TYPE } from "@/lib/workbench-parts"
  * - やきとりボルタ / 工房限定楽器ナッティ 2,200-2,300円 -> おおむね +1,050円
  * - ライダーボルタ 3,400円 -> ボルタ基準から +2,250円
  */
-export const PRICE_ESTIMATOR_MODEL_VERSION = "official-anchor-2026-10-v1" as const
+export const PRICE_ESTIMATOR_MODEL_VERSION = "official-anchor-2026-10-v2-calibrated" as const
 
 export const ROBOT_BASE_REFERENCE_PRICE: Readonly<Record<RobotBase, number>> = Object.freeze({
   volta: 1150,
@@ -36,9 +36,19 @@ export const PRICE_SCORE_RULES = Object.freeze({
   uniqueTypes: { free: 2, weight: 3, max: 12 },
   depth: { free: 60, step: 30, stepScore: 2, max: 10 },
   scale: { free: 1.25, weight: 10, max: 8 },
-  size: { normal: 1, detailed: 1.2, high: 1.45, scores: [0, 5, 10, 16] as const },
-  tierThresholds: { detailed: 18, complex: 38 },
-  large: { sizeRatio: 1.55, depthSpan: 300, partCount: 24, manyParts: 18, manyPartsSizeRatio: 1.15 },
+  // sizeは「最長一辺」ではなく、2番目に大きい軸比(spreadRatio)で評価する。
+  // これにより、釣竿のように長いだけの単純形状を大型扱いしにくくする。
+  size: { normal: 0.75, detailed: 0.95, high: 1.15, scores: [0, 5, 10, 16] as const },
+  tierThresholds: { detailed: 18, complex: 45 },
+  large: {
+    sizeRatio: 1.55,
+    depthSpan: 300,
+    partCount: 24,
+    manyParts: 16,
+    manyPartsSpreadRatio: 0.8,
+    minStructuralScore: 18,
+    manyPartsStructuralScore: 45,
+  },
 })
 
 export const ITEM_PRICE_TIERS: Readonly<Record<ItemPriceTier, ItemPriceTierDefinition>> = Object.freeze({
@@ -78,7 +88,10 @@ export interface CustomItemPriceFeatures {
   widthSpan: number
   heightSpan: number
   depthSpan: number
+  /** 最長一辺の大きさ。UI表示と「極端に大きい」判定に利用。 */
   sizeRatio: number
+  /** 3軸比のうち2番目に大きい値。単に長いだけでなく、面・立体として広がる度合い。 */
+  spreadRatio: number
 }
 
 export interface CustomItemScoreComponent {
@@ -192,12 +205,12 @@ export function extractCustomItemPriceFeatures(document: CustomItemDocument): Cu
   const specialPartCount = parts.filter((part) => SPECIAL_TYPES.has(part.partType)).length
   const variantPartCount = parts.filter((part) => Boolean(part.variantId)).length
 
-  // 工作台の通常範囲を1.0とする。奥行きは正面より狭くても立体性が高いので別基準。
-  const sizeRatio = Math.max(
-    widthSpan / 360,
-    heightSpan / 280,
-    depthSpan / 180,
-  )
+  // 工作台の通常範囲を1.0とする。
+  // sizeRatioは最長一辺、spreadRatioは2番目に大きい軸比。
+  // 「長いだけ」の釣竿などと、二方向以上に広がるバイク等を分離するため両方を保持する。
+  const axisRatios = [widthSpan / 360, heightSpan / 280, depthSpan / 180].sort((a, b) => b - a)
+  const sizeRatio = axisRatios[0] ?? 0
+  const spreadRatio = axisRatios[1] ?? 0
 
   return {
     partCount: parts.length,
@@ -210,6 +223,7 @@ export function extractCustomItemPriceFeatures(document: CustomItemDocument): Cu
     heightSpan,
     depthSpan,
     sizeRatio: round1(sizeRatio),
+    spreadRatio: round1(spreadRatio),
   }
 }
 
@@ -227,11 +241,11 @@ export function estimateCustomItemPrice(document: CustomItemDocument): CustomIte
     PRICE_SCORE_RULES.depth.max,
   )
   const scaleScore = clamp(Math.round(Math.max(0, f.maxScale - PRICE_SCORE_RULES.scale.free) * PRICE_SCORE_RULES.scale.weight), 0, PRICE_SCORE_RULES.scale.max)
-  const sizeScore = f.sizeRatio > PRICE_SCORE_RULES.size.high
+  const sizeScore = f.spreadRatio > PRICE_SCORE_RULES.size.high
     ? PRICE_SCORE_RULES.size.scores[3]
-    : f.sizeRatio > PRICE_SCORE_RULES.size.detailed
+    : f.spreadRatio > PRICE_SCORE_RULES.size.detailed
       ? PRICE_SCORE_RULES.size.scores[2]
-      : f.sizeRatio > PRICE_SCORE_RULES.size.normal
+      : f.spreadRatio > PRICE_SCORE_RULES.size.normal
         ? PRICE_SCORE_RULES.size.scores[1]
         : PRICE_SCORE_RULES.size.scores[0]
 
@@ -242,15 +256,39 @@ export function estimateCustomItemPrice(document: CustomItemDocument): CustomIte
     { key: "diversity", label: "部品種類", score: diversityScore, maxScore: 12, detail: `${f.uniquePartTypeCount}種類` },
     { key: "depth", label: "奥行き", score: depthScore, maxScore: 10, detail: `${Math.round(f.depthSpan)} unit` },
     { key: "scale", label: "拡大率", score: scaleScore, maxScore: 8, detail: `最大${Math.round(f.maxScale * 100)}%` },
-    { key: "size", label: "全体サイズ", score: sizeScore, maxScore: 16, detail: `基準比${f.sizeRatio.toFixed(1)}倍` },
+    { key: "size", label: "面・立体の広がり", score: sizeScore, maxScore: 16, detail: `2軸目の基準比${f.spreadRatio.toFixed(1)}倍` },
   ]
   const score = clamp(components.reduce((sum, component) => sum + component.score, 0), 0, 100)
+  const structuralScore = clamp(
+    components.filter((component) => component.key !== "size").reduce((sum, component) => sum + component.score, 0),
+    0,
+    100,
+  )
 
   const largeStructureReasons: string[] = []
-  if (f.sizeRatio >= PRICE_SCORE_RULES.large.sizeRatio) largeStructureReasons.push(`外形が通常工作の約${PRICE_SCORE_RULES.large.sizeRatio}倍以上`)
-  if (f.depthSpan >= PRICE_SCORE_RULES.large.depthSpan) largeStructureReasons.push(`奥行きが${PRICE_SCORE_RULES.large.depthSpan}unit以上`)
-  if (f.partCount >= PRICE_SCORE_RULES.large.partCount) largeStructureReasons.push(`部品数が${PRICE_SCORE_RULES.large.partCount}個以上`)
-  if (f.partCount >= PRICE_SCORE_RULES.large.manyParts && f.sizeRatio >= PRICE_SCORE_RULES.large.manyPartsSizeRatio) largeStructureReasons.push("多数部品かつ大きな外形")
+  // 大型判定は「大きさだけ」で決めない。構造的な複雑さと組み合わせる。
+  if (f.partCount >= PRICE_SCORE_RULES.large.partCount) {
+    largeStructureReasons.push(`部品数が${PRICE_SCORE_RULES.large.partCount}個以上`)
+  }
+  if (
+    f.partCount >= PRICE_SCORE_RULES.large.manyParts &&
+    f.spreadRatio >= PRICE_SCORE_RULES.large.manyPartsSpreadRatio &&
+    structuralScore >= PRICE_SCORE_RULES.large.manyPartsStructuralScore
+  ) {
+    largeStructureReasons.push("多数部品かつ二方向以上に広がる高複雑度構造")
+  }
+  if (
+    f.sizeRatio >= PRICE_SCORE_RULES.large.sizeRatio &&
+    structuralScore >= PRICE_SCORE_RULES.large.minStructuralScore
+  ) {
+    largeStructureReasons.push(`大外形かつ構造スコア${PRICE_SCORE_RULES.large.minStructuralScore}点以上`)
+  }
+  if (
+    f.depthSpan >= PRICE_SCORE_RULES.large.depthSpan &&
+    structuralScore >= PRICE_SCORE_RULES.large.minStructuralScore
+  ) {
+    largeStructureReasons.push(`大きな奥行きかつ構造スコア${PRICE_SCORE_RULES.large.minStructuralScore}点以上`)
+  }
   const largeStructure = largeStructureReasons.length > 0
 
   let tier: ItemPriceTier
