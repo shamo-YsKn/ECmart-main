@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { RobotCharacter, type RobotRenderMode } from "./robot-character"
 import { RobotAvatar } from "./robot-avatar"
 import type { RobotBase, RobotConfig, RobotHeadPose, SavedRobot } from "@/lib/types"
@@ -128,6 +128,9 @@ export function RobotWorkshop() {
   const [notice, setNotice] = useState<Notice>(null)
   const [desktop3D, setDesktop3D] = useState(false)
   const [previewMode, setPreviewMode] = useState<RobotRenderMode>("2d")
+  const guestDraftInitializedRef = useRef(false)
+  const skipGuestPersistRef = useRef(false)
+  const sessionDraftLoadedRef = useRef(false)
   const unlockedRewardIds = useMemo(
     () => inventoryRewardIds(account.gachaInventory),
     [account.gachaInventory],
@@ -190,6 +193,7 @@ export function RobotWorkshop() {
     try {
       const draft = JSON.parse(rawDraft) as { id?: string; config?: unknown; source?: string }
       if (draft.config) {
+        sessionDraftLoadedRef.current = true
         setConfig(normalizeRobotConfig(draft.config))
         setEditingRobotId(draft.id ?? null)
         setNotice({
@@ -205,6 +209,30 @@ export function RobotWorkshop() {
       setNotice({ type: "error", text: "保存したロボットの読み込みに失敗しました。" })
     }
   }, [])
+
+  useEffect(() => {
+    if (account.user || !account.guestWorkspaceReady || guestDraftInitializedRef.current) return
+    guestDraftInitializedRef.current = true
+    if (sessionDraftLoadedRef.current) {
+      account.updateGuestRobotDraft(config)
+      return
+    }
+    skipGuestPersistRef.current = true
+    if (account.guestRobotDraft) {
+      setConfig(normalizeRobotConfig(account.guestRobotDraft.config))
+      setEditingRobotId(null)
+      setNotice({ type: "success", text: "ゲストの作成途中ロボットを復元しました。" })
+    }
+  }, [account.guestRobotDraft, account.guestWorkspaceReady, account.updateGuestRobotDraft, account.user, config])
+
+  useEffect(() => {
+    if (account.user || !account.guestWorkspaceReady || !guestDraftInitializedRef.current) return
+    if (skipGuestPersistRef.current) {
+      skipGuestPersistRef.current = false
+      return
+    }
+    account.updateGuestRobotDraft(config)
+  }, [account.guestWorkspaceReady, account.updateGuestRobotDraft, account.user, config])
 
   useEffect(() => {
     const customItemId = window.sessionStorage.getItem(CUSTOM_ITEM_EQUIP_DRAFT_KEY)
@@ -366,7 +394,7 @@ export function RobotWorkshop() {
     setNotice(null)
 
     if (!account.user) {
-      setNotice({ type: "error", text: "保存するにはログインしてください。" })
+      account.updateGuestRobotDraft(config)
       dispatchNavigate("account")
       return
     }
@@ -428,6 +456,13 @@ export function RobotWorkshop() {
           role="status"
         >
           {notice.text}
+        </div>
+      )}
+
+      {!account.user && (
+        <div className="rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm">
+          <p className="font-bold text-primary">ゲストモード</p>
+          <p className="mt-1 text-muted-foreground">作成内容はこのタブに一時保存されます。アカウントを作成・ログインすると、マイページへ正式保存できます。</p>
         </div>
       )}
 
@@ -803,7 +838,9 @@ export function RobotWorkshop() {
               <div>
                 <h3 className="font-display font-black">アカウントへ保存</h3>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  保存すると、別の端末でも呼び出せ、アカウントアイコンにも設定できます。
+                  {account.user
+                    ? "保存すると、別の端末でも呼び出せ、アカウントアイコンにも設定できます。"
+                    : "ゲスト中はこのタブだけに一時保存されます。アカウント作成後に引き継げます。"}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -820,7 +857,7 @@ export function RobotWorkshop() {
                     <UserRound data-icon="inline-start" />
                   )}
                   {!account.user
-                    ? "ログインして保存"
+                    ? "アカウント作成で保存"
                     : editingRobotId
                       ? "変更を上書き保存"
                       : "このロボットを保存"}

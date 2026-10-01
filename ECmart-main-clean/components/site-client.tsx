@@ -124,7 +124,7 @@ function Site({ initialTab, initialAuthMode }: { initialTab: TabKey; initialAuth
 
   const accountLabel = account.user
     ? account.profile?.display_name || "マイページ"
-    : "ログイン"
+    : "ゲスト"
 
   function avatarCustomItemDocument() {
     if (!account.avatarRobot) return null

@@ -91,6 +91,7 @@ export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; i
   const [robotActionId, setRobotActionId] = useState<string | null>(null)
   const [itemActionId, setItemActionId] = useState<string | null>(null)
   const [dioramaActionId, setDioramaActionId] = useState<string | null>(null)
+  const [importingGuest, setImportingGuest] = useState(false)
   const [notice, setNotice] = useState<Notice>(null)
 
   useEffect(() => {
@@ -211,6 +212,19 @@ export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; i
     )
   }
 
+  async function handleImportGuestWorkspace() {
+    setImportingGuest(true)
+    setNotice(null)
+    const result = await account.importGuestWorkspace()
+    setImportingGuest(false)
+    if (result.error) {
+      setNotice({ type: "error", text: result.error })
+      return
+    }
+    const imported = [result.robot ? "ロボット" : null, result.diorama ? "ジオラマ" : null].filter(Boolean).join("と")
+    setNotice({ type: "success", text: `${imported || "ゲスト作品"}をアカウントへ引き継ぎました。` })
+  }
+
   function openWorkshop(robot?: SavedRobot) {
     if (robot) {
       window.sessionStorage.setItem(
@@ -308,6 +322,25 @@ export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; i
           <p className="text-muted-foreground">プロフィールやお気に入りを保存できます。</p>
         </div>
 
+        <Card className="border-2 border-primary/30 bg-primary/5">
+          <CardHeader>
+            <CardTitle className="font-display flex items-center gap-2">
+              <Bot className="size-5 text-primary" />
+              ゲストとして体験できます
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4 text-sm">
+            <p className="leading-relaxed text-muted-foreground">
+              アカウントなしでもロボット工房・ジオラマ・ECサイトを利用できます。作品はこのタブだけの一時保存で、配送先も保存しません。
+            </p>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <Button className="rounded-full" onClick={() => navigateTo("robot")}>ロボットを作る</Button>
+              <Button variant="outline" className="rounded-full" onClick={() => navigateTo("diorama")}>ジオラマへ</Button>
+              <Button variant="outline" className="rounded-full" onClick={() => navigateTo("shops")}>買い物する</Button>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card className="border-2 border-dashed">
           <CardHeader>
             <CardTitle className="font-display flex items-center gap-2">
@@ -351,9 +384,33 @@ export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; i
           </div>
           <h1 className="font-display text-3xl font-black">マイアカウント</h1>
           <p className="mt-2 text-muted-foreground">
-            ログインすると、お気に入りや自作ロボットを端末をまたいで保存できます。ログイン状態は常時保持せず、この閲覧中を基本に扱います。
+            現在はゲストとして利用できます。ログインすると、お気に入りや自作作品を端末をまたいで保存できます。
           </p>
         </div>
+
+        <Card className="border-2 border-primary/30 bg-primary/5">
+          <CardHeader>
+            <CardTitle className="font-display flex items-center gap-2">
+              <Bot className="size-5 text-primary" />
+              ゲスト利用
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4 text-sm">
+            <div className="rounded-xl bg-background/80 p-3 leading-relaxed text-muted-foreground">
+              ロボットとジオラマはこのタブに一時保存されます。EC購入時の配送先は注文処理にだけ使い、アカウント情報として保存しません。お気に入り・ガチャ・作品公開はログイン後に利用できます。
+            </div>
+            {account.hasGuestWorkspace && (
+              <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-amber-900">
+                作成途中のゲスト作品があります。下の「新規登録」または「ログイン」後に、マイページへ引き継げます。
+              </div>
+            )}
+            <div className="grid gap-2 sm:grid-cols-3">
+              <Button className="rounded-full" onClick={() => navigateTo("robot")}>ロボットを作る</Button>
+              <Button variant="outline" className="rounded-full" onClick={() => navigateTo("diorama")}>ジオラマへ</Button>
+              <Button variant="outline" className="rounded-full" onClick={() => navigateTo("shops")}>ゲストで買い物</Button>
+            </div>
+          </CardContent>
+        </Card>
 
         {account.accountLoadError && (
           <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
@@ -502,6 +559,35 @@ export function AccountView({ cart, initialMode = "signIn" }: { cart: CartApi; i
       </div>
 
       <NoticeBox notice={notice} />
+
+      {account.hasGuestWorkspace && (
+        <Card className="border-2 border-amber-300 bg-amber-50">
+          <CardHeader>
+            <CardTitle className="font-display flex items-center gap-2 text-amber-950">
+              <Save className="size-5" />
+              ゲスト作品を引き継ぐ
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4 text-sm text-amber-950">
+            <p>
+              ログイン前に作成した{account.guestRobotDraft ? "ロボット" : ""}{account.guestRobotDraft && account.guestDioramaDraft ? "と" : ""}{account.guestDioramaDraft ? "ジオラマ" : ""}を、このアカウントへ保存できます。
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" className="rounded-full" onClick={() => void handleImportGuestWorkspace()} disabled={importingGuest}>
+                {importingGuest ? <LoaderCircle className="animate-spin" data-icon="inline-start" /> : <Save data-icon="inline-start" />}
+                アカウントへ保存
+              </Button>
+              <Button type="button" variant="outline" className="rounded-full bg-white" onClick={() => {
+                if (!window.confirm("ゲスト作品を破棄しますか？このタブに一時保存したロボットとジオラマは元に戻せません。")) return
+                account.discardGuestWorkspace()
+                setNotice({ type: "success", text: "ゲスト作品を破棄しました。" })
+              }} disabled={importingGuest}>
+                ゲスト作品を破棄
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {!account.robotStorageReady && (
         <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">

@@ -90,8 +90,16 @@ export function DioramaWorkshop() {
   const [drag, setDrag] = useState<DragState | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [notice, setNotice] = useState<Notice>(null)
+  const guestDraftInitializedRef = useRef(false)
+  const skipGuestPersistRef = useRef(false)
+  const sessionDraftLoadedRef = useRef(false)
 
   const unlockedStages = useMemo(() => unlockedDioramaStages(account.gachaInventory), [account.gachaInventory])
+  const availableRobots = useMemo(
+    () => account.user ? account.savedRobots : account.guestRobot ? [account.guestRobot] : [],
+    [account.guestRobot, account.savedRobots, account.user],
+  )
+  const availableCustomItems = account.user ? account.savedCustomItems : []
   const currentStageId = stageIdFromReference(document.stage)
   const currentStage = getDioramaStage(currentStageId)
 
@@ -111,11 +119,11 @@ export function DioramaWorkshop() {
     if (!selected) return null
     if (selected.kind === "robot") {
       const placement = document.robots.find((entry) => entry.placementId === selected.placementId)
-      return account.savedRobots.find((entry) => entry.id === placement?.savedRobotId)?.name ?? "ロボット"
+      return availableRobots.find((entry) => entry.id === placement?.savedRobotId)?.name ?? "ロボット"
     }
     const placement = document.items.find((entry) => entry.placementId === selected.placementId)
-    return account.savedCustomItems.find((entry) => entry.id === placement?.customItemId)?.name ?? "自作アイテム"
-  }, [account.savedCustomItems, account.savedRobots, document.items, document.robots, selected])
+    return availableCustomItems.find((entry) => entry.id === placement?.customItemId)?.name ?? "自作アイテム"
+  }, [availableCustomItems, availableRobots, document.items, document.robots, selected])
 
   useEffect(() => {
     const raw = window.sessionStorage.getItem(DIORAMA_DRAFT_KEY)
@@ -123,6 +131,7 @@ export function DioramaWorkshop() {
     try {
       const parsed = JSON.parse(raw) as { id?: string; document?: unknown; stageId?: string }
       if (parsed.document) {
+        sessionDraftLoadedRef.current = true
         window.sessionStorage.removeItem(DIORAMA_DRAFT_KEY)
         setDocument(groundDioramaDocumentRobots(normalizeDioramaDocument(parsed.document)))
         setEditingDioramaId(parsed.id ?? null)
@@ -130,6 +139,7 @@ export function DioramaWorkshop() {
         return
       }
       if (parsed.stageId) {
+        sessionDraftLoadedRef.current = true
         const stage = unlockedStages.find((candidate) => candidate.id === parsed.stageId)
         if (!stage) return
         window.sessionStorage.removeItem(DIORAMA_DRAFT_KEY)
@@ -142,6 +152,26 @@ export function DioramaWorkshop() {
       setNotice({ type: "error", text: "ジオラマの読み込みに失敗しました。" })
     }
   }, [unlockedStages])
+
+  useEffect(() => {
+    if (account.user || !account.guestWorkspaceReady || guestDraftInitializedRef.current) return
+    guestDraftInitializedRef.current = true
+    skipGuestPersistRef.current = true
+    if (!sessionDraftLoadedRef.current && account.guestDioramaDraft) {
+      setDocument(groundDioramaDocumentRobots(normalizeDioramaDocument(account.guestDioramaDraft.document)))
+      setEditingDioramaId(null)
+      setNotice({ type: "success", text: "ゲストの作成途中ジオラマを復元しました。" })
+    }
+  }, [account.guestDioramaDraft, account.guestWorkspaceReady, account.user])
+
+  useEffect(() => {
+    if (account.user || !account.guestWorkspaceReady || !guestDraftInitializedRef.current) return
+    if (skipGuestPersistRef.current) {
+      skipGuestPersistRef.current = false
+      return
+    }
+    account.updateGuestDioramaDraft(document)
+  }, [account.guestWorkspaceReady, account.updateGuestDioramaDraft, account.user, document])
 
   useEffect(() => {
     if (!drag) return
@@ -269,7 +299,7 @@ export function DioramaWorkshop() {
   async function saveCurrent(asNew = false) {
     setNotice(null)
     if (!account.user) {
-      setNotice({ type: "error", text: "ジオラマを保存するにはログインしてください。" })
+      account.updateGuestDioramaDraft(document)
       dispatchNavigate("account")
       return
     }
@@ -298,6 +328,13 @@ export function DioramaWorkshop() {
     <div className="flex flex-col gap-6">
       {notice && <div role="status" className={cn("rounded-xl border px-4 py-3 text-sm", notice.type === "success" ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-red-300 bg-red-50 text-red-800")}>{notice.text}</div>}
 
+      {!account.user && (
+        <div className="rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm">
+          <p className="font-bold text-primary">ゲストモード</p>
+          <p className="mt-1 text-muted-foreground">ロボット工房で作ったゲストロボットを配置できます。ジオラマはこのタブに一時保存され、アカウント作成後に引き継げます。</p>
+        </div>
+      )}
+
       {!account.dioramaStorageReady && account.user && (
         <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <div className="flex items-start gap-2"><Database className="mt-0.5 size-4" /><div><p className="font-bold">ジオラマ保存用のSupabase設定が必要です</p><p className="mt-1"><code>supabase/dioramas-migration.sql</code> をSQL Editorで実行してください。</p></div></div>
@@ -321,11 +358,11 @@ export function DioramaWorkshop() {
           <Card className="border-2">
             <CardHeader><CardTitle className="font-display flex items-center gap-2 text-base"><Bot className="size-5 text-primary" />マイロボット</CardTitle></CardHeader>
             <CardContent className="flex flex-col gap-2">
-              {account.savedRobots.length ? account.savedRobots.map((robot) => {
+              {availableRobots.length ? availableRobots.map((robot) => {
                 const held = normalizeRobotHeldItem(robot.config.heldItem, robot.config.item)
-                const custom = held.kind === "custom" ? account.savedCustomItems.find((item) => item.id === held.customItemId)?.document ?? null : null
+                const custom = held.kind === "custom" ? availableCustomItems.find((item) => item.id === held.customItemId)?.document ?? null : null
                 return <button key={robot.id} type="button" onClick={() => addRobot(robot.id)} className="flex items-center gap-3 rounded-xl border p-2 text-left hover:border-primary hover:bg-primary/5"><RobotAvatar config={robot.config} customItemDocument={custom} className="size-12" /><div className="min-w-0"><div className="truncate font-display text-sm font-black">{robot.name}</div><div className="text-[11px] text-muted-foreground">クリックで配置</div></div></button>
-              }) : <div className="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">保存ロボットがありません</div>}
+              }) : <div className="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">{account.user ? "保存ロボットがありません" : "まずロボット工房でゲストロボットを作ってください"}</div>}
               <Button type="button" variant="outline" className="rounded-full" onClick={() => dispatchNavigate("robot")}><Plus data-icon="inline-start" />ロボットを作る</Button>
             </CardContent>
           </Card>
@@ -333,7 +370,7 @@ export function DioramaWorkshop() {
           <Card className="border-2">
             <CardHeader><CardTitle className="font-display flex items-center gap-2 text-base"><Wrench className="size-5 text-primary" />自作アイテム</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-2 gap-2">
-              {account.savedCustomItems.length ? account.savedCustomItems.map((item) => <button key={item.id} type="button" onClick={() => addItem(item.id)} className="overflow-hidden rounded-xl border text-left hover:border-primary"><CustomItemPreview document={item.document} className="aspect-square w-full rounded-none" /><div className="truncate px-2 py-1.5 text-xs font-bold">{item.name}</div></button>) : <div className="col-span-2 rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">自作アイテムがありません</div>}
+              {availableCustomItems.length ? availableCustomItems.map((item) => <button key={item.id} type="button" onClick={() => addItem(item.id)} className="overflow-hidden rounded-xl border text-left hover:border-primary"><CustomItemPreview document={item.document} className="aspect-square w-full rounded-none" /><div className="truncate px-2 py-1.5 text-xs font-bold">{item.name}</div></button>) : <div className="col-span-2 rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">{account.user ? "自作アイテムがありません" : "自作アイテムの保存・配置はログイン後に利用できます"}</div>}
             </CardContent>
           </Card>
         </div>
@@ -344,7 +381,7 @@ export function DioramaWorkshop() {
             <div className="flex gap-2"><Badge variant="secondary" className="rounded-full">{document.robots.length}体</Badge><Badge variant="secondary" className="rounded-full">{document.items.length}個</Badge></div>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            <div ref={canvasRef}><DioramaScenePreview document={document} robots={account.savedRobots} customItems={account.savedCustomItems} selected={selected} onSelect={setSelected} onPointerDown={startDrag} /></div>
+            <div ref={canvasRef}><DioramaScenePreview document={document} robots={availableRobots} customItems={availableCustomItems} selected={selected} onSelect={setSelected} onPointerDown={startDrag} /></div>
             <div className="rounded-xl border bg-muted/35 p-3 text-xs text-muted-foreground">ロボットは見やすさを優先して最大5体。移動すると地面や対応する建物・橋の上へ自動で接地し、選択中パネルから正面・左側面・右側面・背面を切り替えられます。左右はロボット自身が基準です。アイテムは自由配置できます。</div>
           </CardContent>
         </Card>
@@ -377,8 +414,8 @@ export function DioramaWorkshop() {
 
           <Card className="border-2 border-primary/30 bg-primary/5">
             <CardContent className="flex flex-col gap-3 p-5">
-              <div><h3 className="font-display font-black">マイページへ保存</h3><p className="mt-1 text-sm text-muted-foreground">背景・配置・向き・回転・大きさ・前後関係をまとめて保存します。</p></div>
-              <Button type="button" className="rounded-full" onClick={() => void saveCurrent(false)} disabled={submitting || (Boolean(account.user) && !account.dioramaStorageReady)}>{submitting ? <LoaderCircle className="animate-spin" data-icon="inline-start" /> : account.user ? <Save data-icon="inline-start" /> : <UserRound data-icon="inline-start" />}{!account.user ? "ログインして保存" : editingDioramaId ? "変更を上書き保存" : "このジオラマを保存"}</Button>
+              <div><h3 className="font-display font-black">マイページへ保存</h3><p className="mt-1 text-sm text-muted-foreground">{account.user ? "背景・配置・向き・回転・大きさ・前後関係をまとめて保存します。" : "ゲスト中はこのタブだけに一時保存されます。アカウント作成後にロボットと一緒に引き継げます。"}</p></div>
+              <Button type="button" className="rounded-full" onClick={() => void saveCurrent(false)} disabled={submitting || (Boolean(account.user) && !account.dioramaStorageReady)}>{submitting ? <LoaderCircle className="animate-spin" data-icon="inline-start" /> : account.user ? <Save data-icon="inline-start" /> : <UserRound data-icon="inline-start" />}{!account.user ? "アカウント作成で保存" : editingDioramaId ? "変更を上書き保存" : "このジオラマを保存"}</Button>
               {editingDioramaId && account.user && <Button type="button" variant="outline" className="rounded-full" onClick={() => void saveCurrent(true)} disabled={submitting || !account.dioramaStorageReady}><Plus data-icon="inline-start" />新規として保存</Button>}
             </CardContent>
           </Card>

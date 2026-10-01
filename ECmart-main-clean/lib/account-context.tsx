@@ -39,6 +39,17 @@ import {
   type SavedDiorama,
 } from "@/lib/diorama-model"
 import { getDioramaStage } from "@/lib/diorama-stages"
+import {
+  clearGuestWorkspaceStorage,
+  clearGuestDioramaDraftStorage,
+  guestRobotAsSavedRobot,
+  readGuestDioramaDraft,
+  readGuestRobotDraft,
+  writeGuestDioramaDraft,
+  writeGuestRobotDraft,
+  type GuestDioramaDraft,
+  type GuestRobotDraft,
+} from "@/lib/guest-session"
 
 export interface Profile {
   user_id: string
@@ -74,6 +85,11 @@ type GachaAccountResult = AccountResult & {
   spin?: GachaSpinResult
 }
 
+type GuestWorkspaceImportResult = AccountResult & {
+  robot?: SavedRobot
+  diorama?: SavedDiorama
+}
+
 interface AccountContextValue {
   configured: boolean
   loading: boolean
@@ -86,6 +102,11 @@ interface AccountContextValue {
   gachaInventory: GachaInventoryItem[]
   savedCustomItems: SavedCustomItem[]
   savedDioramas: SavedDiorama[]
+  guestWorkspaceReady: boolean
+  guestRobotDraft: GuestRobotDraft | null
+  guestRobot: SavedRobot | null
+  guestDioramaDraft: GuestDioramaDraft | null
+  hasGuestWorkspace: boolean
   robotStorageReady: boolean
   robotStorageError: string | null
   customItemStorageReady: boolean
@@ -106,6 +127,10 @@ interface AccountContextValue {
   setAvatarRobot: (robotId: string | null) => Promise<AccountResult>
   purchaseCart: (items: CartItem[], idempotencyKey: string) => Promise<PurchaseAccountResult>
   spinGacha: (rollId: string) => Promise<GachaAccountResult>
+  updateGuestRobotDraft: (config: RobotConfig) => void
+  updateGuestDioramaDraft: (document: DioramaDocument) => void
+  discardGuestWorkspace: () => void
+  importGuestWorkspace: () => Promise<GuestWorkspaceImportResult>
   refreshAccount: () => Promise<void>
 }
 
@@ -268,6 +293,15 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const [customItemStorageError, setCustomItemStorageError] = useState<string | null>(null)
   const [dioramaStorageReady, setDioramaStorageReady] = useState(true)
   const [dioramaStorageError, setDioramaStorageError] = useState<string | null>(null)
+  const [guestWorkspaceReady, setGuestWorkspaceReady] = useState(false)
+  const [guestRobotDraft, setGuestRobotDraft] = useState<GuestRobotDraft | null>(null)
+  const [guestDioramaDraft, setGuestDioramaDraft] = useState<GuestDioramaDraft | null>(null)
+
+  useEffect(() => {
+    setGuestRobotDraft(readGuestRobotDraft())
+    setGuestDioramaDraft(readGuestDioramaDraft())
+    setGuestWorkspaceReady(true)
+  }, [])
 
   const getSupabase = useCallback(async () => {
     if (supabaseRef.current) return supabaseRef.current
@@ -893,6 +927,118 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     [dioramaStorageError, dioramaStorageReady, getSupabase, user],
   )
 
+  const updateGuestRobotDraft = useCallback((config: RobotConfig) => {
+    setGuestRobotDraft((current) => writeGuestRobotDraft(config, current?.id))
+  }, [])
+
+  const updateGuestDioramaDraft = useCallback((document: DioramaDocument) => {
+    if (document.robots.length === 0 && document.items.length === 0) {
+      clearGuestDioramaDraftStorage()
+      setGuestDioramaDraft(null)
+      return
+    }
+    setGuestDioramaDraft((current) => writeGuestDioramaDraft(document, current?.id))
+  }, [])
+
+  const discardGuestWorkspace = useCallback(() => {
+    clearGuestWorkspaceStorage()
+    setGuestRobotDraft(null)
+    setGuestDioramaDraft(null)
+  }, [])
+
+  const importGuestWorkspace = useCallback(async (): Promise<GuestWorkspaceImportResult> => {
+    const supabase = await getSupabase()
+    if (!supabase || !user) return { error: "ゲスト作品を保存するにはログインが必要です。" }
+    if (!guestRobotDraft && !guestDioramaDraft) return { error: "引き継ぐゲスト作品がありません。" }
+
+    let importedRobot: SavedRobot | undefined
+    let importedDiorama: SavedDiorama | undefined
+
+    if (guestRobotDraft) {
+      if (!robotStorageReady) return { error: robotStorageError ?? robotStorageMessage() }
+      const cleanConfig = normalizeRobotConfig(guestRobotDraft.config)
+      const cleanName = sanitizeRobotName(cleanConfig.name, cleanConfig.base)
+      const { data, error } = await supabase
+        .from("saved_robots")
+        .upsert({
+          id: guestRobotDraft.id,
+          user_id: user.id,
+          name: cleanName,
+          config: { ...cleanConfig, name: cleanName },
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "id" })
+        .select("id, user_id, name, config, is_avatar, created_at, updated_at")
+        .single()
+
+      if (error) return { error: robotStorageMessage(error) }
+      const parsed = parseSavedRobotRow(data)
+      if (!parsed) return { error: "ゲストのロボットを保存後に読み取れませんでした。" }
+      importedRobot = parsed
+      setSavedRobots((current) => [parsed, ...current.filter((entry) => entry.id !== parsed.id)])
+    }
+
+    if (guestDioramaDraft) {
+      if (!dioramaStorageReady) return { error: dioramaStorageError ?? dioramaStorageMessage() }
+      const clean = normalizeDioramaDocument(guestDioramaDraft.document)
+      if (clean.robots.length === 0 && clean.items.length === 0) {
+        return { error: "ゲストのジオラマに配置物がありません。" }
+      }
+
+      const stage = getDioramaStage(stageIdFromReference(clean.stage))
+      const ownedRewardIds = new Set(gachaInventory.map((entry) => entry.rewardId))
+      if (!stage || (stage.rewardId && !ownedRewardIds.has(stage.rewardId))) {
+        return { error: "ゲストのジオラマで使っている背景をこのアカウントでは利用できません。" }
+      }
+
+      const ownedRobotIds = new Set(savedRobots.map((robot) => robot.id))
+      if (importedRobot) ownedRobotIds.add(importedRobot.id)
+      if (clean.robots.some((placement) => !ownedRobotIds.has(placement.savedRobotId))) {
+        return { error: "ゲストのジオラマに、引き継げないロボットが含まれています。" }
+      }
+      const ownedItemIds = new Set(savedCustomItems.map((item) => item.id))
+      if (clean.items.some((placement) => !ownedItemIds.has(placement.customItemId))) {
+        return { error: "ゲストのジオラマに、引き継げない自作アイテムが含まれています。" }
+      }
+
+      const cleanName = sanitizeDioramaName(clean.name)
+      const cleanDocument = normalizeDioramaDocument({ ...clean, name: cleanName }, cleanName)
+      const { data, error } = await supabase
+        .from("dioramas")
+        .upsert({
+          id: guestDioramaDraft.id,
+          user_id: user.id,
+          name: cleanName,
+          document: cleanDocument,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "id" })
+        .select("id, user_id, name, document, created_at, updated_at")
+        .single()
+
+      if (error) return { error: dioramaStorageMessage(error) }
+      const parsed = parseSavedDioramaRow(data)
+      if (!parsed) return { error: "ゲストのジオラマを保存後に読み取れませんでした。" }
+      importedDiorama = parsed
+      setSavedDioramas((current) => [parsed, ...current.filter((entry) => entry.id !== parsed.id)])
+    }
+
+    clearGuestWorkspaceStorage()
+    setGuestRobotDraft(null)
+    setGuestDioramaDraft(null)
+    return { error: null, robot: importedRobot, diorama: importedDiorama }
+  }, [
+    dioramaStorageError,
+    dioramaStorageReady,
+    gachaInventory,
+    getSupabase,
+    guestDioramaDraft,
+    guestRobotDraft,
+    robotStorageError,
+    robotStorageReady,
+    savedCustomItems,
+    savedRobots,
+    user,
+  ])
+
   const setAvatarRobot = useCallback(
     async (robotId: string | null): Promise<AccountResult> => {
       const supabase = await getSupabase()
@@ -1100,6 +1246,13 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     [savedRobots],
   )
 
+  const guestRobot = useMemo(
+    () => guestRobotDraft ? guestRobotAsSavedRobot(guestRobotDraft) : null,
+    [guestRobotDraft],
+  )
+
+  const hasGuestWorkspace = Boolean(guestRobotDraft || guestDioramaDraft)
+
   const value = useMemo<AccountContextValue>(
     () => ({
       configured: isSupabaseConfigured,
@@ -1113,6 +1266,11 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       gachaInventory,
       savedCustomItems,
       savedDioramas,
+      guestWorkspaceReady,
+      guestRobotDraft,
+      guestRobot,
+      guestDioramaDraft,
+      hasGuestWorkspace,
       robotStorageReady,
       robotStorageError,
       customItemStorageReady,
@@ -1133,6 +1291,10 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       setAvatarRobot,
       purchaseCart,
       spinGacha,
+      updateGuestRobotDraft,
+      updateGuestDioramaDraft,
+      discardGuestWorkspace,
+      importGuestWorkspace,
       refreshAccount,
     }),
     [
@@ -1143,6 +1305,13 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       deleteDiorama,
       favoriteProductIds,
       gachaInventory,
+      guestDioramaDraft,
+      guestRobot,
+      guestRobotDraft,
+      guestWorkspaceReady,
+      hasGuestWorkspace,
+      importGuestWorkspace,
+      discardGuestWorkspace,
       savedCustomItems,
       savedDioramas,
       customItemStorageError,
@@ -1166,6 +1335,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       signOut,
       signUp,
       toggleFavorite,
+      updateGuestDioramaDraft,
+      updateGuestRobotDraft,
       user,
     ],
   )
