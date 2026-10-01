@@ -12,7 +12,7 @@
     "start:network": "next start -H 0.0.0.0 -p 3000",
     "dev:network:webpack": "next dev --webpack -H 0.0.0.0 -p 3000",
     "validate:foundation": "node scripts/validate-foundation.mjs",
-    "check": "npm run typecheck && npm run validate:foundation && npm run validate:phase2-1 && npm run validate:phase2 && npm run validate:phase3 && npm run validate:phase4 && npm run validate:phase5 && npm run validate:phase5-refinement && npm run validate:pose-hotfix && npm run validate:pose-sync-fix && npm run validate:xzyz-sync && npm run validate:arm-sync-refinement && npm run validate:arm-leg-unified && npm run validate:diorama-view-stage2 && npm run validate:mural-view-stage2 && npm run validate:mural-research-panorama && npm run validate:final-pose-spec && npm run validate:pose-runtime && npm run validate:phase6 && npm run validate:item-views && npm run validate:guest && npm run validate:price-estimator && npm run validate:price-calibration && npm run validate:idea-assistant",
+    "check": "npm run typecheck && npm run validate:foundation && npm run validate:phase2-1 && npm run validate:phase2 && npm run validate:phase3 && npm run validate:phase4 && npm run validate:phase5 && npm run validate:phase5-refinement && npm run validate:pose-hotfix && npm run validate:pose-sync-fix && npm run validate:xzyz-sync && npm run validate:arm-sync-refinement && npm run validate:arm-leg-unified && npm run validate:diorama-view-stage2 && npm run validate:mural-view-stage2 && npm run validate:mural-research-panorama && npm run validate:final-pose-spec && npm run validate:pose-runtime && npm run validate:phase6 && npm run validate:item-views && npm run validate:guest && npm run validate:price-estimator && npm run validate:price-calibration && npm run validate:idea-assistant && npm run validate:item-idea-assistant",
     "validate:phase6": "node scripts/validate-phase6-database.mjs && npm run validate:side-views",
     "validate:side-views": "node scripts/validate-side-views.mjs",
     "validate:phase2-1": "node scripts/validate-phase2-1.mjs",
@@ -35,7 +35,8 @@
     "validate:guest": "node scripts/validate-guest-account.mjs",
     "validate:price-estimator": "node scripts/validate-price-estimator.mjs",
     "validate:price-calibration": "node scripts/validate-price-calibration.mjs",
-    "validate:idea-assistant": "node scripts/validate-robot-idea-assistant.mjs"
+    "validate:idea-assistant": "node scripts/validate-robot-idea-assistant.mjs",
+    "validate:item-idea-assistant": "node scripts/validate-custom-item-idea-assistant.mjs"
   },
   "dependencies": {
     "@react-three/fiber": "9.6.1",

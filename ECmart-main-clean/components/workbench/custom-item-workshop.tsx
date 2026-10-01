@@ -134,13 +134,18 @@ export function CustomItemWorkshop() {
     if (!raw) return
     window.sessionStorage.removeItem(CUSTOM_ITEM_DRAFT_KEY)
     try {
-      const parsed = JSON.parse(raw) as { id?: string; document?: unknown }
+      const parsed = JSON.parse(raw) as { id?: string; document?: unknown; source?: string }
       if (!parsed.document) return
       const next = normalizeCustomItemDocument(parsed.document)
       setDocument(next)
       setEditingItemId(parsed.id ?? null)
       setSelectedId(next.parts.at(-1)?.instanceId ?? null)
-      setNotice({ type: "success", text: "保存したアイテムを工作台に読み込みました。" })
+      setNotice({
+        type: "success",
+        text: parsed.source === "idea-assistant"
+          ? "文章から提案した部品構成を工作台に読み込みました。自由に修正して保存できます。"
+          : "保存したアイテムを工作台に読み込みました。",
+      })
     } catch {
       setNotice({ type: "error", text: "保存したアイテムの読み込みに失敗しました。" })
     }

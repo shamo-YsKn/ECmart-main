@@ -351,3 +351,51 @@ HTTP確認は、ローカルのテスト用API応答を接続したNext.jsで行
 また、この環境に元から存在した依存セットには `@react-three/fiber` / `three` が含まれていなかったため、3D部分を含む完全な依存解決後TypeScriptチェックは未完了です。
 
 ただし、3Dファイル以外で検出されたTypeScriptエラーは今回すべて修正済みで、全TS/TSXの構文チェックと全ローカルimport、既存・追加validatorはPASSしています。
+
+## 2026-10-01 ⑤-5 自作アイテム文章提案・工作台連携
+
+### 追加内容
+
+- `lib/custom-item-idea-engine.ts` を追加。
+- 外部APIを使わず、文章と⑤のテーマhintから既存工作パーツだけで `CustomItemDocument` を生成。
+- 17種類の工作テンプレートを追加（釣竿、ギター、クラリネット、やきとり串、バイク、カメラ、本、杖、スキー、筆、トレー、望遠鏡、刀、槍、フライパン、プレゼント箱、スポーツ用具）。
+- RobotIdea候補へ `customItemProposal` を接続。
+- PC候補カードへ「工作台へ読み込む」を追加し、`sessionStorage` 経由で既存工作台へ受け渡し。
+- 元の候補 `RobotConfig` も同時退避し、工作後に工房へ戻った際に復元できるようにした。
+- 工作案生成直後から既存価格モデルでTier・工作加算・装備時参考価格を表示。
+- スマホ互換版では工作案と価格を表示するが、自由配置工作台は既存仕様どおりPC限定と明示。
+- 追加SQL・APIキー・外部通信なし。
+
+### 安全なフォールバック
+
+- 未知の物体名は `null` とし、存在しない工作部品を捏造しない。
+- ガチャ限定variantは自動生成に使用しない。
+- `robot-idea-engine` / `custom-item-idea-engine` に `fetch()`・外部API URLなし。
+
+### 検証
+
+- ⑤-5専用 `validate:item-idea-assistant`: **14/14 PASS**
+- 既存 `validate:idea-assistant`: **25項目 PASS**
+- 価格基本: **12/12 PASS**
+- 価格校正: **8/8 PASS**
+- アイテム3方向: **11/11 PASS**
+- ゲスト: **29/29 PASS**
+- 価格・提案・工作ロジックをまとめた strict TypeScriptチェック: **PASS**
+
+### 代表生成のTier
+
+- 釣竿: standard
+- ギター: detailed
+- クラリネット: detailed
+- やきとり串: complex
+- バイク: large
+- カメラ / 望遠鏡 / フライパン: standard
+
+### 未確認
+
+この配布ZIPは `node_modules` を含めないため、依存パッケージを完全取得した状態での `next build` は今回未確認。npmレジストリへの接続は検証環境で `EAI_AGAIN` となった。
+
+### 追加の全体構文確認
+
+- `app/`, `components/`, `lib/` の TypeScript / TSX **86ファイル**を `transpileModule` で構文確認: **PASS**
+- `@/...` および相対importのローカル参照先確認: **PASS**

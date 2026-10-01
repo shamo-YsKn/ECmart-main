@@ -1,8 +1,9 @@
 import type { RobotBase, RobotConfig, RobotItem, RobotPose, RobotView } from "@/lib/types"
 import { DEFAULT_ROBOT_CONFIG, defaultRobotName, normalizeRobotConfig } from "@/lib/robot-config"
+import { suggestCustomItemIdea, type CustomItemIdeaProposal } from "@/lib/custom-item-idea-engine"
 
 export const ROBOT_IDEA_AI_PREFERENCE_KEY = "machinowa:robot-idea-ai-enabled"
-export const ROBOT_IDEA_ENGINE_VERSION = "rule-v1" as const
+export const ROBOT_IDEA_ENGINE_VERSION = "rule-v2-workbench" as const
 export const EXTERNAL_AI_PROVIDER_CONFIGURED = false as const
 
 export type RobotIdeaProvider = "rules" | "external"
@@ -30,6 +31,7 @@ export interface RobotIdeaCandidate {
   config: RobotConfig
   reasons: string[]
   futureCustomItemHint?: string
+  customItemProposal?: CustomItemIdeaProposal
 }
 
 export interface RobotIdeaResult {
@@ -272,6 +274,7 @@ export function suggestRobotIdeas(input: string, context: RobotIdeaContext = {})
     }),
     reasons: [...reasonsBase, "入力の意味を優先した第一候補です。"],
     ...(primary.futureCustomItemHint ? { futureCustomItemHint: primary.futureCustomItemHint } : {}),
+    ...(primary.futureCustomItemHint ? { customItemProposal: suggestCustomItemIdea(query, primary.futureCustomItemHint) ?? undefined } : {}),
   })
 
   const secondTheme = secondary ?? primary
@@ -299,6 +302,7 @@ export function suggestRobotIdeas(input: string, context: RobotIdeaContext = {})
       "完成後に自由ポーズで微調整できます。",
     ],
     ...(secondTheme.futureCustomItemHint ? { futureCustomItemHint: secondTheme.futureCustomItemHint } : {}),
+    ...(secondTheme.futureCustomItemHint ? { customItemProposal: suggestCustomItemIdea(query, secondTheme.futureCustomItemHint) ?? undefined } : {}),
   })
 
   const simpleTitle = candidateTitle(primary, alternateBase, "シンプル")
