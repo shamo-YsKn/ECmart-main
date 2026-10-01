@@ -3,7 +3,8 @@ import { DEFAULT_ROBOT_CONFIG, defaultRobotName, normalizeRobotConfig } from "@/
 import { suggestCustomItemIdea, type CustomItemIdeaProposal } from "@/lib/custom-item-idea-engine"
 
 export const ROBOT_IDEA_AI_PREFERENCE_KEY = "machinowa:robot-idea-ai-enabled"
-export const ROBOT_IDEA_ENGINE_VERSION = "rule-v2-workbench" as const
+export const ROBOT_IDEA_ENGINE_VERSION = "hybrid-v3-external" as const
+/** Pure rule engine itself never performs external communication. */
 export const EXTERNAL_AI_PROVIDER_CONFIGURED = false as const
 
 export type RobotIdeaProvider = "rules" | "external"
@@ -38,8 +39,9 @@ export interface RobotIdeaResult {
   engineVersion: typeof ROBOT_IDEA_ENGINE_VERSION
   query: string
   requestedProvider: RobotIdeaProvider
-  providerUsed: "rules"
+  providerUsed: "rules" | "gemini"
   externalProviderConfigured: boolean
+  externalModel?: string
   fallbackReason?: string
   matchedThemeIds: string[]
   candidates: RobotIdeaCandidate[]
@@ -220,8 +222,8 @@ function candidateTitle(theme: ThemeRule, base: RobotBase, suffix?: string) {
 }
 
 /**
- * 外部通信を行わない提案エンジン。
- * requestedProvider="external" でも接続先未設定の間は必ず rules にフォールバックします。
+ * 外部通信を行わない純粋な提案エンジン。
+ * 外部AIは /api/idea-assistant のサーバールートから呼び出し、失敗時にこの関数へ戻ります。
  */
 export function suggestRobotIdeas(input: string, context: RobotIdeaContext = {}): RobotIdeaResult {
   const query = input.trim().slice(0, 240)
@@ -336,7 +338,7 @@ export function suggestRobotIdeas(input: string, context: RobotIdeaContext = {})
     providerUsed: "rules",
     externalProviderConfigured: EXTERNAL_AI_PROVIDER_CONFIGURED,
     ...(requestedProvider === "external" && !EXTERNAL_AI_PROVIDER_CONFIGURED
-      ? { fallbackReason: "外部AIの接続先が未設定のため、ルールベースで提案しました。" }
+      ? { fallbackReason: "外部AIのサーバー接続はこの純粋関数では未設定のため、ルールベースで提案しました。" }
       : {}),
     matchedThemeIds: matched.slice(0, 3).map((entry) => entry.theme.id),
     candidates,

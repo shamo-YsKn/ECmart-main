@@ -7,7 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ROBOT_BASE_PARTS, ROBOT_ITEM_PARTS, ROBOT_POSE_PARTS, ROBOT_VIEW_PARTS } from "@/lib/robot-parts"
 import { estimateCustomItemPrice, estimateRobotReferencePrice, formatReferencePrice, ROBOT_BASE_REFERENCE_PRICE } from "@/lib/price-estimator"
 import {
-  EXTERNAL_AI_PROVIDER_CONFIGURED,
   ROBOT_IDEA_AI_PREFERENCE_KEY,
   suggestRobotIdeas,
   type RobotIdeaCandidate,
@@ -17,7 +16,7 @@ import {
 import type { RobotConfig, RobotItem } from "@/lib/types"
 import { CUSTOM_ITEM_DRAFT_KEY } from "@/lib/custom-item-model"
 import { ROBOT_DRAFT_KEY } from "@/lib/robot-config"
-import { Hammer, Sparkles } from "lucide-react"
+import { Hammer, LoaderCircle, Sparkles } from "lucide-react"
 
 const EXAMPLES = [
   "釣りをしている楽しそうなボルタ",
@@ -42,9 +41,20 @@ export function RobotIdeaAssistant({
   const [input, setInput] = useState("")
   const [result, setResult] = useState<RobotIdeaResult | null>(null)
   const [aiEnabled, setAiEnabled] = useState(false)
+  const [generating, setGenerating] = useState(false)
+  const [externalConfigured, setExternalConfigured] = useState<boolean | null>(null)
+  const [externalModel, setExternalModel] = useState<string | null>(null)
 
   useEffect(() => {
     setAiEnabled(window.localStorage.getItem(ROBOT_IDEA_AI_PREFERENCE_KEY) === "1")
+    fetch("/api/idea-assistant", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => {
+        if (!data) return
+        setExternalConfigured(Boolean(data.configured))
+        setExternalModel(typeof data.model === "string" ? data.model : null)
+      })
+      .catch(() => setExternalConfigured(false))
   }, [])
 
   function updateAiPreference(next: boolean) {
@@ -52,17 +62,41 @@ export function RobotIdeaAssistant({
     window.localStorage.setItem(ROBOT_IDEA_AI_PREFERENCE_KEY, next ? "1" : "0")
   }
 
-  function generate(value = input) {
+  async function generate(value = input) {
     const text = value.trim()
-    if (!text) return
+    if (!text || generating) return
     setInput(text)
-    setResult(suggestRobotIdeas(text, {
-      currentConfig,
-      availableItems,
-      availableBodyColors,
-      availableAccentColors,
-      requestedProvider: aiEnabled ? "external" : "rules",
-    }))
+    const context = { currentConfig, availableItems, availableBodyColors, availableAccentColors }
+
+    if (!aiEnabled) {
+      setResult(suggestRobotIdeas(text, { ...context, requestedProvider: "rules" }))
+      return
+    }
+
+    setGenerating(true)
+    try {
+      const response = await fetch("/api/idea-assistant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ query: text, context }),
+      })
+      const data = await response.json().catch(() => null) as { result?: RobotIdeaResult } | null
+      if (!response.ok || !data?.result) throw new Error("external-ai-request-failed")
+      setResult(data.result)
+      setExternalConfigured(data.result.externalProviderConfigured)
+      if (data.result.externalModel) setExternalModel(data.result.externalModel)
+    } catch {
+      const fallback = suggestRobotIdeas(text, { ...context, requestedProvider: "rules" })
+      setResult({
+        ...fallback,
+        requestedProvider: "external",
+        externalProviderConfigured: externalConfigured === true,
+        externalModel: externalModel ?? undefined,
+        fallbackReason: "外部AIへの接続に失敗したため、ルールベースで提案しました。",
+      })
+    } finally {
+      setGenerating(false)
+    }
   }
 
   const pricedCandidates = useMemo(
@@ -107,7 +141,7 @@ export function RobotIdeaAssistant({
             イメージからボルタ・ナッティを提案
           </CardTitle>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary" className="rounded-full">⑤-1〜⑤-5</Badge>
+            <Badge variant="secondary" className="rounded-full">⑤-1〜⑤-6</Badge>
             <Button
               type="button"
               size="sm"
@@ -121,11 +155,17 @@ export function RobotIdeaAssistant({
           </div>
         </div>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          作りたいイメージを文章で入力すると、現在使える部品・色・ポーズだけで3案に変換します。外部APIへの通信は現在行いません。
+          作りたいイメージを文章で入力すると3案に変換します。AI接続OFFでは無料のルールベース、ONではGeminiを使い、失敗時は自動でルールベースへ戻ります。
         </p>
-        {aiEnabled && !EXTERNAL_AI_PROVIDER_CONFIGURED && (
+        {aiEnabled && externalConfigured === false && (
           <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-            AI接続はON設定ですが、接続先はまだ未設定です。現在は自動的にルールベース提案へフォールバックします。
+            Gemini APIキーがサーバーに未設定です。AI接続ONでも現在はルールベースへフォールバックします。
+          </div>
+        )}
+        {aiEnabled && (
+          <div className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-[11px] leading-relaxed text-sky-950">
+            AI接続ON時は入力文と、現在利用可能な部品・色・ポーズ情報だけをGemini APIへ送信します。アカウントIDや配送先は送信しません。無料枠ではGoogleが送信内容を製品改善に使用する場合があります。
+            {externalModel ? ` 使用モデル: ${externalModel}` : ""}
           </div>
         )}
       </CardHeader>
@@ -156,15 +196,18 @@ export function RobotIdeaAssistant({
               </button>
             ))}
           </div>
-          <Button type="button" onClick={() => generate()} disabled={!input.trim()} className="mt-1 sm:self-start">
-            <Sparkles className="mr-2 size-4" />3案を提案する
+          <Button type="button" onClick={() => generate()} disabled={!input.trim() || generating} className="mt-1 sm:self-start">
+            {generating ? <LoaderCircle className="mr-2 size-4 animate-spin" /> : <Sparkles className="mr-2 size-4" />}
+            {generating ? "提案を作成中…" : "3案を提案する"}
           </Button>
         </div>
 
         {result && (
           <div className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <Badge variant="outline" className="rounded-full">使用エンジン：ルールベース</Badge>
+              <Badge variant="outline" className="rounded-full">
+                使用エンジン：{result.providerUsed === "gemini" ? `Gemini (${result.externalModel ?? "external"})` : "ルールベース"}
+              </Badge>
               {result.matchedThemeIds.length > 0 && <span>認識テーマ {result.matchedThemeIds.length}件</span>}
               {result.fallbackReason && <span className="text-amber-800">{result.fallbackReason}</span>}
             </div>

@@ -399,3 +399,58 @@ HTTP確認は、ローカルのテスト用API応答を接続したNext.jsで行
 
 - `app/`, `components/`, `lib/` の TypeScript / TSX **86ファイル**を `transpileModule` で構文確認: **PASS**
 - `@/...` および相対importのローカル参照先確認: **PASS**
+
+
+## 2026-10-01 ⑤-6 外部AI（Gemini）アダプタ
+
+### 実装内容
+
+- PC版「AI接続 ON」で `/api/idea-assistant` を呼ぶ実装を追加。
+- 既定モデルを `gemini-3.1-flash-lite` とした。
+- Gemini APIキーは `GEMINI_API_KEY` / `MACHINOWA_GEMINI_API_KEY` のサーバー環境変数のみから読む。
+- ブラウザからGoogle APIを直接呼ばず、APIキーを `NEXT_PUBLIC_` へ出さない。
+- Geminiへは入力文（最大240文字）と現在利用可能な部品・色・基本設定だけを送信。
+- JSON Schemaでちょうど3候補を要求し、返答をさらにアプリ側でruntime検証。
+- base / pose / item / view / color は許可値へ再正規化し、未解放item・色を拒否。
+- customItemHintは⑤-5の既存工作テンプレートに一致した場合だけ工作データへ変換。
+- AI出力を直接DB保存・コード実行しない。
+- APIキーなし、通信失敗、9秒タイムアウト、HTTP 429、JSON形式不正時はルールベースへフォールバック。
+- same-originチェックと簡易IPレート制限（既定10回/分）を追加。
+- UIに無料枠の外部送信・製品改善利用に関する注意を追加。
+- スマホ互換版は従来どおりルールベースのみ。
+- DB / Supabase追加SQLなし。
+
+### 検証
+
+- `validate:external-ai`: **10/10 PASS**
+  - 構造化JSONの正常パース
+  - 3候補の安全な変換
+  - enum外値の拒否
+  - 未解放色 / item の除外
+  - same-origin / rate limit / context sanitize の存在
+  - APIキーをURLやNEXT_PUBLICへ出さない
+  - APIキー未設定時のルールフォールバック
+  - Gemini成功応答をモックした外部AI経路
+- `validate:idea-assistant`: **25項目 PASS**
+- `validate:item-idea-assistant`: **14項目 PASS**
+- `validate:price-estimator`: **12項目 PASS**
+- `validate:price-calibration`: **8作例 PASS**
+
+### 全体型チェック / build
+
+配布ZIPは `node_modules` を含まない。今回も依存パッケージ再取得が検証環境でタイムアウトし、`npm run typecheck` / `next build` の完全実行は未完了。変更部分はtranspile構文確認・ローカルimport確認・専用validatorで検証する。
+
+### ⑤-6 最終回帰確認（2026-10-01）
+
+- `validate:external-ai`: **10/10 PASS**
+- `validate:idea-assistant`: **25項目 PASS**
+- `validate:item-idea-assistant`: **14項目 PASS**
+- `validate:price-estimator`: **12項目 PASS**
+- `validate:price-calibration`: **8/8作例 PASS**
+- `validate:item-views`: **11項目 PASS**
+- `validate:guest`: **29/29 PASS**
+- `validate:pose-runtime`: **PASS**
+- `app/`, `components/`, `lib/` のTS/TSX **89ファイル**を `transpileModule` で構文確認: **PASS**
+- `@/...` / 相対import のローカル参照: **PASS**
+
+`npm install` は検証環境でタイムアウトし、完全依存を再構築できなかったため、`npm run typecheck` / `next build` は未完了。途中生成された不完全な `node_modules` は配布ZIPへ含めない。

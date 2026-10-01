@@ -353,7 +353,7 @@ Supabase: `mural_posts` / `mural_post_likes` を `supabase/mural-community-migra
 - 頭 / 目の向き表現そのものは次回、図・PowerPointを基準に再設計する
 
 
-## Phase 6.5: イメージ提案・参考価格【⑤-1〜⑤-5 実装済み】
+## Phase 6.5: イメージ提案・参考価格【⑤-1〜⑤-6 実装済み】
 
 - 文章入力からルールベースでボルタ／ナッティ候補を3案生成
 - 約25テーマを認識し、明示されたタイプ・向き・ポーズ・色を優先
@@ -361,14 +361,16 @@ Supabase: `mural_posts` / `mural_post_likes` を `supabase/mural-community-migra
 - 候補は既存 `RobotConfig` へ変換してロボット工房へ反映
 - 校正済み参考価格モデルを候補カードに表示
 - PC版ではAI接続ON/OFF設定を保存可能
-- 外部AI接続先未設定時は必ずルールベースへフォールバック
+- 外部AI接続時はGeminiを使用し、APIキー未設定・失敗時はルールベースへフォールバック
 - スマホ互換表示でも文章提案と候補反映に対応
-- 追加SQL・APIキー不要
+- 追加SQL不要。⑤-1〜⑤-5はAPIキー不要、⑤-6のGemini利用時のみ任意のAPIキーが必要
 - ⑤-5として、文章／テーマから既存工作パーツだけで `CustomItemDocument` を生成
 - 釣竿、楽器、やきとり、バイク、カメラ、望遠鏡、刀・槍、調理器具などを工作台へ直接読み込み
 - 生成工作を校正済み価格モデルへ渡し、候補カードで工作Tier込み参考価格を表示
 - 未知の物体名は無理に生成せず、手動工作へフォールバック
 
-次段階:
-
-- ⑤-6: 外部AIアダプタを追加し、同じ `RobotIdeaCandidate` / `CustomItemDocument` 形式へ正規化
+- ⑤-6としてGemini APIアダプタを追加
+- AI接続OFFでは従来の無料ルールベースを維持
+- AI接続ONではGeminiの構造化JSONをサーバー側で検証して `RobotIdeaCandidate` へ正規化
+- APIキー未設定・通信失敗・上限到達時はルールベースへ自動フォールバック
+- APIキーはサーバーのみで保持し、same-origin・入力長制限・簡易レート制限を追加
