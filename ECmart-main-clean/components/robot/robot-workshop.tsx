@@ -28,6 +28,7 @@ import { DEFAULT_CUSTOM_HELD_ITEM_ADJUSTMENT, normalizeRobotHeldItem } from "@/l
 import { CustomItemPreview } from "@/components/workbench/custom-item-preview"
 import { CUSTOM_ITEM_EQUIP_DRAFT_KEY } from "@/lib/custom-item-model"
 import { saveRobotPoseStudioDraft } from "@/lib/robot-pose-studio"
+import { estimateRobotReferencePrice, formatReferencePrice } from "@/lib/price-estimator"
 import {
   ROBOT_ACCENT_COLORS,
   ROBOT_BODY_COLORS,
@@ -162,6 +163,10 @@ export function RobotWorkshop() {
     [account.savedCustomItems, heldItem],
   )
   const customHeld = heldItem.kind === "custom"
+  const referencePrice = useMemo(
+    () => estimateRobotReferencePrice(config, equippedCustomItem?.document),
+    [config, equippedCustomItem],
+  )
 
   function customItemDocumentFor(robotConfig: RobotConfig) {
     const held = normalizeRobotHeldItem(robotConfig.heldItem, robotConfig.item)
@@ -521,6 +526,9 @@ export function RobotWorkshop() {
               <div className="mx-auto -mt-2 w-fit rounded-full border bg-background/90 px-4 py-1 font-display text-sm font-bold shadow-sm">
                 {config.name || (config.base === "volta" ? "ボルタ" : "ナッティ")}
               </div>
+              <div className="mx-auto mt-2 w-fit rounded-full border border-amber-300 bg-amber-50 px-4 py-1 text-sm font-bold text-amber-950 shadow-sm">
+                参考価格 {formatReferencePrice(referencePrice.total)}
+              </div>
             </div>
             <div className="mt-4 flex flex-col items-center gap-3">
               {desktop3D ? (
@@ -545,6 +553,12 @@ export function RobotWorkshop() {
               ))}
               </div>
             </div>
+            {referencePrice.itemEstimate && (
+              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2 text-center text-xs text-amber-950">
+                本体 {formatReferencePrice(referencePrice.basePrice)} ＋ 自作アイテム {formatReferencePrice(referencePrice.customItemSurcharge)}
+                <span className="ml-1 text-amber-800">（{referencePrice.itemEstimate.tierLabel}・スコア{referencePrice.itemEstimate.score}）</span>
+              </div>
+            )}
             <p className="mt-3 text-center text-sm text-muted-foreground">
               {previewMode === "3d"
                 ? "PC限定3D：ドラッグで回転、ホイールで拡大縮小できます"

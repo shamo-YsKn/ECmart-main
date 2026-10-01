@@ -13,6 +13,7 @@ import {
   sanitizeCustomItemName,
 } from "@/lib/custom-item-model"
 import { WORKBENCH_PARTS, WORKBENCH_PART_BY_TYPE } from "@/lib/workbench-parts"
+import { estimateCustomItemPrice, formatReferencePrice, ROBOT_BASE_REFERENCE_PRICE } from "@/lib/price-estimator"
 import { WORKBENCH_PART_VARIANTS, getWorkbenchVariant, unlockedWorkbenchVariants } from "@/lib/workbench-variants"
 import {
   CUSTOM_ITEM_VIEW_OPTIONS,
@@ -117,6 +118,7 @@ export function CustomItemWorkshop() {
     [document.parts, selectedId],
   )
   const attachmentCount = useMemo(() => connectedCount(document.parts), [document.parts])
+  const priceEstimate = useMemo(() => estimateCustomItemPrice(document), [document])
 
   useEffect(() => {
     documentRef.current = document
@@ -422,6 +424,7 @@ export function CustomItemWorkshop() {
               <div className="flex flex-wrap justify-end gap-2">
                 <Badge variant="secondary" className="rounded-full">{document.parts.length}/{CUSTOM_ITEM_MAX_PARTS}パーツ</Badge>
                 <Badge variant="secondary" className="rounded-full"><Link2 className="mr-1 size-3" />{attachmentCount}接続</Badge>
+                <Badge variant="outline" className="rounded-full">価格スコア {priceEstimate.score}/100</Badge>
               </div>
             </CardHeader>
             <CardContent>
@@ -506,6 +509,29 @@ export function CustomItemWorkshop() {
         <Card className="border-2 xl:sticky xl:top-24 xl:self-start">
           <CardHeader><CardTitle className="font-display flex items-center gap-2 text-lg"><Link2 className="size-5 text-primary" />選択パーツ</CardTitle></CardHeader>
           <CardContent className="flex flex-col gap-5">
+            <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-950">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs font-bold uppercase tracking-wide text-amber-800">参考価格判定</div>
+                  <div className="mt-1 font-display text-lg font-black">{priceEstimate.tierLabel}</div>
+                </div>
+                <Badge className="rounded-full bg-amber-500 text-amber-950 hover:bg-amber-500">{priceEstimate.score}/100</Badge>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                <div className="rounded-xl bg-white/70 p-2"><div className="text-muted-foreground">工作加算</div><div className="mt-1 font-bold">+{formatReferencePrice(priceEstimate.surcharge)}</div></div>
+                <div className="rounded-xl bg-white/70 p-2"><div className="text-muted-foreground">ボルタ装備時</div><div className="mt-1 font-bold">{formatReferencePrice(ROBOT_BASE_REFERENCE_PRICE.volta + priceEstimate.surcharge)}</div></div>
+                <div className="rounded-xl bg-white/70 p-2"><div className="text-muted-foreground">ナッティ装備時</div><div className="mt-1 font-bold">{formatReferencePrice(ROBOT_BASE_REFERENCE_PRICE.natty + priceEstimate.surcharge)}</div></div>
+                <div className="rounded-xl bg-white/70 p-2"><div className="text-muted-foreground">最大外形比</div><div className="mt-1 font-bold">{priceEstimate.features.sizeRatio.toFixed(1)}倍</div></div>
+              </div>
+              <div className="mt-3 space-y-1 text-[11px]">
+                {priceEstimate.components.filter((component) => component.score > 0).map((component) => (
+                  <div key={component.key} className="flex justify-between gap-2"><span>{component.label}：{component.detail}</span><span className="font-bold">+{component.score}</span></div>
+                ))}
+                {priceEstimate.components.every((component) => component.score === 0) && <div>通常シリーズ相当の無料枠に収まっています。</div>}
+                {priceEstimate.largeStructureReasons.map((reason) => <div key={reason} className="font-bold">大型判定：{reason}</div>)}
+              </div>
+              <p className="mt-3 text-[10px] leading-relaxed text-amber-900/80">公式通販の実売価格を参考にした試算です。実際の販売価格を保証するものではありません。</p>
+            </div>
             {selectedPart ? (
               <>
                 <div className="flex items-center gap-3 rounded-xl bg-muted p-3"><div className="flex size-16 items-center justify-center rounded-lg bg-[#f4ead6]"><PartPalettePreview type={selectedPart.partType} variantId={selectedPart.variantId} /></div><div><div className="font-display font-black">{getWorkbenchVariant(selectedPart.variantId)?.label ?? WORKBENCH_PART_BY_TYPE[selectedPart.partType].label}</div><p className="mt-1 text-xs text-muted-foreground">{getWorkbenchVariant(selectedPart.variantId)?.description ?? WORKBENCH_PART_BY_TYPE[selectedPart.partType].description}</p></div></div>
