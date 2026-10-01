@@ -8,6 +8,8 @@ import { MobileGallery } from "@/components/mobile/mobile-gallery"
 import { calculateCartTotals } from "@/lib/purchase"
 import { GACHA_CATEGORY_LABELS, GACHA_COST, GACHA_RARITY_LABELS, getGachaReward, rewardPreview } from "@/lib/gacha"
 import { normalizeRobotConfig } from "@/lib/robot-config"
+import { suggestRobotIdeas } from "@/lib/robot-idea-engine"
+import { estimateRobotReferencePrice, formatReferencePrice } from "@/lib/price-estimator"
 import { DEFAULT_MURAL_VARIANT_ID, MURAL_WALL_ROBOT_LIMIT, MURORAN_SPOTS, getMuroranSpot, getSpotProducts, muralSpotForVariant, muralVariantsForSpot } from "@/lib/mural-spots"
 import { generateAmbientMuralRobots, localMuralDateKey } from "@/lib/mural-npc"
 import {
@@ -167,10 +169,21 @@ export async function MobileSite({ params }: { params: Params }) {
     const availableItems = ROBOT_ITEM_OPTIONS.filter((option) =>
       isRobotItemUnlocked(option.value, unlockedRewardIds, config.item),
     )
+    const ideaInput = (one(params.idea) || "").trim().slice(0, 240)
+    const ideaResult = ideaInput
+      ? suggestRobotIdeas(ideaInput, {
+          currentConfig: config,
+          availableItems: availableItems.map((item) => item.value),
+          availableBodyColors,
+          availableAccentColors,
+          requestedProvider: "rules",
+        })
+      : null
     content = <div className="flex flex-col gap-5"><div><h1 className="font-display text-3xl font-black">ロボット工房</h1><p className="text-muted-foreground">スマホ版は2D表示。通常は画面遷移なしで反映し、通信非対応時だけ通常遷移へ切り替わります。</p></div>
       {one(params.robotSaved) && <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">ロボットを保存しました。</div>}
       {one(params.robotError) && <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800">{one(params.robotError)}</div>}
       <Card><div className="mx-auto aspect-square max-w-xs"><RobotFallback config={config} /></div><div className="text-center font-display font-black">{config.name}</div></Card>
+      <Card className="border-primary/30 bg-primary/5"><div className="flex items-center justify-between gap-2"><h2 className="font-display font-black">✨ イメージから提案</h2><span className="rounded-full border bg-background px-2 py-1 text-[10px] font-bold">AI接続 OFF</span></div><p className="mt-1 text-xs text-muted-foreground">文章をルールベースで解析し、使える構成を3案に変換します。外部API通信はありません。</p><form method="get" action="/" className="mt-3"><input type="hidden" name="tab" value="robot" />{Object.entries(config).map(([k,v])=><input key={k} type="hidden" name={k} value={String(v)} />)}<textarea name="idea" maxLength={240} rows={3} defaultValue={ideaInput} placeholder="例：室蘭の工場を案内するナッティ" className="w-full rounded-xl border bg-background px-3 py-2 text-sm"/><button className={`${pill(true)} mt-2 w-full`} type="submit">3案を提案する</button></form>{ideaResult&&<div className="mt-4 flex flex-col gap-3">{ideaResult.candidates.map((candidate,index)=>{const price=estimateRobotReferencePrice(candidate.config).total;return <div key={candidate.id} className="rounded-xl border bg-background p-3"><div className="flex items-start justify-between gap-2"><div><div className="text-xs font-bold text-primary">案{String.fromCharCode(65+index)}・{candidate.themeLabel}</div><div className="font-display font-black">{candidate.title}</div></div><div className="shrink-0 text-sm font-black">{formatReferencePrice(price)}</div></div><p className="mt-1 text-xs text-muted-foreground">{candidate.summary}</p>{candidate.futureCustomItemHint&&<p className="mt-2 text-[11px] text-muted-foreground">将来の工作連携候補：{candidate.futureCustomItemHint}<br />※未作成の工作候補は参考価格に未反映です。</p>}<a className={`${pill()} mt-3 w-full`} href={robotHref(config,candidate.config)}>この案で作る</a></div>})}<p className="text-[10px] leading-relaxed text-muted-foreground">※参考価格は現在の価格モデルで算出しています。標準持ち物は基本価格内です。</p></div>}</Card>
       <Card><h2 className="font-display font-bold">タイプ</h2><div className="mt-3 grid grid-cols-2 gap-2">{ROBOT_BASE_OPTIONS.map(o=><a key={o.value} className={pill(config.base===o.value)} href={robotHref(config,{base:o.value,name:config.name==="ボルタ"||config.name==="ナッティ"?(o.value==="volta"?"ボルタ":"ナッティ"):config.name})}>{o.label}</a>)}</div></Card>
       <Card><h2 className="font-display font-bold">向き</h2><div className="mt-3 flex flex-wrap gap-2">{ROBOT_VIEW_OPTIONS.map(o=><a key={o.value} className={pill(config.view===o.value)} href={robotHref(config,{view:o.value})}>{o.label}</a>)}</div></Card>
       <Card><h2 className="font-display font-bold">ポーズ</h2><div className="mt-3 flex flex-wrap gap-2">{ROBOT_POSE_OPTIONS.map(o=><a key={o.value} className={pill(config.pose===o.value)} href={robotHref(config,{pose:o.value})}>{o.label}</a>)}</div></Card>

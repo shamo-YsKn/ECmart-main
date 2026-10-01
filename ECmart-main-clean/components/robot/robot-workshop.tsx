@@ -26,6 +26,8 @@ import {
 } from "@/lib/robot-head-pose"
 import { DEFAULT_CUSTOM_HELD_ITEM_ADJUSTMENT, normalizeRobotHeldItem } from "@/lib/robot-held-item"
 import { CustomItemPreview } from "@/components/workbench/custom-item-preview"
+import { RobotIdeaAssistant } from "@/components/robot/robot-idea-assistant"
+import type { RobotIdeaCandidate } from "@/lib/robot-idea-engine"
 import { CUSTOM_ITEM_EQUIP_DRAFT_KEY } from "@/lib/custom-item-model"
 import { saveRobotPoseStudioDraft } from "@/lib/robot-pose-studio"
 import { estimateRobotReferencePrice, formatReferencePrice } from "@/lib/price-estimator"
@@ -388,6 +390,17 @@ export function RobotWorkshop() {
     })
   }
 
+  function applyIdeaCandidate(candidate: RobotIdeaCandidate) {
+    setConfig(normalizeRobotConfig(candidate.config))
+    setEditingRobotId(null)
+    setPreviewMode("2d")
+    setNotice({
+      type: "success",
+      text: `「${candidate.title}」を工房へ反映しました。ここから自由に調整できます。`,
+    })
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
   function loadRobot(robot: SavedRobot) {
     setConfig(robot.config)
     setEditingRobotId(robot.id)
@@ -484,6 +497,14 @@ export function RobotWorkshop() {
           </div>
         </div>
       )}
+
+      <RobotIdeaAssistant
+        currentConfig={config}
+        availableItems={availableItems.map((item) => item.value)}
+        availableBodyColors={availableBodyColors}
+        availableAccentColors={availableAccentColors}
+        onApply={applyIdeaCandidate}
+      />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
         <Card className="overflow-hidden border-2 lg:sticky lg:top-24 lg:self-start">
