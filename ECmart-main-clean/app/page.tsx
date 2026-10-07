@@ -6,19 +6,28 @@ const VALID_TABS = new Set(["home", "shops", "mural", "gallery", "ranking", "rob
 type TabKey = "home" | "shops" | "mural" | "gallery" | "ranking" | "robot" | "gacha" | "workbench" | "diorama" | "pose" | "account" | "cart"
 type SearchParams = Record<string, string | string[] | undefined>
 
-function isMobileUserAgent(userAgent: string) {
-  return /Android|iPhone|iPod|Mobile|Windows Phone|Opera Mini|IEMobile/i.test(userAgent)
+function isMobileUserAgent(userAgent: string, secChUaMobile: string) {
+  return (
+    secChUaMobile === "?1" ||
+    /Android|iPhone|iPod|Mobile|Windows Phone|Opera Mini|IEMobile/i.test(userAgent)
+  )
+}
+
+function isCompatRequested(params: SearchParams) {
+  const compat = Array.isArray(params.compat) ? params.compat[0] : params.compat
+  return compat === "1" || compat === "mobile" || compat === "server"
 }
 
 export default async function Page({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams
   const requestHeaders = await headers()
   const userAgent = requestHeaders.get("user-agent") || ""
+  const secChUaMobile = requestHeaders.get("sec-ch-ua-mobile") || ""
 
   // The mobile site intentionally does not depend on React hydration. This is
   // the compatibility path for phones whose browser can render HTML/CSS but
   // cannot bootstrap the current React/Next client runtime reliably.
-  if (isMobileUserAgent(userAgent)) {
+  if (isCompatRequested(params) || isMobileUserAgent(userAgent, secChUaMobile)) {
     return <MobileSite params={params} />
   }
 

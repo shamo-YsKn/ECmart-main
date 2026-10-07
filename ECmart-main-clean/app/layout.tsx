@@ -23,6 +23,7 @@ export default function RootLayout({
     <html lang="ja" className="bg-background">
       <body className="font-sans antialiased">
         {children}
+        <script src="/runtime-compat.js" defer />
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>

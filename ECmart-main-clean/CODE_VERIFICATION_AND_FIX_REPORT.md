@@ -454,3 +454,23 @@ HTTP確認は、ローカルのテスト用API応答を接続したNext.jsで行
 - `@/...` / 相対import のローカル参照: **PASS**
 
 `npm install` は検証環境でタイムアウトし、完全依存を再構築できなかったため、`npm run typecheck` / `next build` は未完了。途中生成された不完全な `node_modules` は配布ZIPへ含めない。
+
+---
+
+## 2026-10-07 LAN / 別端末ボタン操作修正
+
+別端末で「上部リンクは動くが本文のReactボタンが反応しない」症状を再確認し、hydration/bootstrap 未完了時の挙動と一致することを確認しました。
+
+追加修正:
+- `sec-ch-ua-mobile` によるスマホ判定補強
+- `?compat=1` の明示サーバー互換モード
+- React hydration 完了マーカー
+- 4.5秒で自動互換モードへ退避する `public/runtime-compat.js`
+- LAN確認手順を production 起動優先へ更新
+
+確認:
+- fallback 4ケース PASS
+- external AI 10/10 PASS
+- guest 29/29 PASS
+- custom item views 11/11 PASS
+- robot idea assistant 25 checks PASS

@@ -68,6 +68,14 @@ function Site({ initialTab, initialAuthMode }: { initialTab: TabKey; initialAuth
   const account = useAccount()
   const [tab, setTab] = useState<TabKey>(initialTab)
 
+  useEffect(() => {
+    document.documentElement.setAttribute("data-machinowa-hydrated", "1")
+    window.dispatchEvent(new Event("machinowa:hydrated"))
+    return () => {
+      document.documentElement.removeAttribute("data-machinowa-hydrated")
+    }
+  }, [])
+
   const navigate = useCallback((next: string, pushHistory = true) => {
     if (!VALID_PAGE_TABS.has(next as TabKey)) return
     const nextTab = next as TabKey
@@ -136,7 +144,7 @@ function Site({ initialTab, initialAuthMode }: { initialTab: TabKey; initialAuth
 
 
   return (
-    <div className="flex min-h-svh flex-col">
+    <div data-react-site className="flex min-h-svh flex-col">
       <header className="sticky top-0 z-40 border-b bg-background/90 backdrop-blur">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-3 px-4">
           <a

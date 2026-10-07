@@ -75,9 +75,14 @@ npm install
 
 このプロジェクトではNext.jsを `0.0.0.0` で待ち受けるようにしてあります。
 
+**ボタン操作まで確認する場合は production 起動を推奨します。**
+
 ```powershell
-npm run dev:network
+npm run build
+npm run start:network
 ```
+
+`npm run dev:network` は編集途中の比較確認用です。LAN端末で「リンクは動くのにボタンが反応しない」場合、まず production 起動へ切り替えてください。
 
 起動後、同じネットワーク上の端末から次を開けます。
 
