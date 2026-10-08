@@ -28,10 +28,16 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
   const requestedAuth = Array.isArray(params.auth) ? params.auth[0] : params.auth
   const initialAuthMode = requestedAuth === "signup" ? "signUp" : "signIn"
 
-  // Mobile is usually routed to the compatibility site. The pose studio is the
-  // exception: it needs the hydrated client runtime so touch dragging works on
-  // phones/tablets as well.
-  if ((isCompatRequested(params) || isMobileUserAgent(userAgent, secChUaMobile)) && initialTab !== "pose") {
+  // Explicit compat mode always wins. It is the safe fallback when the React
+  // client runtime cannot hydrate on a particular phone/browser.
+  if (isCompatRequested(params)) {
+    return <MobileSite params={params} />
+  }
+
+  // Mobile normally uses the lightweight server-rendered site. Free-pose and
+  // item-workbench are the two touch editors that intentionally use the
+  // hydrated client runtime so Pointer Events can handle finger dragging.
+  if (isMobileUserAgent(userAgent, secChUaMobile) && !(["pose", "workbench"] as TabKey[]).includes(initialTab)) {
     return <MobileSite params={params} />
   }
 

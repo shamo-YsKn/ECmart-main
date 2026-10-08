@@ -60,6 +60,7 @@ import {
 } from "lucide-react"
 
 type Notice = { type: "success" | "error"; text: string } | null
+type MobileWorkbenchContext = { loaded: boolean; loggedIn: boolean; storageReady: boolean; rewardIds: string[] }
 
 type DragState = {
   pointerId: number
@@ -101,9 +102,6 @@ export function CustomItemWorkshop() {
   const account = useAccount()
   const svgRef = useRef<SVGSVGElement | null>(null)
   const [document, setDocument] = useState<CustomItemDocument>(() => createEmptyCustomItemDocument())
-  const unlockedRewardIds = useMemo(() => new Set(account.gachaInventory.map((entry) => entry.rewardId)), [account.gachaInventory])
-  const unlockedVariants = useMemo(() => unlockedWorkbenchVariants(unlockedRewardIds), [unlockedRewardIds])
-  const documentRef = useRef(document)
   const [editingItemId, setEditingItemId] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [view, setView] = useState<CustomItemView>("front")
@@ -112,6 +110,15 @@ export function CustomItemWorkshop() {
   const [snapCandidate, setSnapCandidate] = useState<SnapCandidate | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [notice, setNotice] = useState<Notice>(null)
+  const [isMobileEditor, setIsMobileEditor] = useState(false)
+  const [mobilePanel, setMobilePanel] = useState<"parts" | "adjust">("parts")
+  const [mobileContext, setMobileContext] = useState<MobileWorkbenchContext>({ loaded: false, loggedIn: false, storageReady: false, rewardIds: [] })
+  const unlockedRewardIds = useMemo(() => new Set([
+    ...account.gachaInventory.map((entry) => entry.rewardId),
+    ...mobileContext.rewardIds,
+  ]), [account.gachaInventory, mobileContext.rewardIds])
+  const unlockedVariants = useMemo(() => unlockedWorkbenchVariants(unlockedRewardIds), [unlockedRewardIds])
+  const documentRef = useRef(document)
 
   const selectedPart = useMemo(
     () => document.parts.find((part) => part.instanceId === selectedId) ?? null,
@@ -123,6 +130,33 @@ export function CustomItemWorkshop() {
   useEffect(() => {
     documentRef.current = document
   }, [document])
+
+  useEffect(() => {
+    const mobile = window.matchMedia("(max-width: 767px)").matches || new URL(window.location.href).searchParams.get("mobile") === "1"
+    setIsMobileEditor(mobile)
+    if (!mobile) {
+      setMobileContext((current) => ({ ...current, loaded: true }))
+      return
+    }
+
+    const controller = new AbortController()
+    void fetch("/api/mobile/workbench-context", { cache: "no-store", signal: controller.signal })
+      .then(async (response) => response.ok ? await response.json() as { loggedIn?: boolean; storageReady?: boolean; rewardIds?: string[] } : null)
+      .then((data) => {
+        if (!data) {
+          setMobileContext({ loaded: true, loggedIn: false, storageReady: false, rewardIds: [] })
+          return
+        }
+        setMobileContext({
+          loaded: true,
+          loggedIn: Boolean(data.loggedIn),
+          storageReady: Boolean(data.storageReady),
+          rewardIds: Array.isArray(data.rewardIds) ? data.rewardIds.filter((value): value is string => typeof value === "string") : [],
+        })
+      })
+      .catch(() => setMobileContext({ loaded: true, loggedIn: false, storageReady: false, rewardIds: [] }))
+    return () => controller.abort()
+  }, [])
 
   function commitDocument(next: CustomItemDocument) {
     documentRef.current = next
@@ -189,6 +223,7 @@ export function CustomItemWorkshop() {
     const part = newPart(type, document.parts.length, variantId)
     setDocument((current) => ({ ...current, parts: [...current.parts, part] }))
     setSelectedId(part.instanceId)
+    if (isMobileEditor) setMobilePanel("adjust")
     setNotice(null)
   }
 
@@ -199,6 +234,7 @@ export function CustomItemWorkshop() {
     event.preventDefault()
     event.stopPropagation()
     setSelectedId(part.instanceId)
+    if (isMobileEditor) setMobilePanel("adjust")
     setSnapCandidate(null)
     // 自分を動かし始めたら親との接続だけ解除。子パーツは一緒に移動します。
     setDocument((current) => ({
@@ -327,9 +363,35 @@ export function CustomItemWorkshop() {
     setNotice(null)
   }
 
+  const loggedInForWorkbench = Boolean(account.user || mobileContext.loggedIn)
+  const checkingMobileAccount = isMobileEditor && !account.user && !mobileContext.loaded
+  const storageReadyForWorkbench = account.user ? account.customItemStorageReady : mobileContext.storageReady
+  const storageErrorForWorkbench = account.user
+    ? account.customItemStorageError
+    : "アイテム保存用のSupabase設定を確認してください。"
+
+  function goToAccount() {
+    if (isMobileEditor) {
+      window.location.assign("/?tab=account")
+      return
+    }
+    dispatchNavigate("account")
+  }
+
   function equipInRobotWorkshop() {
     if (!editingItemId) {
       setNotice({ type: "error", text: "先にこの自作アイテムを保存してください。" })
+      return
+    }
+    if (isMobileEditor) {
+      const url = new URL("/?tab=robot", window.location.origin)
+      url.searchParams.set("item", "none")
+      url.searchParams.set("heldItem", JSON.stringify({
+        kind: "custom",
+        customItemId: editingItemId,
+        adjustment: { offsetX: 0, offsetY: 0, rotationDeg: 0, scale: 1 },
+      }))
+      window.location.assign(url.toString())
       return
     }
     window.sessionStorage.setItem(CUSTOM_ITEM_EQUIP_DRAFT_KEY, editingItemId)
@@ -338,13 +400,13 @@ export function CustomItemWorkshop() {
 
   async function save(asNew = false) {
     setNotice(null)
-    if (!account.user) {
+    if (!loggedInForWorkbench) {
       setNotice({ type: "error", text: "アイテムを保存するにはログインしてください。" })
-      dispatchNavigate("account")
+      goToAccount()
       return
     }
-    if (!account.customItemStorageReady) {
-      setNotice({ type: "error", text: account.customItemStorageError ?? "アイテム保存用のSupabase設定が必要です。" })
+    if (!storageReadyForWorkbench) {
+      setNotice({ type: "error", text: storageErrorForWorkbench ?? "アイテム保存用のSupabase設定が必要です。" })
       return
     }
     if (document.parts.length === 0) {
@@ -355,15 +417,39 @@ export function CustomItemWorkshop() {
     const name = sanitizeCustomItemName(document.name)
     const cleanDocument = normalizeCustomItemDocument({ ...document, name }, name)
     setSubmitting(true)
-    const result = await account.saveCustomItem(cleanDocument, asNew ? undefined : editingItemId ?? undefined)
-    setSubmitting(false)
-    if (result.error) {
-      setNotice({ type: "error", text: result.error })
+
+    if (account.user) {
+      const result = await account.saveCustomItem(cleanDocument, asNew ? undefined : editingItemId ?? undefined)
+      setSubmitting(false)
+      if (result.error) {
+        setNotice({ type: "error", text: result.error })
+        return
+      }
+      setDocument(cleanDocument)
+      if (result.item) setEditingItemId(result.item.id)
+      setNotice({ type: "success", text: asNew || !editingItemId ? "自作アイテムをアカウントへ保存しました。" : "自作アイテムを上書き保存しました。" })
       return
     }
-    setDocument(cleanDocument)
-    if (result.item) setEditingItemId(result.item.id)
-    setNotice({ type: "success", text: asNew || !editingItemId ? "自作アイテムをアカウントへ保存しました。" : "自作アイテムを上書き保存しました。" })
+
+    try {
+      const response = await fetch("/api/mobile/custom-item", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ document: cleanDocument, itemId: editingItemId, asNew }),
+      })
+      const payload = await response.json().catch(() => ({})) as { ok?: boolean; error?: string; item?: { id?: string } }
+      setSubmitting(false)
+      if (!response.ok || !payload.ok || !payload.item?.id) {
+        setNotice({ type: "error", text: payload.error || "自作アイテムを保存できませんでした。" })
+        return
+      }
+      setDocument(cleanDocument)
+      setEditingItemId(payload.item.id)
+      setNotice({ type: "success", text: asNew || !editingItemId ? "自作アイテムをアカウントへ保存しました。" : "自作アイテムを上書き保存しました。" })
+    } catch {
+      setSubmitting(false)
+      setNotice({ type: "error", text: "保存通信に失敗しました。ネットワークを確認してください。" })
+    }
   }
 
   return (
@@ -374,18 +460,25 @@ export function CustomItemWorkshop() {
         </div>
       )}
 
-      {account.user && !account.customItemStorageReady && (
+      {loggedInForWorkbench && mobileContext.loaded && !storageReadyForWorkbench && (
         <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <p className="font-bold">アイテム保存用のSupabase SQLが必要です</p>
           <p className="mt-1"><code>supabase/custom-items-migration.sql</code> をSQL Editorで1回実行してください。</p>
         </div>
       )}
 
+      <div className="flex items-center justify-between gap-2 xl:hidden">
+        <Button type="button" variant="outline" className="rounded-full" onClick={() => window.location.assign("/?tab=robot")}>
+          ← スマホ工房へ戻る
+        </Button>
+        <Badge variant="secondary" className="rounded-full">タッチ編集モード</Badge>
+      </div>
+
       <div className="grid gap-6 xl:grid-cols-[270px_minmax(0,1fr)_290px]">
-        <Card className="border-2 xl:sticky xl:top-24 xl:self-start">
+        <Card className={cn("border-2 xl:sticky xl:top-24 xl:self-start", mobilePanel === "parts" ? "order-2 block" : "hidden", "xl:order-1 xl:block")}>
           <CardHeader>
             <CardTitle className="font-display flex items-center gap-2 text-lg"><Hammer className="size-5 text-primary" />工作パーツ</CardTitle>
-            <p className="text-sm text-muted-foreground">クリックすると工作台へ追加します。</p>
+            <p className="text-sm text-muted-foreground">タップすると工作台へ追加します。</p>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <div>
@@ -419,7 +512,7 @@ export function CustomItemWorkshop() {
           </CardContent>
         </Card>
 
-        <div className="flex min-w-0 flex-col gap-4">
+        <div className="order-1 flex min-w-0 flex-col gap-4 xl:order-2">
           <Card className="overflow-hidden border-2">
             <CardHeader className="flex-row items-center justify-between gap-3">
               <div>
@@ -470,7 +563,7 @@ export function CustomItemWorkshop() {
                   <line x1="0" y1="-205" x2="0" y2="205" stroke="#7c6851" strokeOpacity=".16" strokeDasharray="6 8" />
                   {itemPartsForView(document.parts, view).map(({ part }) => (
                     <g key={part.instanceId} transform={itemViewTransform(part, view)} onPointerDown={(event) => startDrag(event, part)} className="cursor-grab active:cursor-grabbing">
-                      <rect x="-70" y="-58" width="140" height="116" rx="12" fill="transparent" />
+                      <rect x="-84" y="-72" width="168" height="144" rx="16" fill="transparent" />
                       <WorkbenchPartShape type={part.partType} variantId={part.variantId} selected={part.instanceId === selectedId} view={view} />
                     </g>
                   ))}
@@ -485,7 +578,7 @@ export function CustomItemWorkshop() {
                       return <circle key={`${part.instanceId}-${socket.id}`} cx={x} cy={y} r={active ? 8 : 4} fill={active ? "#f97316" : "#fff"} stroke="#334155" strokeWidth="2" className="pointer-events-none" />
                     }),
                   )}
-                  {document.parts.length === 0 && <text x="0" y="0" textAnchor="middle" dominantBaseline="middle" fill="#7c6851" fontSize="18" fontWeight="700">左のパーツを追加して工作を始めよう</text>}
+                  {document.parts.length === 0 && <text x="0" y="0" textAnchor="middle" dominantBaseline="middle" fill="#7c6851" fontSize="18" fontWeight="700">{isMobileEditor ? "パーツ追加から工作を始めよう" : "左のパーツを追加して工作を始めよう"}</text>}
                 </svg>
               </div>
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
@@ -495,23 +588,32 @@ export function CustomItemWorkshop() {
             </CardContent>
           </Card>
 
+          <div className="sticky bottom-3 z-30 grid grid-cols-2 gap-2 rounded-2xl border bg-background/95 p-2 shadow-lg backdrop-blur xl:hidden">
+            <Button type="button" variant={mobilePanel === "parts" ? "default" : "outline"} className="min-h-11 rounded-xl" onClick={() => setMobilePanel("parts")}>
+              <Plus data-icon="inline-start" />パーツ追加
+            </Button>
+            <Button type="button" variant={mobilePanel === "adjust" ? "default" : "outline"} className="min-h-11 rounded-xl" onClick={() => setMobilePanel("adjust")} disabled={!selectedPart}>
+              <Move data-icon="inline-start" />{selectedPart ? "選択パーツ調整" : "パーツを選択"}
+            </Button>
+          </div>
+
           <Card className="border-2 border-primary/25 bg-primary/5">
             <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-end">
               <div className="flex-1"><Label htmlFor="custom-item-name">作品名</Label><Input id="custom-item-name" value={document.name} maxLength={40} onChange={(event) => setDocument((current) => ({ ...current, name: event.target.value }))} className="mt-2" placeholder="れい：LED花束" /></div>
               <div className="flex flex-wrap gap-2">
-                <Button type="button" className="rounded-full" onClick={() => void save(false)} disabled={submitting || (Boolean(account.user) && !account.customItemStorageReady)}>
-                  {submitting ? <LoaderCircle className="animate-spin" data-icon="inline-start" /> : account.user ? <Save data-icon="inline-start" /> : <UserRound data-icon="inline-start" />}
-                  {!account.user ? "ログインして保存" : editingItemId ? "上書き保存" : "保存する"}
+                <Button type="button" className="rounded-full" onClick={() => void save(false)} disabled={submitting || checkingMobileAccount || (loggedInForWorkbench && mobileContext.loaded && !storageReadyForWorkbench)}>
+                  {submitting ? <LoaderCircle className="animate-spin" data-icon="inline-start" /> : loggedInForWorkbench ? <Save data-icon="inline-start" /> : <UserRound data-icon="inline-start" />}
+                  {checkingMobileAccount ? "ログイン確認中…" : !loggedInForWorkbench ? "ログインして保存" : editingItemId ? "上書き保存" : "保存する"}
                 </Button>
-                {editingItemId && account.user && <Button type="button" variant="outline" className="rounded-full" onClick={() => void save(true)} disabled={submitting || !account.customItemStorageReady}><Plus data-icon="inline-start" />別作品として保存</Button>}
-                {editingItemId && account.user && <Button type="button" variant="outline" className="rounded-full" onClick={equipInRobotWorkshop}><Link2 data-icon="inline-start" />ロボットに持たせる</Button>}
+                {editingItemId && loggedInForWorkbench && <Button type="button" variant="outline" className="rounded-full" onClick={() => void save(true)} disabled={submitting || !storageReadyForWorkbench}><Plus data-icon="inline-start" />別作品として保存</Button>}
+                {editingItemId && loggedInForWorkbench && <Button type="button" variant="outline" className="rounded-full" onClick={equipInRobotWorkshop}><Link2 data-icon="inline-start" />ロボットに持たせる</Button>}
                 <Button type="button" variant="outline" className="rounded-full" onClick={resetWorkbench}><RotateCcw data-icon="inline-start" />新しく作る</Button>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        <Card className="border-2 xl:sticky xl:top-24 xl:self-start">
+        <Card className={cn("border-2 xl:sticky xl:top-24 xl:self-start", mobilePanel === "adjust" ? "order-2 block" : "hidden", "xl:order-3 xl:block")}>
           <CardHeader><CardTitle className="font-display flex items-center gap-2 text-lg"><Link2 className="size-5 text-primary" />選択パーツ</CardTitle></CardHeader>
           <CardContent className="flex flex-col gap-5">
             <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-950">

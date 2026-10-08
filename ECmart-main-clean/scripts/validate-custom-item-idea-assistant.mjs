@@ -77,10 +77,11 @@ check("workbench recognizes idea source", () => {
   const source = fs.readFileSync("components/workbench/custom-item-workshop.tsx", "utf8")
   assert.match(source, /文章から提案した部品構成/)
 })
-check("mobile shows proposal without pretending to support drag editor", () => {
+check("mobile proposal can open the touch workbench", () => {
   const source = fs.readFileSync("components/mobile/mobile-site.tsx", "utf8")
   assert.match(source, /工作案：/)
-  assert.match(source, /自動読み込みはPC版/)
+  assert.match(source, /api\/mobile\/workbench-draft/)
+  assert.match(source, /工作台へ読み込む/)
 })
 
 console.log(`Custom item idea assistant: ${checks} checks PASS`)

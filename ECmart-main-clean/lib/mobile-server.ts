@@ -2,6 +2,9 @@ import "server-only"
 
 import { cookies } from "next/headers"
 import type { CartItem, GachaInventoryItem, PurchaseOrder, RobotConfig, SavedRobot } from "@/lib/types"
+import type { CustomItemDocument } from "@/lib/creation-model"
+import { normalizeCustomItemDocument, parseSavedCustomItemRow, sanitizeCustomItemName } from "@/lib/custom-item-model"
+import { getWorkbenchVariant } from "@/lib/workbench-variants"
 import { normalizeRobotConfig, parseSavedRobotRow, sanitizeRobotName } from "@/lib/robot-config"
 import { parseMuralPostRow, type MuralPost } from "@/lib/mural-model"
 
@@ -137,14 +140,16 @@ export async function getMobileAccountData() {
       profile: null,
       favorites: new Set<string>(),
       robots: [] as SavedRobot[],
+      customItems: [],
       gachaInventory: [] as GachaInventoryItem[],
     }
   }
 
-  const [profiles, favorites, robots, inventoryRows] = await Promise.all([
+  const [profiles, favorites, robots, customItemRows, inventoryRows] = await Promise.all([
     restGet<MobileProfile[]>(`profiles?select=user_id,display_name,bio,points&user_id=eq.${encodeURIComponent(user.id)}&limit=1`, token),
     restGet<Array<{ product_id: string }>>(`favorites?select=product_id&user_id=eq.${encodeURIComponent(user.id)}`, token),
     restGet<SavedRobot[]>(`saved_robots?select=id,user_id,name,config,is_avatar,created_at,updated_at&user_id=eq.${encodeURIComponent(user.id)}&order=updated_at.desc`, token),
+    restGet<unknown[]>(`custom_items?select=id,user_id,name,document,created_at,updated_at&user_id=eq.${encodeURIComponent(user.id)}&order=updated_at.desc`, token),
     restGet<Array<{
       reward_id: string
       quantity: number
@@ -167,7 +172,77 @@ export async function getMobileAccountData() {
     robots: Array.isArray(robots)
       ? robots.map((row) => parseSavedRobotRow(row)).filter((row): row is SavedRobot => row !== null)
       : [],
+    customItems: Array.isArray(customItemRows)
+      ? customItemRows.map((row) => parseSavedCustomItemRow(row)).filter((row) => row !== null)
+      : [],
     gachaInventory,
+  }
+}
+
+
+export async function getMobileWorkbenchContext() {
+  const account = await getMobileAccountData()
+  if (!account.user) {
+    return { loggedIn: false, storageReady: false, rewardIds: [] as string[] }
+  }
+
+  const token = await getMobileAccessToken()
+  if (!token) return { loggedIn: false, storageReady: false, rewardIds: [] as string[] }
+
+  const probe = await restGet<Array<{ id: string }>>("custom_items?select=id&limit=1", token)
+  return {
+    loggedIn: true,
+    storageReady: probe !== null,
+    rewardIds: account.gachaInventory.map((entry) => entry.rewardId),
+  }
+}
+
+export async function saveMobileCustomItem(document: CustomItemDocument, itemId?: string) {
+  const token = await getMobileAccessToken()
+  const account = await getMobileAccountData()
+  const { url, key } = supabaseConfig()
+  if (!token || !account.user || !url || !key) return { error: "自作アイテムの保存にはログインが必要です。", item: null }
+
+  const cleanName = sanitizeCustomItemName(document.name)
+  const cleanDocument = normalizeCustomItemDocument({ ...document, name: cleanName }, cleanName)
+  if (cleanDocument.parts.length === 0) return { error: "工作部品を1つ以上配置してください。", item: null }
+
+  const ownedRewardIds = new Set(account.gachaInventory.map((entry) => entry.rewardId))
+  for (const part of cleanDocument.parts) {
+    if (!part.variantId) continue
+    const variant = getWorkbenchVariant(part.variantId)
+    if (!variant || !ownedRewardIds.has(variant.rewardId)) {
+      return { error: "ガチャで未獲得の特殊工作素材が含まれています。獲得済み素材だけで保存してください。", item: null }
+    }
+  }
+
+  const payload = {
+    user_id: account.user.id,
+    name: cleanName,
+    document: cleanDocument,
+    updated_at: new Date().toISOString(),
+  }
+
+  const endpoint = itemId
+    ? `${url}/rest/v1/custom_items?id=eq.${encodeURIComponent(itemId)}&user_id=eq.${encodeURIComponent(account.user.id)}`
+    : `${url}/rest/v1/custom_items`
+
+  try {
+    const response = await safeFetch(endpoint, {
+      method: itemId ? "PATCH" : "POST",
+      headers: { ...authHeaders(token), Prefer: "return=representation" },
+      body: JSON.stringify(payload),
+    }, 10000)
+    if (!response.ok) {
+      if (response.status === 404) return { error: "アイテム保存用のSupabase設定を確認してください。", item: null }
+      const detail = await response.json().catch(() => ({})) as { message?: string }
+      return { error: detail.message || "自作アイテムを保存できませんでした。", item: null }
+    }
+    const rows = await response.json().catch(() => []) as unknown[]
+    const item = parseSavedCustomItemRow(rows[0])
+    return item ? { error: null, item } : { error: "保存した自作アイテムデータを読み取れませんでした。", item: null }
+  } catch {
+    return { error: "自作アイテムの保存通信がタイムアウトしました。", item: null }
   }
 }
 

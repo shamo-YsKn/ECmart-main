@@ -24,6 +24,7 @@ export async function POST(request: Request) {
     accentColor: form.get("accentColor"),
     name: form.get("name"),
     poseState: parseJsonField(form.get("poseState")),
+    heldItem: parseJsonField(form.get("heldItem")),
   })
   const ok = await saveMobileRobot(config)
   const url = new URL(returnTo, request.url)

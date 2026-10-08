@@ -474,3 +474,12 @@ HTTP確認は、ローカルのテスト用API応答を接続したNext.jsで行
 - guest 29/29 PASS
 - custom item views 11/11 PASS
 - robot idea assistant 25 checks PASS
+
+## 2026-10-08 スマホ版アイテム工作対応
+- スマホ `workbench` をPointer Events対応React編集画面へ接続。
+- 工作台を先頭にしたスマホ向けUI、パーツ/調整パネル切替、タッチ領域拡大を追加。
+- mobile HttpOnly Cookieを使う工作コンテキスト/保存APIを追加。
+- AI工作案→スマホ工作台、マイページ→保存作品再編集、保存作品→ロボット装備を追加。
+- 明示的 `compat=1` はReact編集画面を強制せず、サーバー互換画面へ退避するよう整理。
+- 専用検証 `validate:mobile-workbench` 11/11 PASS。
+- 既存アイテム/ゲスト/価格/ポーズ/AI回帰もPASS。
