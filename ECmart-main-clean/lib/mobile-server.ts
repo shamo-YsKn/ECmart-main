@@ -131,6 +131,18 @@ export async function getMobileMuralPosts(spotId: string, muralVariant = "defaul
     .filter((post): post is MuralPost => post !== null)
 }
 
+export async function getMobileMuralCounts(): Promise<Record<string, number>> {
+  const rows = await restPublicGet<Array<{ spot_id?: string | null }>>(
+    "mural_posts?select=spot_id&limit=1000",
+  )
+  const counts: Record<string, number> = {}
+  for (const row of rows ?? []) {
+    if (!row?.spot_id) continue
+    counts[row.spot_id] = (counts[row.spot_id] ?? 0) + 1
+  }
+  return counts
+}
+
 export async function getMobileAccountData() {
   const user = await getMobileUser()
   const token = await getMobileAccessToken()
