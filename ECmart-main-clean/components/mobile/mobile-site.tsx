@@ -81,6 +81,32 @@ function ProductRow({ productId, favorites, loggedIn, returnTo, quantity }: { pr
   )
 }
 
+function parseJsonParam(value: string | undefined) {
+  if (!value) return undefined
+  try {
+    return JSON.parse(value) as unknown
+  } catch {
+    return undefined
+  }
+}
+
+function robotFieldEntries(config: RobotConfig, options: { includePoseState?: boolean } = {}) {
+  const entries: Array<[string, string | number]> = [
+    ["base", config.base],
+    ["view", config.view],
+    ["pose", config.pose],
+    ["item", config.item],
+    ["size", config.size],
+    ["bodyColor", config.bodyColor],
+    ["accentColor", config.accentColor],
+    ["name", config.name],
+  ]
+  if (options.includePoseState !== false && config.poseState?.mode === "custom") {
+    entries.push(["poseState", JSON.stringify(config.poseState)])
+  }
+  return entries
+}
+
 function parseRobot(params: Params): RobotConfig {
   return normalizeRobotConfig({
     base: one(params.base),
@@ -91,11 +117,22 @@ function parseRobot(params: Params): RobotConfig {
     bodyColor: one(params.bodyColor),
     accentColor: one(params.accentColor),
     name: one(params.name),
+    poseState: parseJsonParam(one(params.poseState)),
   })
 }
-function robotHref(config: RobotConfig, change: Partial<RobotConfig>) {
-  const next = { ...config, ...change }
-  return q({ tab: "robot", base: next.base, view: next.view, pose: next.pose, item: next.item, size: next.size, bodyColor: next.bodyColor, accentColor: next.accentColor, name: next.name })
+
+function robotHref(config: RobotConfig, change: Partial<RobotConfig>, options: { clearPoseState?: boolean } = {}) {
+  const clearPoseState = options.clearPoseState ?? Object.prototype.hasOwnProperty.call(change, "pose")
+  const next = normalizeRobotConfig({
+    ...config,
+    ...change,
+    poseState: clearPoseState ? undefined : (change.poseState ?? config.poseState),
+  })
+  return q(Object.fromEntries([["tab", "robot"], ...robotFieldEntries(next)]))
+}
+
+function poseStudioHref(config: RobotConfig) {
+  return q(Object.fromEntries([["tab", "pose"], ...robotFieldEntries(config)]))
 }
 
 type MobilePageTab = typeof TABS[number][0] | "gacha" | "workbench" | "diorama"
@@ -183,15 +220,16 @@ export async function MobileSite({ params }: { params: Params }) {
       {one(params.robotSaved) && <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">ロボットを保存しました。</div>}
       {one(params.robotError) && <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800">{one(params.robotError)}</div>}
       <Card><div className="mx-auto aspect-square max-w-xs"><RobotFallback config={config} /></div><div className="text-center font-display font-black">{config.name}</div></Card>
-      <Card className="border-primary/30 bg-primary/5"><div className="flex items-center justify-between gap-2"><h2 className="font-display font-black">✨ イメージから提案</h2><span className="rounded-full border bg-background px-2 py-1 text-[10px] font-bold">AI接続 OFF（PC版でON可）</span></div><p className="mt-1 text-xs text-muted-foreground">スマホ互換表示では文章をルールベースで解析します。外部AI接続はPC版の工房から切り替えられます。</p><form method="get" action="/" className="mt-3"><input type="hidden" name="tab" value="robot" />{Object.entries(config).map(([k,v])=><input key={k} type="hidden" name={k} value={String(v)} />)}<textarea name="idea" maxLength={240} rows={3} defaultValue={ideaInput} placeholder="例：室蘭の工場を案内するナッティ" className="w-full rounded-xl border bg-background px-3 py-2 text-sm"/><button className={`${pill(true)} mt-2 w-full`} type="submit">3案を提案する</button></form>{ideaResult&&<div className="mt-4 flex flex-col gap-3">{ideaResult.candidates.map((candidate,index)=>{const itemEstimate=candidate.customItemProposal?estimateCustomItemPrice(candidate.customItemProposal.document):null;const price=candidate.customItemProposal?ROBOT_BASE_REFERENCE_PRICE[candidate.config.base]+(itemEstimate?.surcharge??0):estimateRobotReferencePrice(candidate.config).total;return <div key={candidate.id} className="rounded-xl border bg-background p-3"><div className="flex items-start justify-between gap-2"><div><div className="text-xs font-bold text-primary">案{String.fromCharCode(65+index)}・{candidate.themeLabel}</div><div className="font-display font-black">{candidate.title}</div></div><div className="shrink-0 text-sm font-black">{formatReferencePrice(price)}</div></div><p className="mt-1 text-xs text-muted-foreground">{candidate.summary}</p>{candidate.customItemProposal?<div className="mt-2 rounded-lg border border-primary/20 bg-primary/5 p-2 text-[11px]"><div className="font-bold">工作案：{candidate.customItemProposal.title}</div><div className="mt-1 text-muted-foreground">{candidate.customItemProposal.summary}</div>{itemEstimate&&<div className="mt-1 text-muted-foreground">{itemEstimate.features.partCount}パーツ・{itemEstimate.tierLabel}・工作加算 {formatReferencePrice(itemEstimate.surcharge)}</div>}<div className="mt-1 text-muted-foreground">※自由配置の工作台への自動読み込みはPC版で利用できます。</div></div>:candidate.futureCustomItemHint?<p className="mt-2 text-[11px] text-muted-foreground">自作アイテム候補：{candidate.futureCustomItemHint}</p>:null}<a className={`${pill()} mt-3 w-full`} href={robotHref(config,candidate.config)}>この案で作る</a></div>})}<p className="text-[10px] leading-relaxed text-muted-foreground">※参考価格は現在の価格モデルで算出しています。工作案がある場合は工作Tier加算を含みます。</p></div>}</Card>
+      <Card className="border-primary/30 bg-primary/5"><div className="flex items-center justify-between gap-2"><div><h2 className="font-display font-black">🕺 自由ポーズ</h2><p className="mt-1 text-xs text-muted-foreground">指で関節をドラッグして、スマホでも正面・側面のポーズを編集できます。</p></div>{config.poseState?.mode === "custom" ? <span className="rounded-full bg-primary px-2 py-1 text-[10px] font-bold text-primary-foreground">反映中</span> : <span className="rounded-full border bg-background px-2 py-1 text-[10px] font-bold">未編集</span>}</div><a className={`${pill(true)} mt-4 w-full`} href={poseStudioHref(config)}>{config.poseState?.mode === "custom" ? "自由ポーズを再編集" : "自由ポーズを編集"}</a>{config.poseState?.mode === "custom" ? <div className="mt-3 grid grid-cols-2 gap-2"><a className={`${pill()} w-full`} href={robotHref(config, { pose: config.poseState?.preset ?? config.pose }, { clearPoseState: true })}>基準ポーズへ戻す</a><a className={`${pill()} w-full`} href={robotHref(config, { view: "front" })}>正面で確認</a></div> : <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">編集後はこの画面に戻り、色・持ち物・名前などと一緒に保存できます。</p>}</Card>
+      <Card className="border-primary/30 bg-primary/5"><div className="flex items-center justify-between gap-2"><h2 className="font-display font-black">✨ イメージから提案</h2><span className="rounded-full border bg-background px-2 py-1 text-[10px] font-bold">AI接続 OFF（PC版でON可）</span></div><p className="mt-1 text-xs text-muted-foreground">スマホ互換表示では文章をルールベースで解析します。外部AI接続はPC版の工房から切り替えられます。</p><form method="get" action="/" className="mt-3"><input type="hidden" name="tab" value="robot" />{robotFieldEntries(config).map(([k,v])=><input key={k} type="hidden" name={k} value={String(v)} />)}<textarea name="idea" maxLength={240} rows={3} defaultValue={ideaInput} placeholder="例：室蘭の工場を案内するナッティ" className="w-full rounded-xl border bg-background px-3 py-2 text-sm"/><button className={`${pill(true)} mt-2 w-full`} type="submit">3案を提案する</button></form>{ideaResult&&<div className="mt-4 flex flex-col gap-3">{ideaResult.candidates.map((candidate,index)=>{const itemEstimate=candidate.customItemProposal?estimateCustomItemPrice(candidate.customItemProposal.document):null;const price=candidate.customItemProposal?ROBOT_BASE_REFERENCE_PRICE[candidate.config.base]+(itemEstimate?.surcharge??0):estimateRobotReferencePrice(candidate.config).total;return <div key={candidate.id} className="rounded-xl border bg-background p-3"><div className="flex items-start justify-between gap-2"><div><div className="text-xs font-bold text-primary">案{String.fromCharCode(65+index)}・{candidate.themeLabel}</div><div className="font-display font-black">{candidate.title}</div></div><div className="shrink-0 text-sm font-black">{formatReferencePrice(price)}</div></div><p className="mt-1 text-xs text-muted-foreground">{candidate.summary}</p>{candidate.customItemProposal?<div className="mt-2 rounded-lg border border-primary/20 bg-primary/5 p-2 text-[11px]"><div className="font-bold">工作案：{candidate.customItemProposal.title}</div><div className="mt-1 text-muted-foreground">{candidate.customItemProposal.summary}</div>{itemEstimate&&<div className="mt-1 text-muted-foreground">{itemEstimate.features.partCount}パーツ・{itemEstimate.tierLabel}・工作加算 {formatReferencePrice(itemEstimate.surcharge)}</div>}<div className="mt-1 text-muted-foreground">※自由配置の工作台への自動読み込みはPC版で利用できます。</div></div>:candidate.futureCustomItemHint?<p className="mt-2 text-[11px] text-muted-foreground">自作アイテム候補：{candidate.futureCustomItemHint}</p>:null}<a className={`${pill()} mt-3 w-full`} href={robotHref(config,candidate.config)}>この案で作る</a></div>})}<p className="text-[10px] leading-relaxed text-muted-foreground">※参考価格は現在の価格モデルで算出しています。工作案がある場合は工作Tier加算を含みます。</p></div>}</Card>
       <Card><h2 className="font-display font-bold">タイプ</h2><div className="mt-3 grid grid-cols-2 gap-2">{ROBOT_BASE_OPTIONS.map(o=><a key={o.value} className={pill(config.base===o.value)} href={robotHref(config,{base:o.value,name:config.name==="ボルタ"||config.name==="ナッティ"?(o.value==="volta"?"ボルタ":"ナッティ"):config.name})}>{o.label}</a>)}</div></Card>
       <Card><h2 className="font-display font-bold">向き</h2><div className="mt-3 flex flex-wrap gap-2">{ROBOT_VIEW_OPTIONS.map(o=><a key={o.value} className={pill(config.view===o.value)} href={robotHref(config,{view:o.value})}>{o.label}</a>)}</div></Card>
       <Card><h2 className="font-display font-bold">ポーズ</h2><div className="mt-3 flex flex-wrap gap-2">{ROBOT_POSE_OPTIONS.map(o=><a key={o.value} className={pill(config.pose===o.value)} href={robotHref(config,{pose:o.value})}>{o.label}</a>)}</div></Card>
       <Card><h2 className="font-display font-bold">持ち物</h2><div className="mt-3 flex flex-wrap gap-2">{availableItems.map(o=><a key={o.value} className={pill(config.item===o.value)} href={robotHref(config,{item:o.value})}>{o.label}</a>)}</div></Card>
       <Card><h2 className="font-display font-bold">ボディ色</h2><div className="mt-3 flex flex-wrap gap-3">{availableBodyColors.map((color)=><a key={color.value} title={color.label} aria-label={color.label} href={robotHref(config,{bodyColor:color.value})} className={`size-10 rounded-full border-4 ${config.bodyColor===color.value?"border-primary":"border-white"}`} style={{backgroundColor:color.value}} />)}</div><h2 className="mt-5 font-display font-bold">目の色</h2><div className="mt-3 flex flex-wrap gap-3">{availableAccentColors.map((color)=><a key={color.value} title={color.label} aria-label={color.label} href={robotHref(config,{accentColor:color.value})} className={`size-10 rounded-full border-4 ${config.accentColor===color.value?"border-primary":"border-white"}`} style={{backgroundColor:color.value}} />)}</div></Card>
       <Card className="border-amber-300 bg-amber-50"><h2 className="font-display font-black">🎁 ボルタ・ナッティ ガチャ</h2><p className="mt-1 text-sm text-muted-foreground">1回{GACHA_COST}pt。カラー・持ちもの・特殊工作素材・室蘭ジオラマ背景が当たります。</p><div className="mt-2 font-bold text-amber-900">保有 {(account.profile?.points ?? 0).toLocaleString()} pt</div><a className={`${pill(true)} mt-4 w-full`} href={account.user?"/?tab=gacha":"/?tab=account"}>{account.user?"ガチャへ":"ログインしてガチャ"}</a></Card>
-      <Card><form method="get" action="/"><input type="hidden" name="tab" value="robot" />{Object.entries(config).filter(([k])=>k!=="name"&&k!=="size").map(([k,v])=><input key={k} type="hidden" name={k} value={String(v)} />)}<label className="font-display font-bold" htmlFor="mobile-robot-name">名前</label><input id="mobile-robot-name" name="name" defaultValue={config.name} maxLength={40} className="mt-2 h-11 w-full rounded-xl border px-3" /><label className="mt-4 block font-display font-bold" htmlFor="mobile-robot-size">大きさ: {config.size}cm</label><input id="mobile-robot-size" type="range" name="size" min="20" max="90" defaultValue={config.size} className="mt-2 w-full" /><button className={`${pill()} mt-4 w-full`} type="submit">名前・大きさを反映</button></form></Card>
-      {account.user ? <form action="/api/mobile/robot" method="post"><input type="hidden" name="returnTo" value={returnTo} />{Object.entries(config).map(([k,v])=><input key={k} type="hidden" name={k} value={String(v)} />)}<button type="submit" className={`${pill(true)} w-full`}>このロボットを保存</button></form> : <a className={`${pill()} w-full`} href="/?tab=account">保存するにはログイン</a>}
+      <Card><form method="get" action="/"><input type="hidden" name="tab" value="robot" />{robotFieldEntries(config).filter(([k])=>k!=="name"&&k!=="size").map(([k,v])=><input key={k} type="hidden" name={k} value={String(v)} />)}<label className="font-display font-bold" htmlFor="mobile-robot-name">名前</label><input id="mobile-robot-name" name="name" defaultValue={config.name} maxLength={40} className="mt-2 h-11 w-full rounded-xl border px-3" /><label className="mt-4 block font-display font-bold" htmlFor="mobile-robot-size">大きさ: {config.size}cm</label><input id="mobile-robot-size" type="range" name="size" min="20" max="90" defaultValue={config.size} className="mt-2 w-full" /><button className={`${pill()} mt-4 w-full`} type="submit">名前・大きさを反映</button></form></Card>
+      {account.user ? <form action="/api/mobile/robot" method="post"><input type="hidden" name="returnTo" value={returnTo} />{robotFieldEntries(config).map(([k,v])=><input key={k} type="hidden" name={k} value={String(v)} />)}<button type="submit" className={`${pill(true)} w-full`}>このロボットを保存</button></form> : <a className={`${pill()} w-full`} href="/?tab=account">保存するにはログイン</a>}
     </div>
   } else if (tab === "gacha") {
     const stage = one(params.stage) || "intro"

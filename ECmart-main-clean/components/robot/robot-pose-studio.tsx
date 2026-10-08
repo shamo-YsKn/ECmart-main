@@ -15,10 +15,63 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, Check, RotateCcw, Sparkles } from "lucide-react"
 
-function navigateRobot() {
-  const url = new URL(window.location.href)
+function safeReturnTo(value: string | null) {
+  return value && value.startsWith("/") && !value.startsWith("//") ? value : "/?tab=robot"
+}
+
+function parseJsonParam(value: string | null) {
+  if (!value) return undefined
+  try {
+    return JSON.parse(value) as unknown
+  } catch {
+    return undefined
+  }
+}
+
+function navigateTo(url: string) {
+  window.location.assign(url)
+}
+
+function buildRobotReturnUrl(config: RobotConfig, returnTo = "/?tab=robot") {
+  const url = new URL(returnTo, window.location.origin)
   url.searchParams.set("tab", "robot")
-  window.location.assign(url.toString())
+  url.searchParams.set("base", config.base)
+  url.searchParams.set("view", config.view)
+  url.searchParams.set("pose", config.pose)
+  url.searchParams.set("item", config.item)
+  url.searchParams.set("size", String(config.size))
+  url.searchParams.set("bodyColor", config.bodyColor)
+  url.searchParams.set("accentColor", config.accentColor)
+  url.searchParams.set("name", config.name)
+  if (config.poseState?.mode === "custom") {
+    url.searchParams.set("poseState", JSON.stringify(config.poseState))
+  } else {
+    url.searchParams.delete("poseState")
+  }
+  return url.toString()
+}
+
+function readConfigFromSearch(): { config: RobotConfig; originalConfig: RobotConfig; returnTo: string } | null {
+  const url = new URL(window.location.href)
+  if (!url.searchParams.get("base") && !url.searchParams.get("name") && !url.searchParams.get("pose")) return null
+
+  const config = normalizeRobotConfig({
+    base: url.searchParams.get("base") || undefined,
+    view: url.searchParams.get("view") || undefined,
+    pose: url.searchParams.get("pose") || undefined,
+    item: url.searchParams.get("item") || undefined,
+    size: url.searchParams.get("size") || undefined,
+    bodyColor: url.searchParams.get("bodyColor") || undefined,
+    accentColor: url.searchParams.get("accentColor") || undefined,
+    name: url.searchParams.get("name") || undefined,
+    poseState: parseJsonParam(url.searchParams.get("poseState")),
+  })
+
+  return {
+    config: { ...config, poseState: { ...normalizePoseState(config.pose, config.poseState), mode: "custom" as const } },
+    originalConfig: config,
+    returnTo: safeReturnTo(url.searchParams.get("returnTo")),
+  }
 }
 
 function poseLabel(pose: RobotPose) {
@@ -32,25 +85,40 @@ export function RobotPoseStudio() {
   const [editingRobotId, setEditingRobotId] = useState<string | null>(null)
   const [active, setActive] = useState<{ view: "front" | "side"; handle: PoseHandleId } | null>(null)
   const [sideView, setSideView] = useState<"side" | "side-right">("side")
+  const [returnTo, setReturnTo] = useState("/?tab=robot")
+  const [navigationMode, setNavigationMode] = useState<"draft" | "query">("draft")
 
   useEffect(() => {
     const raw = loadRobotPoseStudioDraft()
-    if (!raw) {
-      navigateRobot()
+    if (raw) {
+      try {
+        const draft = JSON.parse(raw) as RobotPoseStudioDraft
+        const normalized = normalizeRobotConfig(draft.config)
+        const poseState = normalizePoseState(normalized.pose, normalized.poseState)
+        const next = { ...normalized, poseState: { ...poseState, mode: "custom" as const } }
+        setConfig(next)
+        setSideView(normalized.view === "side-right" ? "side-right" : "side")
+        setOriginalConfig(draft.originalConfig ? normalizeRobotConfig(draft.originalConfig) : normalized)
+        setEditingRobotId(draft.editingRobotId ?? null)
+        setNavigationMode("draft")
+        setReturnTo("/?tab=robot")
+        return
+      } catch {
+        clearRobotPoseStudioDraft()
+      }
+    }
+
+    const queryConfig = readConfigFromSearch()
+    if (queryConfig) {
+      setConfig(queryConfig.config)
+      setOriginalConfig(queryConfig.originalConfig)
+      setSideView(queryConfig.config.view === "side-right" ? "side-right" : "side")
+      setNavigationMode("query")
+      setReturnTo(queryConfig.returnTo)
       return
     }
-    try {
-      const draft = JSON.parse(raw) as RobotPoseStudioDraft
-      const normalized = normalizeRobotConfig(draft.config)
-      const poseState = normalizePoseState(normalized.pose, normalized.poseState)
-      const next = { ...normalized, poseState: { ...poseState, mode: "custom" as const } }
-      setConfig(next)
-      setSideView(normalized.view === "side-right" ? "side-right" : "side")
-      setOriginalConfig(draft.originalConfig ? normalizeRobotConfig(draft.originalConfig) : normalized)
-      setEditingRobotId(draft.editingRobotId ?? null)
-    } catch {
-      navigateRobot()
-    }
+
+    navigateTo("/?tab=robot")
   }, [])
 
   const customItemDocument = useMemo(() => {
@@ -95,12 +163,18 @@ export function RobotPoseStudio() {
   }
 
   function returnWith(nextConfig: RobotConfig, source: "pose-studio" | "pose-studio-cancel") {
-    window.sessionStorage.setItem(
-      ROBOT_DRAFT_KEY,
-      JSON.stringify({ id: editingRobotId, config: nextConfig, source }),
-    )
+    if (navigationMode === "draft") {
+      window.sessionStorage.setItem(
+        ROBOT_DRAFT_KEY,
+        JSON.stringify({ id: editingRobotId, config: nextConfig, source }),
+      )
+      clearRobotPoseStudioDraft()
+      navigateTo("/?tab=robot")
+      return
+    }
+
     clearRobotPoseStudioDraft()
-    navigateRobot()
+    navigateTo(buildRobotReturnUrl(nextConfig, returnTo))
   }
 
   return (

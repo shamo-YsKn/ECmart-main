@@ -23,17 +23,17 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
   const requestHeaders = await headers()
   const userAgent = requestHeaders.get("user-agent") || ""
   const secChUaMobile = requestHeaders.get("sec-ch-ua-mobile") || ""
-
-  // The mobile site intentionally does not depend on React hydration. This is
-  // the compatibility path for phones whose browser can render HTML/CSS but
-  // cannot bootstrap the current React/Next client runtime reliably.
-  if (isCompatRequested(params) || isMobileUserAgent(userAgent, secChUaMobile)) {
-    return <MobileSite params={params} />
-  }
-
   const requested = Array.isArray(params.tab) ? params.tab[0] : params.tab
   const initialTab: TabKey = requested && VALID_TABS.has(requested) ? requested as TabKey : "home"
   const requestedAuth = Array.isArray(params.auth) ? params.auth[0] : params.auth
   const initialAuthMode = requestedAuth === "signup" ? "signUp" : "signIn"
+
+  // Mobile is usually routed to the compatibility site. The pose studio is the
+  // exception: it needs the hydrated client runtime so touch dragging works on
+  // phones/tablets as well.
+  if ((isCompatRequested(params) || isMobileUserAgent(userAgent, secChUaMobile)) && initialTab !== "pose") {
+    return <MobileSite params={params} />
+  }
+
   return <SiteClient initialTab={initialTab} initialAuthMode={initialAuthMode} />
 }

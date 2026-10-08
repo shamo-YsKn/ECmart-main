@@ -8,7 +8,7 @@
     "start": "next start -H 0.0.0.0",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "dev:network": "next dev -H 0.0.0.0 -p 3000",
+    "dev:network": "next dev --webpack -H 0.0.0.0 -p 3000",
     "start:network": "next start -H 0.0.0.0 -p 3000",
     "dev:network:webpack": "next dev --webpack -H 0.0.0.0 -p 3000",
     "validate:foundation": "node scripts/validate-foundation.mjs",
@@ -37,7 +37,8 @@
     "validate:price-calibration": "node scripts/validate-price-calibration.mjs",
     "validate:idea-assistant": "node scripts/validate-robot-idea-assistant.mjs",
     "validate:item-idea-assistant": "node scripts/validate-custom-item-idea-assistant.mjs",
-    "validate:external-ai": "node scripts/validate-external-ai-assistant.mjs"
+    "validate:external-ai": "node scripts/validate-external-ai-assistant.mjs",
+    "network:doctor": "node scripts/network-doctor.mjs"
   },
   "dependencies": {
     "@react-three/fiber": "9.6.1",

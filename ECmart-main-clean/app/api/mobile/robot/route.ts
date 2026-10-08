@@ -2,6 +2,15 @@ import { NextResponse } from "next/server"
 import { sanitizeReturnTo, saveMobileRobot } from "@/lib/mobile-server"
 import { normalizeRobotConfig } from "@/lib/robot-config"
 
+function parseJsonField(value: FormDataEntryValue | null) {
+  if (typeof value !== "string" || !value) return undefined
+  try {
+    return JSON.parse(value) as unknown
+  } catch {
+    return undefined
+  }
+}
+
 export async function POST(request: Request) {
   const form = await request.formData()
   const returnTo = sanitizeReturnTo(form.get("returnTo"))
@@ -14,6 +23,7 @@ export async function POST(request: Request) {
     bodyColor: form.get("bodyColor"),
     accentColor: form.get("accentColor"),
     name: form.get("name"),
+    poseState: parseJsonField(form.get("poseState")),
   })
   const ok = await saveMobileRobot(config)
   const url = new URL(returnTo, request.url)
