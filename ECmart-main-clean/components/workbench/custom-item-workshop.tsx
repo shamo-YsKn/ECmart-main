@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import { useAccount } from "@/lib/account-context"
 import type { CustomItemDocument, CustomItemPartPlacement, CustomItemView, WorkbenchPartType } from "@/lib/creation-model"
+import type { RobotConfig } from "@/lib/types"
+import { normalizeRobotConfig } from "@/lib/robot-config"
 import {
   CUSTOM_ITEM_DRAFT_KEY,
   CUSTOM_ITEM_EQUIP_DRAFT_KEY,
@@ -113,6 +115,7 @@ export function CustomItemWorkshop() {
   const [isMobileEditor, setIsMobileEditor] = useState(false)
   const [mobilePanel, setMobilePanel] = useState<"parts" | "adjust">("parts")
   const [mobileContext, setMobileContext] = useState<MobileWorkbenchContext>({ loaded: false, loggedIn: false, storageReady: false, rewardIds: [] })
+  const [returnRobotConfig, setReturnRobotConfig] = useState<RobotConfig | null>(null)
   const unlockedRewardIds = useMemo(() => new Set([
     ...account.gachaInventory.map((entry) => entry.rewardId),
     ...mobileContext.rewardIds,
@@ -168,17 +171,20 @@ export function CustomItemWorkshop() {
     if (!raw) return
     window.sessionStorage.removeItem(CUSTOM_ITEM_DRAFT_KEY)
     try {
-      const parsed = JSON.parse(raw) as { id?: string; document?: unknown; source?: string }
+      const parsed = JSON.parse(raw) as { id?: string; document?: unknown; source?: string; returnRobotConfig?: unknown }
       if (!parsed.document) return
       const next = normalizeCustomItemDocument(parsed.document)
       setDocument(next)
       setEditingItemId(parsed.id ?? null)
+      setReturnRobotConfig(parsed.returnRobotConfig ? normalizeRobotConfig(parsed.returnRobotConfig) : null)
       setSelectedId(next.parts.at(-1)?.instanceId ?? null)
       setNotice({
         type: "success",
         text: parsed.source === "idea-assistant"
           ? "文章から提案した部品構成を工作台に読み込みました。自由に修正して保存できます。"
-          : "保存したアイテムを工作台に読み込みました。",
+          : parsed.source === "mobile-robot"
+            ? "現在のロボット設定を引き継ぎました。工作後に保存して「ロボットに持たせる」を押すと、自由ポーズも保持したまま戻れます。"
+            : "保存したアイテムを工作台に読み込みました。",
       })
     } catch {
       setNotice({ type: "error", text: "保存したアイテムの読み込みに失敗しました。" })
@@ -357,6 +363,7 @@ export function CustomItemWorkshop() {
     if (document.parts.length > 0 && !window.confirm("工作台を空にして、新しいアイテムを作りますか？")) return
     setDocument(createEmptyCustomItemDocument())
     setEditingItemId(null)
+    setReturnRobotConfig(null)
     setSelectedId(null)
     setSnapCandidate(null)
     setView("front")
@@ -384,8 +391,17 @@ export function CustomItemWorkshop() {
       return
     }
     if (isMobileEditor) {
+      const base = returnRobotConfig ?? normalizeRobotConfig({ item: "none" })
       const url = new URL("/?tab=robot", window.location.origin)
+      url.searchParams.set("base", base.base)
+      url.searchParams.set("view", base.view)
+      url.searchParams.set("pose", base.pose)
       url.searchParams.set("item", "none")
+      url.searchParams.set("size", String(base.size))
+      url.searchParams.set("bodyColor", base.bodyColor)
+      url.searchParams.set("accentColor", base.accentColor)
+      url.searchParams.set("name", base.name)
+      if (base.poseState?.mode === "custom") url.searchParams.set("poseState", JSON.stringify(base.poseState))
       url.searchParams.set("heldItem", JSON.stringify({
         kind: "custom",
         customItemId: editingItemId,

@@ -490,3 +490,13 @@ HTTP確認は、ローカルのテスト用API応答を接続したNext.jsで行
 - 投稿ロボットからレビューへのアンカー移動を追加。
 - スマホロボット工房へPC版と同じ参考価格・自作アイテム価格内訳を追加。
 - 専用検証 8/8 PASS。既存のスマホ工作、価格、ゲスト、AI、壁画系回帰もPASS。
+
+## 2026-10-14 Mobile external-device cart/workshop fixes
+- Mobile cart mutations now use native POST instead of depending on mobile Ajax/fetch.
+- Cart redirect is relative so LAN IP/host is preserved.
+- AI proposal -> mobile workbench staging is excluded from Ajax so the sessionStorage bridge script executes.
+- Robot proposal/current RobotConfig is carried into the mobile workbench and restored when equipping a saved custom item.
+- Mobile pose studio now prefers explicit URL RobotConfig/poseState over stale sessionStorage drafts.
+- Dedicated mobile external-device validator: 11/11 PASS.
+- Existing mobile workbench 11/11, mobile mural/price 8/8, pose runtime, idea assistant, price, guest, and external AI regressions PASS.
+- TS/TSX syntax scan: 95 files, 0 syntax errors.

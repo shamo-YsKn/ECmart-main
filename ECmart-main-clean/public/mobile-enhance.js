@@ -185,6 +185,11 @@
     var action = sameOriginUrl(form.action || window.location.href);
     if (!action) return;
 
+    // These routes intentionally return a browser-navigation response (or
+    // mutate a cookie). Let the native form submission handle them so mobile
+    // Safari/LAN browsers do not depend on fetch for critical actions.
+    if (action.pathname === "/api/mobile/cart" || action.pathname === "/api/mobile/workbench-draft") return;
+
     event.preventDefault();
     submitForm(form, event.submitter || null);
   }, false);

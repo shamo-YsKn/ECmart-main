@@ -1,4 +1,5 @@
 import { normalizeCustomItemDocument, CUSTOM_ITEM_DRAFT_KEY } from "@/lib/custom-item-model"
+import { normalizeRobotConfig } from "@/lib/robot-config"
 
 function htmlEscapeJson(value: string) {
   return value
@@ -9,17 +10,30 @@ function htmlEscapeJson(value: string) {
     .replace(/\u2029/g, "\\u2029")
 }
 
+function parseJson(value: FormDataEntryValue | null) {
+  if (typeof value !== "string" || !value) return undefined
+  try { return JSON.parse(value) as unknown } catch { return undefined }
+}
+
 export async function POST(request: Request) {
   const form = await request.formData()
   const raw = form.get("document")
   const itemId = typeof form.get("itemId") === "string" ? String(form.get("itemId")).slice(0, 120) : undefined
-  const source = form.get("source") === "idea-assistant" ? "idea-assistant" : "mobile-account"
-  let parsed: unknown = null
-  if (typeof raw === "string") {
-    try { parsed = JSON.parse(raw) } catch { parsed = null }
-  }
-  const document = normalizeCustomItemDocument(parsed)
-  const payload = htmlEscapeJson(JSON.stringify({ id: itemId || undefined, document, source }))
+  const sourceRaw = form.get("source")
+  const source = sourceRaw === "idea-assistant"
+    ? "idea-assistant"
+    : sourceRaw === "mobile-robot"
+      ? "mobile-robot"
+      : "mobile-account"
+  const document = normalizeCustomItemDocument(parseJson(raw))
+  const robotConfigRaw = parseJson(form.get("robotConfig"))
+  const returnRobotConfig = robotConfigRaw ? normalizeRobotConfig(robotConfigRaw) : undefined
+  const payload = htmlEscapeJson(JSON.stringify({
+    id: itemId || undefined,
+    document,
+    source,
+    ...(returnRobotConfig ? { returnRobotConfig } : {}),
+  }))
   const key = JSON.stringify(CUSTOM_ITEM_DRAFT_KEY)
   const target = JSON.stringify("/?tab=workbench&mobile=1")
 

@@ -89,6 +89,20 @@ export function RobotPoseStudio() {
   const [navigationMode, setNavigationMode] = useState<"draft" | "query">("draft")
 
   useEffect(() => {
+    // Explicit query data comes from the mobile workshop. Prefer it over any
+    // stale sessionStorage draft so a previous edit cannot appear to reset the
+    // pose the user just sent from the phone. Desktop navigation normally has
+    // only ?tab=pose, so it still falls through to the draft path below.
+    const queryConfig = readConfigFromSearch()
+    if (queryConfig) {
+      setConfig(queryConfig.config)
+      setOriginalConfig(queryConfig.originalConfig)
+      setSideView(queryConfig.config.view === "side-right" ? "side-right" : "side")
+      setNavigationMode("query")
+      setReturnTo(queryConfig.returnTo)
+      return
+    }
+
     const raw = loadRobotPoseStudioDraft()
     if (raw) {
       try {
@@ -106,16 +120,6 @@ export function RobotPoseStudio() {
       } catch {
         clearRobotPoseStudioDraft()
       }
-    }
-
-    const queryConfig = readConfigFromSearch()
-    if (queryConfig) {
-      setConfig(queryConfig.config)
-      setOriginalConfig(queryConfig.originalConfig)
-      setSideView(queryConfig.config.view === "side-right" ? "side-right" : "side")
-      setNavigationMode("query")
-      setReturnTo(queryConfig.returnTo)
-      return
     }
 
     navigateTo("/?tab=robot")

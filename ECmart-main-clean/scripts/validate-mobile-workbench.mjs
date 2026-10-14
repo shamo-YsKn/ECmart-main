@@ -21,7 +21,8 @@ check("mobile workbench uses hydrated client route", () => {
 })
 check("mobile robot workshop exposes item workbench", () => {
   assert.match(mobileSite, /アイテム工作台を開く/)
-  assert.match(mobileSite, /tab=workbench&mobile=1/)
+  assert.match(mobileSite, /api\/mobile\/workbench-draft/)
+  assert.match(mobileSite, /value="mobile-robot"/)
 })
 check("touch canvas uses pointer events and touch-none", () => {
   assert.match(workshop, /onPointerMove=\{moveDrag\}/)
